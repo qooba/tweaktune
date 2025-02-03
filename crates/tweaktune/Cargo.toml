@@ -15,4 +15,4 @@ async-trait = { workspace = true }
 opendal = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
-tweaktune-abstractions= { path = "../tweaktune-abstractions" }
+tweaktune-abstractions = { workspace = true }

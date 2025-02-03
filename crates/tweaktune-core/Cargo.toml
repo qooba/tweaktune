@@ -15,7 +15,7 @@ base64 = { workspace = true }
 hf-hub = { workspace = true }
 once_cell = { workspace = true }
 opendal = { workspace = true }
-tweaktune-abstractions= { path = "../tweaktune-abstractions" }
+tweaktune-abstractions= { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 reqwest = { workspace = true }

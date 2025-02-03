@@ -5,14 +5,14 @@ help: ## This help.
 
 
 pyo3-develop: ## Test musl
-	cd ./crates/tweaktune-py && \
+	cd ./tweaktune-python && \
     maturin develop --release --uv
 
 # https://github.com/PyO3/maturin/issues/2038 
 # You can already do that by passing --compatibility linux or --skip-auditwheel
 
 pyo3-build: ## Test musl
-	cd ./crates/tweaktune-py && \
+	cd ./tweaktune-python && \
     maturin build --release --compatibility manylinux2014  --skip-auditwheel
 
 

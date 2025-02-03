@@ -1,0 +1,22 @@
+[package]
+name = "tweaktune-pyo3"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+
+#[build]
+#rustflags = ["-C", "target-cpu=native"]
+
+[dependencies]
+anyhow = { workspace = true }
+arrow = { workspace = true }
+minijinja = { workspace = true}
+tweaktune-abstractions= { workspace = true}
+tweaktune-core= { workspace = true }
+pyo3 = { workspace = true}
+# pyo3-async = { version = "0.3.2" }
+tokio = { workspace = true }
