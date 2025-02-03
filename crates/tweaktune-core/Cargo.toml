@@ -1,0 +1,32 @@
+[package]
+name = "tweaktune-core"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+hf-hub = { workspace = true }
+once_cell = { workspace = true }
+opendal = { workspace = true }
+tweaktune-abstractions= { path = "../tweaktune-abstractions" }
+rand = { workspace = true }
+regex = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+url = { workspace = true }
+
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,136 @@
+extern crate tweaktune_core;
+use arrow::array::{Array, ArrayRef, Int32Array, Int64Array, StringArray};
+use arrow::datatypes::{DataType, Field, Schema};
+use arrow::ipc::reader::StreamReader;
+use arrow::ipc::writer::StreamWriter;
+use arrow::record_batch::RecordBatch;
+use minijinja::{context, Environment};
+use pyo3::prelude::*;
+use pyo3::types::PyBytes;
+use std::collections::HashMap;
+use std::io::Cursor;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
+use tweaktune_abstractions::EntityValue;
+use tweaktune_core::readers::JsonlReader;
+
+#[pyclass]
+#[derive(Debug)]
+pub enum Lang {
+    Deu,
+    Eng,
+    Fra,
+}
+
+#[pyclass]
+pub struct StepConfig {
+    #[pyo3(get, set)]
+    pub name: String,
+}
+
+#[pymethods]
+impl StepConfig {
+    #[new]
+    pub fn new(name: String) -> Self {
+        StepConfig { name }
+    }
+}
+
+#[pyclass]
+pub struct Step {
+    name: String,
+}
+
+#[pymethods]
+impl Step {
+    #[new]
+    pub fn new(config: PyRef<StepConfig>) -> PyResult<Self> {
+        let name = config.name.clone();
+        Ok(Step { name })
+    }
+
+    pub fn embed(&self, input: String, lang: PyRef<Lang>) -> PyResult<String> {
+        let l = format!("{:?}", lang);
+        Ok(input + &self.name + &l)
+    }
+
+    pub fn persona(&self, input: Vec<HashMap<String, String>>) -> PyResult<String> {
+        println!("{:?}", input);
+        Ok(self.name.to_string())
+    }
+
+    pub fn template(
+        &self,
+        name: String,
+        template: String,
+        input: HashMap<String, String>,
+    ) -> PyResult<String> {
+        let mut env = Environment::new();
+        env.add_template(&name, &template).unwrap();
+        let tmpl = env.get_template(&name).unwrap();
+        let vvv = tmpl.render(input).unwrap();
+
+        Ok(vvv)
+    }
+
+    pub fn create_arrow_buffer(&self, py: Python) -> PyObject {
+        let arrow = Int32Array::from(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+        let arrow1 = StringArray::from(vec!["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]);
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Int32, false),
+            Field::new("b", DataType::Utf8, false),
+        ]);
+
+        let batch = RecordBatch::try_new(
+            schema.clone().into(),
+            vec![Arc::new(arrow), Arc::new(arrow1)],
+        )
+        .unwrap();
+
+        let mut buffer = Vec::new();
+        let mut writer = StreamWriter::try_new(&mut buffer, &schema).unwrap();
+        writer.write(&batch).unwrap();
+        writer.finish().unwrap();
+
+        PyBytes::new(py, &buffer).into()
+    }
+
+    pub fn read_pyarrow(&self, py: Python, buffer: Py<PyBytes>) -> PyResult<Vec<i64>> {
+        let buffer = Cursor::new(buffer.as_bytes(py));
+
+        let mut reader = StreamReader::try_new(buffer, None).unwrap();
+        let batch = reader.next().unwrap().unwrap();
+
+        println!("{:?}", batch.schema());
+
+        let array = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap();
+        let data = array.values().to_vec();
+
+        Ok(data)
+    }
+}
+
+#[pyclass]
+pub struct Jsonl {
+    reader: JsonlReader,
+}
+
+#[pymethods]
+impl Jsonl {
+    #[new]
+    pub fn new(path: String) -> PyResult<Self> {
+        Ok(Jsonl {
+            reader: JsonlReader { path },
+        })
+    }
+
+    pub fn load(&self) -> PyResult<Vec<String>> {
+        let data = Runtime::new().unwrap().block_on(self.reader.load())?;
+        Ok(data)
+    }
+}

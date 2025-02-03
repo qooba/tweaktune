@@ -1,0 +1,18 @@
+[package]
+name = "tweaktune"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+
+[dependencies]
+actix = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+opendal = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tweaktune-abstractions= { path = "../tweaktune-abstractions" }
