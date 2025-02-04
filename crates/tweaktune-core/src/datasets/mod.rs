@@ -1,5 +1,6 @@
 use anyhow::Result;
-use arrow::json::reader::{infer_json_schema, ReaderBuilder};
+use arrow::csv::reader::{infer_schema_from_files, ReaderBuilder as CsvReaderBuilder};
+use arrow::json::reader::{infer_json_schema, ReaderBuilder as JsonReaderBuilder};
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use std::fs::File;
@@ -33,7 +34,7 @@ impl Dataset for JsonlDataset {
 
         let file = File::open(&self.path)?;
         let buf_reader = std::io::BufReader::new(file);
-        let reader = ReaderBuilder::new(Arc::new(inferred_schema)).build(buf_reader)?;
+        let reader = JsonReaderBuilder::new(Arc::new(inferred_schema)).build(buf_reader)?;
 
         let mut batches = Vec::new();
         for batch in reader {
@@ -49,7 +50,55 @@ impl Dataset for JsonlDataset {
 
         let file = File::open(&self.path)?;
         let buf_reader = std::io::BufReader::new(file);
-        let mut reader = ReaderBuilder::new(Arc::new(inferred_schema)).build(buf_reader)?;
+        let mut reader = JsonReaderBuilder::new(Arc::new(inferred_schema)).build(buf_reader)?;
+        match reader.next() {
+            Some(Ok(batch)) => Ok(Some(batch)),
+            Some(Err(e)) => Err(e.into()),
+            None => Ok(None),
+        }
+    }
+}
+
+pub struct CsvDataset {
+    path: String,
+    delimiter: u8,
+    has_header: bool,
+}
+
+impl CsvDataset {
+    pub fn new(path: impl Into<String>, delimiter: u8, has_header: bool) -> Self {
+        Self {
+            path: path.into(),
+            delimiter,
+            has_header,
+        }
+    }
+}
+
+impl Dataset for CsvDataset {
+    fn read_all(&self) -> Result<Vec<RecordBatch>> {
+        let inferred_schema =
+            infer_schema_from_files(&[self.path.clone()], self.delimiter, None, self.has_header)?;
+
+        let file = File::open(&self.path)?;
+        let buf_reader = std::io::BufReader::new(file);
+        let reader = CsvReaderBuilder::new(Arc::new(inferred_schema)).build(buf_reader)?;
+
+        let mut batches = Vec::new();
+        for batch in reader {
+            batches.push(batch?);
+        }
+        Ok(batches)
+    }
+
+    fn read_next(&self) -> Result<Option<RecordBatch>> {
+        let inferred_schema =
+            infer_schema_from_files(&[self.path.clone()], self.delimiter, None, self.has_header)?;
+
+        let file = File::open(&self.path)?;
+        let buf_reader = std::io::BufReader::new(file);
+        let mut reader = CsvReaderBuilder::new(Arc::new(inferred_schema)).build(buf_reader)?;
+
         match reader.next() {
             Some(Ok(batch)) => Ok(Some(batch)),
             Some(Err(e)) => Err(e.into()),

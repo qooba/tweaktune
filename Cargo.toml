@@ -30,7 +30,7 @@ actix-session = { version = "0.10.1", features = ["cookie-session"] }
 actix-telepathy = "0.6.1"
 actix-web = { version = "4", features = ["rustls"]  }
 anyhow = { version = "1.0.89", features = ["backtrace"] }
-arrow = { version = "54.1.0" , features=["json", "pyarrow"]}
+arrow = { version = "54.1.0" , features=["json", "pyarrow", "csv"]}
 arrow-array = "51.0"
 async-stream = "0.3.3"
 async-trait = "0.1.83"
@@ -89,6 +89,7 @@ schemars = "0.8.21"
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
 serde_yaml = "0.9"
+serde_arrow = { version="0.12.3", feature=["arrow-54"] }
 tar = "0.4"
 toml = "0.8.19"
 # tauri = { version = "1", features = ["shell-open", "http-all"] }

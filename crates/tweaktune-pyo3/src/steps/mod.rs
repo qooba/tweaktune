@@ -14,7 +14,7 @@ use std::io::Cursor;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tweaktune_abstractions::EntityValue;
-use tweaktune_core::datasets::{Dataset, JsonlDataset};
+use tweaktune_core::datasets::{CsvDataset, Dataset, JsonlDataset, ParquetDataset};
 use tweaktune_core::readers::JsonlReader;
 
 #[pyclass]
@@ -132,6 +132,9 @@ impl Step {
         )
         .unwrap();
 
+        let items: Vec<serde_json::Value> = serde_arrow::from_record_batch(&batch).unwrap();
+        println!("{:?}", items);
+
         PyArrowType(vec![batch])
     }
 
@@ -206,6 +209,46 @@ impl Jsonl {
 
     pub fn load(&self) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
         // let data = Runtime::new().unwrap().block_on(self.dataset.read_all())?;
+        let data = self.dataset.read_all().unwrap();
+        Ok(PyArrowType(data))
+    }
+}
+
+#[pyclass]
+pub struct Csv {
+    dataset: CsvDataset,
+}
+
+#[pymethods]
+impl Csv {
+    #[new]
+    pub fn new(path: String, delimiter: String, has_header: bool) -> PyResult<Self> {
+        Ok(Csv {
+            dataset: CsvDataset::new(path, delimiter.as_bytes()[0], has_header),
+        })
+    }
+
+    pub fn load(&self) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
+        let data = self.dataset.read_all().unwrap();
+        Ok(PyArrowType(data))
+    }
+}
+
+#[pyclass]
+pub struct Parquet {
+    dataset: ParquetDataset,
+}
+
+#[pymethods]
+impl Parquet {
+    #[new]
+    pub fn new(path: String) -> PyResult<Self> {
+        Ok(Parquet {
+            dataset: ParquetDataset::new(path),
+        })
+    }
+
+    pub fn load(&self) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
         let data = self.dataset.read_all().unwrap();
         Ok(PyArrowType(data))
     }
