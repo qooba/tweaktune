@@ -1,7 +1,10 @@
 use anyhow::Result;
 use arrow::json::reader::{infer_json_schema, ReaderBuilder};
 use arrow::record_batch::RecordBatch;
+use parquet::arrow::arrow_reader::ParquetFileArrowReader;
+use parquet::file::reader::{FileReader, SerializedFileReader};
 use std::fs::File;
+use std::io::Cursor;
 use std::sync::Arc;
 
 pub trait Dataset {
@@ -53,6 +56,46 @@ impl Dataset for JsonlDataset {
         let buf_reader = std::io::BufReader::new(file);
         let mut reader = ReaderBuilder::new(Arc::new(inferred_schema)).build(buf_reader)?;
         match reader.next() {
+            Some(Ok(batch)) => Ok(Some(batch)),
+            Some(Err(e)) => Err(e.into()),
+            None => Ok(None),
+        }
+    }
+}
+
+pub struct ParquetDataset {
+    path: String,
+}
+
+impl ParquetDataset {
+    pub fn new(path: impl Into<String>) -> Self {
+        Self { path: path.into() }
+    }
+}
+
+impl Dataset for ParquetDataset {
+    fn read_all(&self) -> Result<Vec<RecordBatch>> {
+        // Open file to create reader.
+        let file = File::open(&self.path)?;
+        let reader = SerializedFileReader::new(file)?;
+        let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(reader));
+
+        // Collect all record batches.
+        let record_batch_reader = arrow_reader.get_record_reader(2048)?;
+        record_batch_reader
+            .map(|batch| batch.map_err(anyhow::Error::from))
+            .collect()
+    }
+
+    fn read_next(&self) -> Result<Option<RecordBatch>> {
+        // Open file to create reader.
+        let file = File::open(&self.path)?;
+        let reader = SerializedFileReader::new(file)?;
+        let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(reader));
+
+        // Read the next record batch.
+        let mut record_batch_reader = arrow_reader.get_record_reader(2048)?;
+        match record_batch_reader.next() {
             Some(Ok(batch)) => Ok(Some(batch)),
             Some(Err(e)) => Err(e.into()),
             None => Ok(None),
