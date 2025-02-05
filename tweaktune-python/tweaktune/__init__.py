@@ -1,5 +1,5 @@
 import pyarrow as pa
-from .tweaktune import Step, StepConfig, Jsonl, Parquet, Csv, Lang
+from .tweaktune import Step, StepConfig, Jsonl, Parquet, Csv, Arrow, Lang
 
 def hello():
     return "Hello, World!"

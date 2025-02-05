@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use tweaktune_pyo3::steps::{Csv, Jsonl, Lang, Parquet, Step, StepConfig};
+use tweaktune_pyo3::steps::{Arrow, Csv, Jsonl, Lang, Parquet, Step, StepConfig};
 
 #[pymodule]
 #[pyo3(name = "tweaktune")]
@@ -15,6 +15,7 @@ fn tweaktune(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Jsonl>()?;
     m.add_class::<Parquet>()?;
     m.add_class::<Csv>()?;
+    m.add_class::<Arrow>()?;
     m.add_class::<Lang>()?;
 
     // let llms_module = PyModule::new_bound(py, "llms")?;
