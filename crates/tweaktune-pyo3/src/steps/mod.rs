@@ -1,21 +1,17 @@
-use arrow::array::{Array, ArrayData, ArrayRef, Int32Array, Int64Array, StringArray};
+use arrow::array::{Array, ArrayData, Int32Array, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ffi_stream::ArrowArrayStreamReader;
 use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use arrow::pyarrow::PyArrowType;
 use arrow::record_batch::RecordBatch;
-use minijinja::{context, Environment};
-use pyo3::ffi::PyThreadState;
+use minijinja::Environment;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tweaktune_abstractions::EntityValue;
-use tweaktune_core::datasets::{ArrowDataset, CsvDataset, Dataset, JsonlDataset, ParquetDataset};
-use tweaktune_core::readers::JsonlReader;
 
 #[pyclass]
 #[derive(Debug)]
@@ -190,91 +186,27 @@ impl Step {
         let data = array.values().to_vec();
         Ok("".to_string())
     }
-}
 
-#[pyclass]
-pub struct Jsonl {
-    // reader: JsonlReader,
-    dataset: JsonlDataset,
-}
+    pub fn call_user_function(&self, py_func: PyObject) -> PyResult<PyArrowType<RecordBatch>> {
+        let arrow = Int32Array::from(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 
-#[pymethods]
-impl Jsonl {
-    #[new]
-    pub fn new(name: String, path: String) -> PyResult<Self> {
-        Ok(Jsonl {
-            dataset: JsonlDataset::new(name, path),
+        let arrow1 = StringArray::from(vec!["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]);
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Int32, false),
+            Field::new("b", DataType::Utf8, false),
+        ]);
+
+        let batch = RecordBatch::try_new(
+            schema.clone().into(),
+            vec![Arc::new(arrow), Arc::new(arrow1)],
+        )
+        .unwrap();
+
+        Python::with_gil(|py| {
+            let result: PyArrowType<RecordBatch> = py_func
+                .call_method1(py, "process", (PyArrowType(batch),))?
+                .extract(py)?;
+            Ok(result)
         })
-    }
-
-    pub fn load(&self) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
-        // let data = Runtime::new().unwrap().block_on(self.dataset.read_all())?;
-        let data = self.dataset.read_all().unwrap();
-        Ok(PyArrowType(data))
-    }
-}
-
-#[pyclass]
-pub struct Csv {
-    dataset: CsvDataset,
-}
-
-#[pymethods]
-impl Csv {
-    #[new]
-    pub fn new(name: String, path: String, delimiter: String, has_header: bool) -> PyResult<Self> {
-        Ok(Csv {
-            dataset: CsvDataset::new(name, path, delimiter.as_bytes()[0], has_header),
-        })
-    }
-
-    pub fn load(&self) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
-        let data = self.dataset.read_all().unwrap();
-        Ok(PyArrowType(data))
-    }
-}
-
-#[pyclass]
-pub struct Parquet {
-    dataset: ParquetDataset,
-}
-
-#[pymethods]
-impl Parquet {
-    #[new]
-    pub fn new(name: String, path: String) -> PyResult<Self> {
-        Ok(Parquet {
-            dataset: ParquetDataset::new(name, path),
-        })
-    }
-
-    pub fn load(&self) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
-        let data = self.dataset.read_all().unwrap();
-        Ok(PyArrowType(data))
-    }
-}
-
-#[pyclass]
-pub struct Arrow {
-    dataset: ArrowDataset,
-}
-
-#[pymethods]
-impl Arrow {
-    #[new]
-    pub fn new(name: String, mut reader: PyArrowType<ArrowArrayStreamReader>) -> PyResult<Self> {
-        let mut batches = Vec::new();
-        for batch in reader.0.by_ref() {
-            batches.push(batch.unwrap());
-        }
-
-        Ok(Arrow {
-            dataset: ArrowDataset::new(name, batches),
-        })
-    }
-
-    pub fn load(&self) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
-        let data = self.dataset.read_all().unwrap();
-        Ok(PyArrowType(data))
     }
 }

@@ -12,8 +12,10 @@ pub trait Dataset {
 }
 
 pub enum DatasetType {
-    Jsonl,
-    A(Vec<RecordBatch>),
+    Jsonl(JsonlDataset),
+    Csv(CsvDataset),
+    Parquet(ParquetDataset),
+    Arrow(ArrowDataset),
 }
 
 pub struct JsonlDataset {

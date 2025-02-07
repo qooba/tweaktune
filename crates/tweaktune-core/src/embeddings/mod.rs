@@ -1,21 +1,21 @@
 use anyhow::Result;
 
-pub trait LLM {
+pub trait Embeddings {
     fn load(&self) -> Result<()>;
 }
 
-pub enum LLMType {
-    OpenAI(OpenAILLM),
+pub enum EmbeddingsType {
+    OpenAI(OpenAIEmbeddings),
 }
 
-pub struct OpenAILLM {
+pub struct OpenAIEmbeddings {
     pub name: String,
     pub base_url: String,
     pub api_key: String,
     pub model: String,
 }
 
-impl OpenAILLM {
+impl OpenAIEmbeddings {
     pub fn new(name: String, base_url: String, api_key: String, model: String) -> Self {
         Self {
             name,

@@ -1,38 +1,38 @@
-use minijinja::Environment;
+use std::{collections::HashMap, hash::Hash, sync::Arc};
 
-pub struct Templates<'a> {
-    environment: Environment<'a>,
+use minijinja::Environment;
+use std::sync::OnceLock;
+
+static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
+
+#[derive(Default)]
+pub struct Templates {
+    templates: HashMap<String, String>,
 }
 
-impl<'a> Templates<'a> {
-    pub fn new() -> Self {
-        let environment = Environment::new();
-        Self { environment }
-    }
-
-    pub fn add(&mut self, name: &'a str, template: &'a str) {
-        self.environment.add_template(name, template).unwrap();
+impl Templates {
+    pub fn add(&mut self, name: String, template: String) {
+        self.templates.insert(name, template);
     }
 
     pub fn list(&self) -> Vec<String> {
-        self.environment
-            .templates()
-            .map(|t| t.0.to_string())
-            .collect()
+        self.templates.keys().cloned().collect()
     }
 
     pub fn remove(&mut self, name: &str) {
-        self.environment.remove_template(name)
+        self.templates.remove(name);
     }
 
-    pub fn render(&self, name: &'a str, input: serde_json::Value) -> String {
-        let tmpl = self.environment.get_template(name).unwrap();
+    pub fn render(&self, name: String, input: serde_json::Value) -> String {
+        let environment = ENVIRONMENT.get_or_init(|| {
+            let mut e = Environment::new();
+            self.templates.clone().into_iter().for_each(|(k, v)| {
+                e.add_template_owned(k, v).unwrap();
+            });
+            e
+        });
+
+        let tmpl = environment.get_template(&name).unwrap();
         tmpl.render(input).unwrap()
-    }
-}
-
-impl Default for Templates<'_> {
-    fn default() -> Self {
-        Self::new()
     }
 }

@@ -1,5 +1,9 @@
 use pyo3::prelude::*;
-use tweaktune_pyo3::steps::{Arrow, Csv, Jsonl, Lang, Parquet, Step, StepConfig};
+use tweaktune_pyo3::{
+    datasets::{Arrow, Csv, Jsonl, Parquet},
+    pipeline::{Dataset, Embeddings, IterBy, PipelineBuilder, Template, LLM},
+    steps::{Lang, Step, StepConfig},
+};
 
 #[pymodule]
 #[pyo3(name = "tweaktune")]
@@ -17,6 +21,12 @@ fn tweaktune(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Csv>()?;
     m.add_class::<Arrow>()?;
     m.add_class::<Lang>()?;
+    m.add_class::<PipelineBuilder>()?;
+    m.add_class::<IterBy>()?;
+    m.add_class::<Dataset>()?;
+    m.add_class::<LLM>()?;
+    m.add_class::<Embeddings>()?;
+    m.add_class::<Template>()?;
 
     // let llms_module = PyModule::new_bound(py, "llms")?;
     // llms_module.add_class::<Quantized>()?;
