@@ -182,6 +182,35 @@ pub enum Embeddings {
 
 #[pyclass]
 #[derive(Debug)]
+pub enum Step {
+    Py {
+        name: String,
+        py_func: PyObject,
+    },
+    TextGeneration {
+        name: String,
+        template: String,
+        llm: String,
+    },
+    DataSampler {
+        name: String,
+        dataset: String,
+        size: usize,
+    },
+    Judge {
+        name: String,
+        llm: String,
+        dataset: String,
+    },
+    Validator {
+        name: String,
+        llm: String,
+        dataset: String,
+    },
+}
+
+#[pyclass]
+#[derive(Debug)]
 pub enum Dataset {
     Jsonl {
         name: String,

@@ -1,3 +1,4 @@
+use anyhow::Result;
 use arrow::array::{Array, ArrayData, Int32Array, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ffi_stream::ArrowArrayStreamReader;
@@ -12,6 +13,11 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
+use tweaktune_core::datasets::DatasetType;
+use tweaktune_core::embeddings::EmbeddingsType;
+use tweaktune_core::llms::LLMType;
+use tweaktune_core::steps::Step as CoreStep;
+use tweaktune_core::templates::Templates;
 
 #[pyclass]
 #[derive(Debug)]
@@ -208,5 +214,41 @@ impl Step {
                 .extract(py)?;
             Ok(result)
         })
+    }
+}
+
+#[pyclass]
+pub struct PyStep {
+    pub name: String,
+    pub py_func: PyObject,
+}
+
+#[pymethods]
+impl PyStep {
+    #[new]
+    pub fn new(name: String, py_func: PyObject) -> PyResult<Self> {
+        Ok(Self { name, py_func })
+    }
+}
+
+impl CoreStep for PyStep {
+    fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: Templates,
+        _llms: HashMap<String, LLMType>,
+        _embeddings: HashMap<String, EmbeddingsType>,
+        batch: RecordBatch,
+    ) -> Result<RecordBatch> {
+        let result_batch: PyResult<PyArrowType<RecordBatch>> = Python::with_gil(|py| {
+            let result: PyArrowType<RecordBatch> = self
+                .py_func
+                .call_method1(py, "process", (PyArrowType(batch),))?
+                .extract(py)?;
+            Ok(result)
+        });
+
+        let result_batch = result_batch?.0;
+        Ok(result_batch)
     }
 }

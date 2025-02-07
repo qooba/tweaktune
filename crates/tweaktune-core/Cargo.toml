@@ -22,6 +22,7 @@ rand = { workspace = true }
 regex = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
+serde_arrow = { workspace = true, features = ["arrow-54"]}
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 thiserror = { workspace = true }

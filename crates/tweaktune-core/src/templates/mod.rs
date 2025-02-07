@@ -23,7 +23,7 @@ impl Templates {
         self.templates.remove(name);
     }
 
-    pub fn render(&self, name: String, input: serde_json::Value) -> String {
+    pub fn render(&self, name: String, items: Vec<serde_json::Value>) -> String {
         let environment = ENVIRONMENT.get_or_init(|| {
             let mut e = Environment::new();
             self.templates.clone().into_iter().for_each(|(k, v)| {
@@ -33,6 +33,6 @@ impl Templates {
         });
 
         let tmpl = environment.get_template(&name).unwrap();
-        tmpl.render(input).unwrap()
+        tmpl.render(items).unwrap()
     }
 }
