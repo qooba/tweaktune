@@ -5,6 +5,7 @@ from .tweaktune import Step, Jsonl, Parquet, Csv, Arrow, Lang, PipelineBuilder, 
 from datasets.arrow_dataset import Dataset as ArrowDataset
 from pyarrow.lib import RecordBatchReader
 import json
+from typing import List, overload
 
 #def hello():
 #    return "Hello, World!"
@@ -65,12 +66,31 @@ class Pipeline:
             raise ValueError("Invalid dataset type")
         
         return self
-
-    def with_template(self, template: Template):
-        if template.__class__ == Template.Jinja:
-            self.builder.with_jinja_template(template.name, template.template)
+    
+    def with_jsonl_dataset(self, name: str, path: str):
+        self.builder.with_json_dataset(name, path)
+        return self
+    
+    def with_parquet_dataset(self, name: str, path: str):
+        self.builder.with_parquet_dataset(name, path)
+        return self
+    
+    def with_csv_dataset(self, name: str, path: str, delimiter: str, has_header: bool):
+        self.builder.with_csv_dataset(name, path, delimiter, has_header)
+        return self
+    
+    def with_arrow_dataset(self, name: str, dataset):
+        if type(dataset.dataset) is ArrowDataset:
+            self.builder.with_arrow_dataset(dataset.name, dataset.dataset.data.to_reader())
+        elif type(dataset.dataset) is RecordBatchReader:
+            self.builder.with_arrow_dataset(dataset.name, dataset.dataset)
         else:
-            raise ValueError("Invalid template type")
+            raise ValueError("Invalid dataset type")
+
+        return self
+
+    def with_template(self, name: str, template: str):
+        self.builder.with_jinja_template(name, template)
         return self
     
     def with_llm(self, llm: LLM):
@@ -79,6 +99,10 @@ class Pipeline:
         else:
             raise ValueError("Invalid LLM type")
         
+        return self
+    
+    def with_openai_llm(self, name: str, model: str, base_url: str, api_key: str):
+        self.builder.with_openai_llm(name, model, base_url, api_key)
         return self
 
     def with_embedings(self, embeddings: Embeddings):
@@ -89,14 +113,36 @@ class Pipeline:
         
         return self
     
-    def iter(self, iter_by: IterBy, workers: int = 1):
+    def with_workers(self, workers: int):
+        self.builder.with_workers(workers)
+        return self
+    
+    def iter(self, iter_by: IterBy):
         if iter_by.__class__ == IterBy.Range:
-            self.builder.iter_by_range(iter_by.range)
+            self.builder.iter_by_range(iter_by.start, iter_by.stop, iter_by.step)
         elif iter_by.__class__ == IterBy.Dataset:
             self.builder.iter_by_dataset(iter_by.name)
         else:
             raise ValueError("Invalid IterBy type")
         
+        return PipelineRunner(self.builder)
+    
+    def iter_range(self, *args, **kwargs):
+        start = kwargs.get('start', 0)
+        stop = kwargs.get('stop', 0)
+        step = kwargs.get('step', 1)
+
+        if len(args) == 1:
+            stop = args[0]
+        elif len(args) == 2:
+            start = args[0]
+            stop = args[1]
+        elif len(args) == 3:
+            start = args[0]
+            stop = args[1]
+            step = args[2]
+
+        self.builder.iter_by_range(start, stop, step)
         return PipelineRunner(self.builder)
    
 class PipelineRunner:
@@ -106,7 +152,7 @@ class PipelineRunner:
         self.builder = builder
         self.step_index = 0
 
-    def then(self, step: Step):
+    def __then(self, step: Step):
         if step.__class__ == Step.Py:
             self.builder.add_py_step(step.name, PyStepWrapper(step.py_func))
         elif step.__class__ == Step.TextGeneration:
@@ -122,35 +168,52 @@ class PipelineRunner:
         
         self.step_index += 1
         return self
+    
+    def __name(self, name: str):
+        return f"{name}--{self.step_index}"
 
     def step(self, step, name: str = "PY-STEP"):
-        self.builder.add_py_step(f"{name}--{self.step_index}", PyStepWrapper(step))
+        self.builder.add_py_step(self.__name(name), PyStepWrapper(step))
         self.step_index += 1
         return self
 
     def generate_text(self, template: str, llm: str, output: str, name: str = "GENERATE-TEXT"):
-        self.builder.add_text_generation_step(f"{name}--{self.step_index}", template, llm, output)
+        self.builder.add_text_generation_step(self.__name(name), template, llm, output)
         self.step_index += 1
         return self
     
     def sample(self, dataset: str, size: str, name: str = "SAMPLE"):
-        self.builder.add_data_sampler_step(f"{name}--{self.step_index}", dataset, size)
+        self.builder.add_data_sampler_step(self.__name(name), dataset, size)
         self.step_index += 1
         return self
     
     def judge(self, template: str, llm: str, name: str = "JUDGE"):
-        self.builder.add_judge_step(f"{name}--{self.step_index}", template, llm)
+        self.builder.add_judge_step(self.__name(name), template, llm)
         self.step_index += 1
         return self
     
     def validate(self, py_func, name: str = "VALIDATE"):
-        self.builder.add_py_validator_step(f"{name}--{self.step_index}", PyStepValidatorWrapper(py_func))
+        self.builder.add_py_validator_step(self.__name(name), PyStepValidatorWrapper(py_func))
         self.step_index += 1
         return self
     
     def write_jsonl(self, path: str, template: str, name: str = "WRITE-JSONL"):
-        self.builder.add_write_jsonl_step(f"{name}--{self.step_index}", path, template)
+        self.builder.add_write_jsonl_step(self.__name(name), path, template)
+        return self
+    
+    def write_csv(self, path: str, columns: List[str], delimeter: str, name: str = "WRITE-JSONL"):
+        self.builder.add_write_csv_step(self.__name(name), path, columns, delimeter)
         return self
 
+    def print(self, *args, **kwargs):
+        template = kwargs.get('template', None)
+        columns = kwargs.get('columns', None)
+        if len(args) == 1:
+            columns = args[0]
+            
+        name = "PRINT"
+        self.builder.add_print_step(self.__name(name), template=template, columns=columns)
+        return self
+    
     def run(self):
         return self.builder.run()

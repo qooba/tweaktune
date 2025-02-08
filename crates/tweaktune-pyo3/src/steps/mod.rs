@@ -17,7 +17,9 @@ use tweaktune_core::common::ResultExt;
 use tweaktune_core::datasets::DatasetType;
 use tweaktune_core::embeddings::EmbeddingsType;
 use tweaktune_core::llms::LLMType;
-use tweaktune_core::steps::{JsonlWriterStep, Step, StepContext, StepStatus, TextGenerationStep};
+use tweaktune_core::steps::{
+    CsvWriterStep, JsonlWriterStep, PrintStep, Step, StepContext, StepStatus, TextGenerationStep,
+};
 use tweaktune_core::templates::Templates;
 
 #[pyclass]
@@ -223,6 +225,8 @@ pub enum StepType {
     PyValidator(PyValidator),
     TextGeneration(TextGenerationStep),
     JsonWriter(JsonlWriterStep),
+    CsvWriter(CsvWriterStep),
+    Print(PrintStep),
 }
 
 pub struct PyStep {

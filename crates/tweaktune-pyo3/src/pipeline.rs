@@ -7,13 +7,16 @@ use arrow::{
 };
 use futures::stream::{self, StreamExt};
 use pyo3::{pyclass, pymethods, PyAny, PyObject};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, os::unix::process, sync::Arc};
 use tokio::runtime::Runtime;
 use tweaktune_core::{
     datasets::{ArrowDataset, CsvDataset, DatasetType, JsonlDataset, ParquetDataset},
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
-    steps::{JsonlWriterStep, Step as StepCore, StepContext, StepStatus, TextGenerationStep},
+    steps::{
+        CsvWriterStep, JsonlWriterStep, PrintStep, Step as StepCore, StepContext, StepStatus,
+        TextGenerationStep,
+    },
     templates::Templates,
 };
 
@@ -45,11 +48,15 @@ impl PipelineBuilder {
                 resources: HashMap::new(),
             },
             steps: vec![],
-            iter_by: IterBy::Range { range: 0 },
+            iter_by: IterBy::Range {
+                start: 0,
+                stop: 0,
+                step: 1,
+            },
         }
     }
 
-    pub fn set_workers(&mut self, workers: usize) {
+    pub fn with_workers(&mut self, workers: usize) {
         self.workers = workers;
     }
 
@@ -131,8 +138,8 @@ impl PipelineBuilder {
         self.templates.add(name, template);
     }
 
-    pub fn iter_by_range(&mut self, range: usize) {
-        self.iter_by = IterBy::Range { range };
+    pub fn iter_by_range(&mut self, start: usize, stop: usize, step: usize) {
+        self.iter_by = IterBy::Range { start, stop, step };
     }
 
     pub fn iter_by_dataset(&mut self, name: String) {
@@ -167,75 +174,41 @@ impl PipelineBuilder {
         )));
     }
 
+    pub fn add_print_step(
+        &mut self,
+        name: String,
+        template: Option<String>,
+        columns: Option<Vec<String>>,
+    ) {
+        self.steps
+            .push(StepType::Print(PrintStep::new(name, template, columns)));
+    }
+
+    pub fn add_write_csv_step(
+        &mut self,
+        name: String,
+        path: String,
+        columns: Vec<String>,
+        delimiter: String,
+    ) {
+        self.steps.push(StepType::CsvWriter(CsvWriterStep::new(
+            name, path, columns, delimiter,
+        )));
+    }
+
     pub fn compile(&self) {
         self.templates.compile().unwrap();
     }
 
     pub fn run(&self) {
         match &self.iter_by {
-            IterBy::Range { range } => {
+            IterBy::Range { start, stop, step } => {
                 Runtime::new().unwrap().block_on(
-                    stream::iter((0..*range).map(|i| async move {
+                    stream::iter((*start..*stop).step_by(*step).map(|i| async move {
                         let mut context = StepContext::new();
                         context.set("index", i);
                         context.set_status(StepStatus::Running);
-
-                        for step in &self.steps {
-                            if matches!(context.get_status(), StepStatus::Failed) {
-                                break;
-                            }
-
-                            match step {
-                                StepType::Py(py_step) => {
-                                    context = py_step
-                                        .process(
-                                            &self.datasets.resources,
-                                            &self.templates,
-                                            &self.llms.resources,
-                                            &self.embeddings.resources,
-                                            &context,
-                                        )
-                                        .await
-                                        .unwrap();
-                                }
-                                StepType::TextGeneration(text_generation_step) => {
-                                    context = text_generation_step
-                                        .process(
-                                            &self.datasets.resources,
-                                            &self.templates,
-                                            &self.llms.resources,
-                                            &self.embeddings.resources,
-                                            &context,
-                                        )
-                                        .await
-                                        .unwrap();
-                                }
-                                StepType::PyValidator(py_validator) => {
-                                    context = py_validator
-                                        .process(
-                                            &self.datasets.resources,
-                                            &self.templates,
-                                            &self.llms.resources,
-                                            &self.embeddings.resources,
-                                            &context,
-                                        )
-                                        .await
-                                        .unwrap();
-                                }
-                                StepType::JsonWriter(jsonl_writer_step) => {
-                                    context = jsonl_writer_step
-                                        .process(
-                                            &self.datasets.resources,
-                                            &self.templates,
-                                            &self.llms.resources,
-                                            &self.embeddings.resources,
-                                            &context,
-                                        )
-                                        .await
-                                        .unwrap();
-                                }
-                            }
-                        }
+                        process_steps(self, context).await;
                         // process
                     }))
                     .buffered(self.workers)
@@ -258,11 +231,100 @@ impl Default for PipelineBuilder {
     }
 }
 
+async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
+    for step in &pipeline.steps {
+        if matches!(context.get_status(), StepStatus::Failed) {
+            break;
+        }
+
+        match step {
+            StepType::Py(py_step) => {
+                context = py_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await
+                    .unwrap();
+            }
+            StepType::TextGeneration(text_generation_step) => {
+                context = text_generation_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await
+                    .unwrap();
+            }
+            StepType::PyValidator(py_validator) => {
+                context = py_validator
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await
+                    .unwrap();
+            }
+            StepType::JsonWriter(jsonl_writer_step) => {
+                context = jsonl_writer_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await
+                    .unwrap();
+            }
+            StepType::CsvWriter(csv_writer_step) => {
+                context = csv_writer_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await
+                    .unwrap();
+            }
+            StepType::Print(print_step) => {
+                context = print_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await
+                    .unwrap();
+            }
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Debug)]
 pub enum IterBy {
-    Range { range: usize },
-    Dataset { name: String },
+    Range {
+        start: usize,
+        stop: usize,
+        step: usize,
+    },
+    Dataset {
+        name: String,
+    },
 }
 
 #[pyclass]

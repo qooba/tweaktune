@@ -3,6 +3,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{collections::HashMap, fs::File, io::Write};
+use tokio::time::error::Elapsed;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepContext {
@@ -90,7 +91,6 @@ impl Step for TextGenerationStep {
         let template = templates.render(self.template.clone(), context.clone());
         let mut context = context.clone();
         context.data[self.output.clone()] = serde_json::to_value(template.unwrap()).unwrap();
-        println!("{:?}", context);
         Ok(context)
     }
 }
@@ -120,9 +120,103 @@ impl Step for JsonlWriterStep {
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
     ) -> Result<StepContext> {
-        let file = File::options().append(true).open(&self.path)?;
+        let file = File::options().append(true).create(true).open(&self.path)?;
         let mut writer = std::io::BufWriter::new(file);
         let row = templates.render(self.template.clone(), context.clone())?;
+        writeln!(writer, "{}", row)?;
+        writer.flush()?;
+
+        Ok(context.clone())
+    }
+}
+
+pub struct PrintStep {
+    pub name: String,
+    pub template: Option<String>,
+    pub columns: Option<Vec<String>>,
+}
+
+impl PrintStep {
+    pub fn new(name: String, template: Option<String>, columns: Option<Vec<String>>) -> Self {
+        Self {
+            name,
+            template,
+            columns,
+        }
+    }
+}
+
+impl Step for PrintStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let row = if let Some(template) = self.template.clone() {
+            templates.render(template.clone(), context.clone())?
+        } else if let Some(columns) = self.columns.clone() {
+            let mut row = String::new();
+            for (i, column) in columns.iter().enumerate() {
+                if let Some(value) = context.data.get(column) {
+                    if i > 0 {
+                        row.push_str(" | ");
+                    }
+                    row.push_str(&value.to_string());
+                }
+            }
+
+            row
+        } else {
+            context.data.to_string()
+        };
+
+        println!("{}", row);
+        Ok(context.clone())
+    }
+}
+
+pub struct CsvWriterStep {
+    pub name: String,
+    pub path: String,
+    pub columns: Vec<String>,
+    pub delimeter: String,
+}
+
+impl CsvWriterStep {
+    pub fn new(name: String, path: String, columns: Vec<String>, delimeter: String) -> Self {
+        Self {
+            name,
+            path,
+            columns,
+            delimeter,
+        }
+    }
+}
+
+impl Step for CsvWriterStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let file = File::options().append(true).create(true).open(&self.path)?;
+        let mut writer = std::io::BufWriter::new(file);
+        let mut row = String::new();
+        for (i, column) in self.columns.iter().enumerate() {
+            if let Some(value) = context.get(column) {
+                if i > 0 {
+                    row.push_str(&self.delimeter);
+                }
+                row.push_str(&value.to_string());
+            }
+        }
+
         writeln!(writer, "{}", row)?;
         writer.flush()?;
 
