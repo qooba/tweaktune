@@ -13,10 +13,11 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
+use tweaktune_core::common::ResultExt;
 use tweaktune_core::datasets::DatasetType;
 use tweaktune_core::embeddings::EmbeddingsType;
 use tweaktune_core::llms::LLMType;
-use tweaktune_core::steps::{Step, StepContext, TextGenerationStep};
+use tweaktune_core::steps::{JsonlWriterStep, Step, StepContext, StepStatus, TextGenerationStep};
 use tweaktune_core::templates::Templates;
 
 #[pyclass]
@@ -219,7 +220,9 @@ impl StepTest {
 
 pub enum StepType {
     Py(PyStep),
+    PyValidator(PyValidator),
     TextGeneration(TextGenerationStep),
+    JsonWriter(JsonlWriterStep),
 }
 
 pub struct PyStep {
@@ -254,5 +257,45 @@ impl Step for PyStep {
 
         let result: StepContext = serde_json::from_str(&result.unwrap())?;
         Ok(result)
+    }
+}
+
+pub struct PyValidator {
+    pub name: String,
+    pub py_func: PyObject,
+}
+
+impl PyValidator {
+    pub fn new(name: String, py_func: PyObject) -> Self {
+        Self { name, py_func }
+    }
+}
+
+impl Step for PyValidator {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, LLMType>,
+        _embeddings: &HashMap<String, EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let json = serde_json::to_string(context)?;
+
+        let result: PyResult<bool> = Python::with_gil(|py| {
+            let result: bool = self
+                .py_func
+                .call_method1(py, "process", (json,))?
+                .extract(py)?;
+            Ok(result)
+        });
+
+        let result = result.map_tt_err("VALIDATOR MUST RETURN BOOL")?;
+        let mut context = context.clone();
+        if !result {
+            context.set_status(StepStatus::Failed);
+        }
+
+        Ok(context)
     }
 }

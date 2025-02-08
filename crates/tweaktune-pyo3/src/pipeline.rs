@@ -1,4 +1,4 @@
-use crate::steps::{PyStep, StepType};
+use crate::steps::{PyStep, PyValidator, StepType};
 use arrow::{
     array::{Int32Array, RecordBatch},
     datatypes::{DataType, Field, Schema},
@@ -6,14 +6,14 @@ use arrow::{
     pyarrow::PyArrowType,
 };
 use futures::stream::{self, StreamExt};
-use pyo3::{pyclass, pymethods, PyObject};
+use pyo3::{pyclass, pymethods, PyAny, PyObject};
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
 use tweaktune_core::{
     datasets::{ArrowDataset, CsvDataset, DatasetType, JsonlDataset, ParquetDataset},
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
-    steps::{Step as StepCore, StepContext, TextGenerationStep},
+    steps::{JsonlWriterStep, Step as StepCore, StepContext, StepStatus, TextGenerationStep},
     templates::Templates,
 };
 
@@ -143,11 +143,32 @@ impl PipelineBuilder {
         self.steps.push(StepType::Py(PyStep::new(name, py_func)));
     }
 
-    pub fn add_text_generation_step(&mut self, name: String, template: String, llm: String) {
+    pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
+        self.steps
+            .push(StepType::PyValidator(PyValidator::new(name, py_func)));
+    }
+
+    pub fn add_text_generation_step(
+        &mut self,
+        name: String,
+        template: String,
+        llm: String,
+        output: String,
+    ) {
         self.steps
             .push(StepType::TextGeneration(TextGenerationStep::new(
-                name, template, llm,
+                name, template, llm, output,
             )));
+    }
+
+    pub fn add_write_jsonl_step(&mut self, name: String, path: String, template: String) {
+        self.steps.push(StepType::JsonWriter(JsonlWriterStep::new(
+            name, path, template,
+        )));
+    }
+
+    pub fn compile(&self) {
+        self.templates.compile().unwrap();
     }
 
     pub fn run(&self) {
@@ -157,8 +178,13 @@ impl PipelineBuilder {
                     stream::iter((0..*range).map(|i| async move {
                         let mut context = StepContext::new();
                         context.set("index", i);
+                        context.set_status(StepStatus::Running);
 
                         for step in &self.steps {
+                            if matches!(context.get_status(), StepStatus::Failed) {
+                                break;
+                            }
+
                             match step {
                                 StepType::Py(py_step) => {
                                     context = py_step
@@ -173,7 +199,31 @@ impl PipelineBuilder {
                                         .unwrap();
                                 }
                                 StepType::TextGeneration(text_generation_step) => {
-                                    text_generation_step
+                                    context = text_generation_step
+                                        .process(
+                                            &self.datasets.resources,
+                                            &self.templates,
+                                            &self.llms.resources,
+                                            &self.embeddings.resources,
+                                            &context,
+                                        )
+                                        .await
+                                        .unwrap();
+                                }
+                                StepType::PyValidator(py_validator) => {
+                                    context = py_validator
+                                        .process(
+                                            &self.datasets.resources,
+                                            &self.templates,
+                                            &self.llms.resources,
+                                            &self.embeddings.resources,
+                                            &context,
+                                        )
+                                        .await
+                                        .unwrap();
+                                }
+                                StepType::JsonWriter(jsonl_writer_step) => {
+                                    context = jsonl_writer_step
                                         .process(
                                             &self.datasets.resources,
                                             &self.templates,
@@ -254,6 +304,7 @@ pub enum Step {
         name: String,
         template: String,
         llm: String,
+        output: String,
     },
     DataSampler {
         name: String,
@@ -265,10 +316,14 @@ pub enum Step {
         template: String,
         llm: String,
     },
-    Validator {
+    PyValidator {
         name: String,
+        py_func: PyObject,
+    },
+    JsonlWriter {
+        name: String,
+        path: String,
         template: String,
-        llm: String,
     },
 }
 

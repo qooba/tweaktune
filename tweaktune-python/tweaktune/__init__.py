@@ -24,13 +24,24 @@ import json
 #    buffer = sink.getvalue().to_pybytes()
 #    step.read_pyarrow(buffer)
 
+
+
 class PyStepWrapper:
-    def __init__(self, step: Step):
+    def __init__(self, step):
         self.step = step
 
     def process(self, context):
         context = json.loads(context)
         return json.dumps(self.step.process(context))
+    
+class PyStepValidatorWrapper:
+    def __init__(self, func):
+        self.func = func
+
+    def process(self, context):
+        context = json.loads(context)
+        return self.func(context)
+
 
 class Pipeline:
     def __init__(self):
@@ -42,7 +53,7 @@ class Pipeline:
         elif dataset.__class__ == Dataset.Parquet:
             self.builder.with_parquet_dataset(dataset.name, dataset.path)
         elif dataset.__class__ == Dataset.Csv:
-            self.builder.with_csv_dataset(dataset.name, dataset.path)
+            self.builder.with_csv_dataset(dataset.name, dataset.path, dataset.delimiter, dataset.has_header)
         elif dataset.__class__ == Dataset.Arrow:
             if type(dataset.dataset) is ArrowDataset:
                 self.builder.with_arrow_dataset(dataset.name, dataset.dataset.data.to_reader())
@@ -91,22 +102,54 @@ class Pipeline:
 class PipelineRunner:
 
     def __init__(self, builder: PipelineBuilder):
+        builder.compile()
         self.builder = builder
+        self.step_index = 0
 
     def then(self, step: Step):
         if step.__class__ == Step.Py:
             self.builder.add_py_step(step.name, PyStepWrapper(step.py_func))
         elif step.__class__ == Step.TextGeneration:
-            self.builder.add_text_generation_step(step.name, step.template, step.llm)
+            self.builder.add_text_generation_step(step.name, step.template, step.llm, step.output)
         elif step.__class__ == Step.DataSampler:
             self.builder.add_data_sampler_step(step.name, step.dataset, step.size)
         elif step.__class__ == Step.Judge:
             self.builder.add_judge_step(step.name, step.template, step.llm)
-        elif step.__class__ == Step.Validator:
-            self.builder.add_validator_step(step.name, step.template, step.llm)
+        elif step.__class__ == Step.PyValidator:
+            self.builder.add_py_validator_step(step.name, PyStepValidatorWrapper(step.py_func))
         else:
             raise ValueError("Invalid Step type")
         
+        self.step_index += 1
+        return self
+
+    def step(self, step, name: str = "PY-STEP"):
+        self.builder.add_py_step(f"{name}--{self.step_index}", PyStepWrapper(step))
+        self.step_index += 1
+        return self
+
+    def generate_text(self, template: str, llm: str, output: str, name: str = "GENERATE-TEXT"):
+        self.builder.add_text_generation_step(f"{name}--{self.step_index}", template, llm, output)
+        self.step_index += 1
+        return self
+    
+    def sample(self, dataset: str, size: str, name: str = "SAMPLE"):
+        self.builder.add_data_sampler_step(f"{name}--{self.step_index}", dataset, size)
+        self.step_index += 1
+        return self
+    
+    def judge(self, template: str, llm: str, name: str = "JUDGE"):
+        self.builder.add_judge_step(f"{name}--{self.step_index}", template, llm)
+        self.step_index += 1
+        return self
+    
+    def validate(self, py_func, name: str = "VALIDATE"):
+        self.builder.add_py_validator_step(f"{name}--{self.step_index}", PyStepValidatorWrapper(py_func))
+        self.step_index += 1
+        return self
+    
+    def write_jsonl(self, path: str, template: str, name: str = "WRITE-JSONL"):
+        self.builder.add_write_jsonl_step(f"{name}--{self.step_index}", path, template)
         return self
 
     def run(self):

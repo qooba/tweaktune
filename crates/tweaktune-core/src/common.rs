@@ -40,6 +40,8 @@ impl<T> OptionToResult<T> for Option<T> {
 }
 
 pub trait ResultExt<T, E> {
+    fn map_tt_err(self, message: &str) -> Result<T>;
+
     fn map_anyhow_err(self) -> Result<T>;
 
     fn map_io_err(self) -> IoResult<T>;
@@ -50,6 +52,10 @@ pub trait ResultExt<T, E> {
 }
 
 impl<T, E: std::fmt::Debug> ResultExt<T, E> for Result<T, E> {
+    fn map_tt_err(self, message: &str) -> Result<T> {
+        self.map_err(|e| anyhow!("🐔 {:?}", message))
+    }
+
     fn map_anyhow_err(self) -> Result<T> {
         self.map_err(|e| anyhow!("{:?}", e))
     }

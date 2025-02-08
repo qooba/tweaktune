@@ -4,11 +4,16 @@ use arrow::json::reader::{infer_json_schema, ReaderBuilder as JsonReaderBuilder}
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use std::fs::File;
+use std::io::Write;
 use std::sync::Arc;
 
 pub trait Dataset {
     fn read_all(&self) -> Result<Vec<RecordBatch>>;
     fn read_next(&mut self) -> Result<Option<RecordBatch>>;
+}
+
+pub trait Writer {
+    fn write(&self, record_batch: RecordBatch) -> Result<()>;
 }
 
 #[derive(Clone)]
@@ -61,6 +66,21 @@ impl Dataset for JsonlDataset {
             Some(Err(e)) => Err(e.into()),
             None => Ok(None),
         }
+    }
+}
+
+impl Writer for JsonlDataset {
+    fn write(&self, record_batch: RecordBatch) -> Result<()> {
+        let file = File::options().append(true).open(&self.path)?;
+        let mut writer = std::io::BufWriter::new(file);
+
+        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(&record_batch)?;
+        for row in json_rows {
+            writeln!(writer, "{}", row)?;
+        }
+
+        writer.flush()?;
+        Ok(())
     }
 }
 
