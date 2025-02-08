@@ -16,7 +16,7 @@ use tokio::runtime::Runtime;
 use tweaktune_core::datasets::DatasetType;
 use tweaktune_core::embeddings::EmbeddingsType;
 use tweaktune_core::llms::LLMType;
-use tweaktune_core::steps::Step as CoreStep;
+use tweaktune_core::steps::{Step, TextGenerationStep};
 use tweaktune_core::templates::Templates;
 
 #[pyclass]
@@ -28,30 +28,30 @@ pub enum Lang {
 }
 
 #[pyclass]
-pub struct StepConfig {
+pub struct StepConfigTest {
     #[pyo3(get, set)]
     pub name: String,
 }
 
 #[pymethods]
-impl StepConfig {
+impl StepConfigTest {
     #[new]
     pub fn new(name: String) -> Self {
-        StepConfig { name }
+        StepConfigTest { name }
     }
 }
 
 #[pyclass]
-pub struct Step {
+pub struct StepTest {
     name: String,
 }
 
 #[pymethods]
-impl Step {
+impl StepTest {
     #[new]
-    pub fn new(config: PyRef<StepConfig>) -> PyResult<Self> {
+    pub fn new(config: PyRef<StepConfigTest>) -> PyResult<Self> {
         let name = config.name.clone();
-        Ok(Step { name })
+        Ok(StepTest { name })
     }
 
     pub fn embed(&self, input: String, lang: PyRef<Lang>) -> PyResult<String> {
@@ -217,33 +217,35 @@ impl Step {
     }
 }
 
-#[pyclass]
+pub enum StepType {
+    Py(PyStep),
+    TextGeneration(TextGenerationStep),
+}
+
 pub struct PyStep {
     pub name: String,
     pub py_func: PyObject,
 }
 
-#[pymethods]
 impl PyStep {
-    #[new]
-    pub fn new(name: String, py_func: PyObject) -> PyResult<Self> {
-        Ok(Self { name, py_func })
+    pub fn new(name: String, py_func: PyObject) -> Self {
+        Self { name, py_func }
     }
 }
 
-impl CoreStep for PyStep {
-    fn process(
+impl Step for PyStep {
+    async fn process(
         &self,
         _datasets: &HashMap<String, DatasetType>,
-        _templates: Templates,
-        _llms: HashMap<String, LLMType>,
-        _embeddings: HashMap<String, EmbeddingsType>,
-        batch: RecordBatch,
+        _templates: &Templates,
+        _llms: &HashMap<String, LLMType>,
+        _embeddings: &HashMap<String, EmbeddingsType>,
+        batch: &RecordBatch,
     ) -> Result<RecordBatch> {
         let result_batch: PyResult<PyArrowType<RecordBatch>> = Python::with_gil(|py| {
             let result: PyArrowType<RecordBatch> = self
                 .py_func
-                .call_method1(py, "process", (PyArrowType(batch),))?
+                .call_method1(py, "process", (PyArrowType(batch.clone()),))?
                 .extract(py)?;
             Ok(result)
         });

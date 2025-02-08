@@ -4,10 +4,12 @@ pub trait LLM {
     fn load(&self) -> Result<()>;
 }
 
+#[derive(Clone)]
 pub enum LLMType {
     OpenAI(OpenAILLM),
 }
 
+#[derive(Clone)]
 pub struct OpenAILLM {
     pub name: String,
     pub base_url: String,

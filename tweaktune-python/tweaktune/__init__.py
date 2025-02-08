@@ -1,26 +1,27 @@
 from enum import Enum
 import pyarrow as pa
-from .tweaktune import Step, StepConfig, Jsonl, Parquet, Csv, Arrow, Lang, PipelineBuilder, IterBy, Dataset, LLM, Embeddings, Template
+from .tweaktune import StepTest, StepConfigTest
+from .tweaktune import Step, Jsonl, Parquet, Csv, Arrow, Lang, PipelineBuilder, IterBy, Dataset, LLM, Embeddings, Template
 from datasets.arrow_dataset import Dataset as ArrowDataset
 from pyarrow.lib import RecordBatchReader
 
-def hello():
-    return "Hello, World!"
-
-def get_buffer(step: Step):
-    b = step.create_arrow_buffer()
-    reader = pa.ipc.open_stream(b)
-
-    d = reader.read_all()
-    return d.to_pandas()
-
-def read_buffer(step: Step, data: pa.lib.Table):
-    sink = pa.BufferOutputStream()
-    writer = pa.ipc.new_stream(sink, data.schema)
-    writer.write_table(data)
-    writer.close()
-    buffer = sink.getvalue().to_pybytes()
-    step.read_pyarrow(buffer)
+#def hello():
+#    return "Hello, World!"
+#
+#def get_buffer(step: Step):
+#    b = step.create_arrow_buffer()
+#    reader = pa.ipc.open_stream(b)
+#
+#    d = reader.read_all()
+#    return d.to_pandas()
+#
+#def read_buffer(step: Step, data: pa.lib.Table):
+#    sink = pa.BufferOutputStream()
+#    writer = pa.ipc.new_stream(sink, data.schema)
+#    writer.write_table(data)
+#    writer.close()
+#    buffer = sink.getvalue().to_pybytes()
+#    step.read_pyarrow(buffer)
 
 
 class Pipeline:
@@ -85,7 +86,20 @@ class PipelineRunner:
         self.builder = builder
 
     def then(self, step: Step):
-        pass
+        if step.__class__ == Step.Py:
+            self.builder.add_py_step(step.name, step.py_func)
+        elif step.__class__ == Step.TextGeneration:
+            self.builder.add_text_generation_step(step.name, step.template, step.llm)
+        elif step.__class__ == Step.DataSampler:
+            self.builder.add_data_sampler_step(step.name, step.dataset, step.size)
+        elif step.__class__ == Step.Judge:
+            self.builder.add_judge_step(step.name, step.template, step.llm)
+        elif step.__class__ == Step.Validator:
+            self.builder.add_validator_step(step.name, step.template, step.llm)
+        else:
+            raise ValueError("Invalid Step type")
+        
+        return self
 
     def run(self):
         return self.builder.run()

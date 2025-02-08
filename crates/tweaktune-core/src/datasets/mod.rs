@@ -11,6 +11,7 @@ pub trait Dataset {
     fn read_next(&mut self) -> Result<Option<RecordBatch>>;
 }
 
+#[derive(Clone)]
 pub enum DatasetType {
     Jsonl(JsonlDataset),
     Csv(CsvDataset),
@@ -18,6 +19,7 @@ pub enum DatasetType {
     Arrow(ArrowDataset),
 }
 
+#[derive(Clone)]
 pub struct JsonlDataset {
     name: String,
     path: String,
@@ -62,6 +64,7 @@ impl Dataset for JsonlDataset {
     }
 }
 
+#[derive(Clone)]
 pub struct CsvDataset {
     name: String,
     path: String,
@@ -112,6 +115,7 @@ impl Dataset for CsvDataset {
     }
 }
 
+#[derive(Clone)]
 pub struct ParquetDataset {
     name: String,
     path: String,
@@ -149,6 +153,7 @@ impl Dataset for ParquetDataset {
     }
 }
 
+#[derive(Clone)]
 pub struct ArrowDataset {
     name: String,
     records: Vec<RecordBatch>,

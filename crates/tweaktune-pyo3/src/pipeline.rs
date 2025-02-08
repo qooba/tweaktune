@@ -1,10 +1,19 @@
-use arrow::{ffi_stream::ArrowArrayStreamReader, pyarrow::PyArrowType};
-use pyo3::{pyclass, pymethods, PyObject, PyRef};
-use std::collections::HashMap;
+use crate::steps::{PyStep, StepType};
+use arrow::{
+    array::{Int32Array, RecordBatch},
+    datatypes::{DataType, Field, Schema},
+    ffi_stream::ArrowArrayStreamReader,
+    pyarrow::PyArrowType,
+};
+use futures::stream::{self, StreamExt};
+use pyo3::{pyclass, pymethods, PyObject};
+use std::{collections::HashMap, sync::Arc};
+use tokio::runtime::Runtime;
 use tweaktune_core::{
     datasets::{ArrowDataset, CsvDataset, DatasetType, JsonlDataset, ParquetDataset},
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
+    steps::{Step as StepCore, TextGenerationStep},
     templates::Templates,
 };
 
@@ -15,7 +24,7 @@ pub struct PipelineBuilder {
     templates: Templates,
     llms: Resources<LLMType>,
     embeddings: Resources<EmbeddingsType>,
-    steps: Vec<String>,
+    steps: Vec<StepType>,
     iter_by: IterBy,
 }
 
@@ -130,12 +139,69 @@ impl PipelineBuilder {
         self.iter_by = IterBy::Dataset { name };
     }
 
-    pub fn add_step(&mut self, step: &str) {
-        self.steps.push(step.to_string());
+    pub fn add_py_step(&mut self, name: String, py_func: PyObject) {
+        self.steps.push(StepType::Py(PyStep::new(name, py_func)));
+    }
+
+    pub fn add_text_generation_step(&mut self, name: String, template: String, llm: String) {
+        self.steps
+            .push(StepType::TextGeneration(TextGenerationStep::new(
+                name, template, llm,
+            )));
     }
 
     pub fn run(&self) {
-        println!("{:?}", self.steps);
+        match &self.iter_by {
+            IterBy::Range { range } => {
+                Runtime::new().unwrap().block_on(
+                    stream::iter((0..*range).map(|i| async move {
+                        let arrow = Int32Array::from(vec![i as i32]);
+                        let schema = Schema::new(vec![Field::new("index", DataType::Int32, false)]);
+                        let mut batch =
+                            RecordBatch::try_new(schema.clone().into(), vec![Arc::new(arrow)])
+                                .unwrap();
+
+                        for step in &self.steps {
+                            match step {
+                                StepType::Py(py_step) => {
+                                    batch = py_step
+                                        .process(
+                                            &self.datasets.resources,
+                                            &self.templates,
+                                            &self.llms.resources,
+                                            &self.embeddings.resources,
+                                            &batch,
+                                        )
+                                        .await
+                                        .unwrap();
+                                }
+                                StepType::TextGeneration(text_generation_step) => {
+                                    text_generation_step
+                                        .process(
+                                            &self.datasets.resources,
+                                            &self.templates,
+                                            &self.llms.resources,
+                                            &self.embeddings.resources,
+                                            &batch,
+                                        )
+                                        .await
+                                        .unwrap();
+                                }
+                            }
+                        }
+                        // process
+                    }))
+                    .buffered(self.workers)
+                    .collect::<Vec<_>>(),
+                );
+            }
+            IterBy::Dataset { name: _ } => {
+                todo!()
+                // let dataset = self.datasets.get(name).unwrap();
+                // let data = dataset.read_all().unwrap();
+                // process
+            }
+        }
     }
 }
 
@@ -199,13 +265,13 @@ pub enum Step {
     },
     Judge {
         name: String,
+        template: String,
         llm: String,
-        dataset: String,
     },
     Validator {
         name: String,
+        template: String,
         llm: String,
-        dataset: String,
     },
 }
 
@@ -232,7 +298,7 @@ pub enum Dataset {
     },
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Resources<T> {
     resources: HashMap<String, T>,
 }

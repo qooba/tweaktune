@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 
 static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Templates {
     templates: HashMap<String, String>,
 }

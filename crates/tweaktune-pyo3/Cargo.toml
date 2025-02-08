@@ -14,6 +14,7 @@ license.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 arrow = { workspace = true }
+futures = { workspace = true }
 minijinja = { workspace = true}
 tweaktune-abstractions= { workspace = true}
 tweaktune-core= { workspace = true }

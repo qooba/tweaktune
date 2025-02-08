@@ -4,10 +4,12 @@ pub trait Embeddings {
     fn load(&self) -> Result<()>;
 }
 
+#[derive(Clone)]
 pub enum EmbeddingsType {
     OpenAI(OpenAIEmbeddings),
 }
 
+#[derive(Clone)]
 pub struct OpenAIEmbeddings {
     pub name: String,
     pub base_url: String,
