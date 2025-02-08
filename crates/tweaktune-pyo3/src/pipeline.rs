@@ -13,7 +13,7 @@ use tweaktune_core::{
     datasets::{ArrowDataset, CsvDataset, DatasetType, JsonlDataset, ParquetDataset},
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
-    steps::{Step as StepCore, TextGenerationStep},
+    steps::{Step as StepCore, StepContext, TextGenerationStep},
     templates::Templates,
 };
 
@@ -155,22 +155,19 @@ impl PipelineBuilder {
             IterBy::Range { range } => {
                 Runtime::new().unwrap().block_on(
                     stream::iter((0..*range).map(|i| async move {
-                        let arrow = Int32Array::from(vec![i as i32]);
-                        let schema = Schema::new(vec![Field::new("index", DataType::Int32, false)]);
-                        let mut batch =
-                            RecordBatch::try_new(schema.clone().into(), vec![Arc::new(arrow)])
-                                .unwrap();
+                        let mut context = StepContext::new();
+                        context.set("index", i);
 
                         for step in &self.steps {
                             match step {
                                 StepType::Py(py_step) => {
-                                    batch = py_step
+                                    context = py_step
                                         .process(
                                             &self.datasets.resources,
                                             &self.templates,
                                             &self.llms.resources,
                                             &self.embeddings.resources,
-                                            &batch,
+                                            &context,
                                         )
                                         .await
                                         .unwrap();
@@ -182,7 +179,7 @@ impl PipelineBuilder {
                                             &self.templates,
                                             &self.llms.resources,
                                             &self.embeddings.resources,
-                                            &batch,
+                                            &context,
                                         )
                                         .await
                                         .unwrap();

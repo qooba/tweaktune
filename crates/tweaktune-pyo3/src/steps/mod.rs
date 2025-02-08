@@ -16,7 +16,7 @@ use tokio::runtime::Runtime;
 use tweaktune_core::datasets::DatasetType;
 use tweaktune_core::embeddings::EmbeddingsType;
 use tweaktune_core::llms::LLMType;
-use tweaktune_core::steps::{Step, TextGenerationStep};
+use tweaktune_core::steps::{Step, StepContext, TextGenerationStep};
 use tweaktune_core::templates::Templates;
 
 #[pyclass]
@@ -240,17 +240,19 @@ impl Step for PyStep {
         _templates: &Templates,
         _llms: &HashMap<String, LLMType>,
         _embeddings: &HashMap<String, EmbeddingsType>,
-        batch: &RecordBatch,
-    ) -> Result<RecordBatch> {
-        let result_batch: PyResult<PyArrowType<RecordBatch>> = Python::with_gil(|py| {
-            let result: PyArrowType<RecordBatch> = self
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let json = serde_json::to_string(context)?;
+
+        let result: PyResult<String> = Python::with_gil(|py| {
+            let result: String = self
                 .py_func
-                .call_method1(py, "process", (PyArrowType(batch.clone()),))?
+                .call_method1(py, "process", (json,))?
                 .extract(py)?;
             Ok(result)
         });
 
-        let result_batch = result_batch?.0;
-        Ok(result_batch)
+        let result: StepContext = serde_json::from_str(&result.unwrap())?;
+        Ok(result)
     }
 }

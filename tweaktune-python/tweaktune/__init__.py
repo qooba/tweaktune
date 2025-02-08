@@ -4,6 +4,7 @@ from .tweaktune import StepTest, StepConfigTest
 from .tweaktune import Step, Jsonl, Parquet, Csv, Arrow, Lang, PipelineBuilder, IterBy, Dataset, LLM, Embeddings, Template
 from datasets.arrow_dataset import Dataset as ArrowDataset
 from pyarrow.lib import RecordBatchReader
+import json
 
 #def hello():
 #    return "Hello, World!"
@@ -23,6 +24,13 @@ from pyarrow.lib import RecordBatchReader
 #    buffer = sink.getvalue().to_pybytes()
 #    step.read_pyarrow(buffer)
 
+class PyStepWrapper:
+    def __init__(self, step: Step):
+        self.step = step
+
+    def process(self, context):
+        context = json.loads(context)
+        return json.dumps(self.step.process(context))
 
 class Pipeline:
     def __init__(self):
@@ -87,7 +95,7 @@ class PipelineRunner:
 
     def then(self, step: Step):
         if step.__class__ == Step.Py:
-            self.builder.add_py_step(step.name, step.py_func)
+            self.builder.add_py_step(step.name, PyStepWrapper(step.py_func))
         elif step.__class__ == Step.TextGeneration:
             self.builder.add_text_generation_step(step.name, step.template, step.llm)
         elif step.__class__ == Step.DataSampler:

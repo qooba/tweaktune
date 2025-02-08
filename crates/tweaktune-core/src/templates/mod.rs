@@ -3,6 +3,8 @@ use std::{collections::HashMap, hash::Hash, sync::Arc};
 use minijinja::Environment;
 use std::sync::OnceLock;
 
+use crate::steps::StepContext;
+
 static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
 
 #[derive(Default, Clone)]
@@ -23,7 +25,7 @@ impl Templates {
         self.templates.remove(name);
     }
 
-    pub fn render(&self, name: String, items: Vec<serde_json::Value>) -> String {
+    pub fn render(&self, name: String, items: StepContext) -> String {
         let environment = ENVIRONMENT.get_or_init(|| {
             let mut e = Environment::new();
             self.templates.clone().into_iter().for_each(|(k, v)| {
