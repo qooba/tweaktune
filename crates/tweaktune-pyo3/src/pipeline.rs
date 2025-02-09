@@ -1,6 +1,6 @@
 use crate::{
     common::ResultExt,
-    steps::{PyStep, PyValidator, StepType},
+    steps::{PrintStep, PyStep, PyValidator, StepType},
 };
 use anyhow::Result;
 use arrow::{
@@ -22,7 +22,7 @@ use tweaktune_core::{
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
     steps::{
-        CsvWriterStep, JsonlWriterStep, PrintStep, Step as StepCore, StepContext, StepStatus,
+        CsvWriterStep, JsonlWriterStep, Step as StepCore, StepContext, StepStatus,
         TextGenerationStep,
     },
     templates::Templates,
@@ -256,7 +256,23 @@ impl PipelineBuilder {
                             todo!()
                         }
                         DatasetType::Arrow(dataset) => {
-                            todo!()
+                            stream::iter(dataset.read_all(Some(1)).unwrap().iter().map(
+                                |record_batch| async move {
+                                    let mut context = StepContext::new();
+
+                                    let json_rows: Vec<serde_json::Value> =
+                                        serde_arrow::from_record_batch(record_batch).unwrap();
+
+                                    let json_row = json_rows.first().unwrap();
+                                    context.set(name, json_row);
+                                    context.set_status(StepStatus::Running);
+                                    process_steps(self, context).await;
+                                    // process
+                                },
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
                         }
                         DatasetType::Csv(dataset) => {
                             todo!()

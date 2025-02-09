@@ -16,7 +16,7 @@ pub type StepContextData = serde_json::Value;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepContext {
     status: StepStatus,
-    data: StepContextData,
+    pub data: StepContextData,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -153,54 +153,6 @@ impl Step for JsonlWriterStep {
         writeln!(writer, "{}", row)?;
         writer.flush()?;
 
-        Ok(context.clone())
-    }
-}
-
-pub struct PrintStep {
-    pub name: String,
-    pub template: Option<String>,
-    pub columns: Option<Vec<String>>,
-}
-
-impl PrintStep {
-    pub fn new(name: String, template: Option<String>, columns: Option<Vec<String>>) -> Self {
-        Self {
-            name,
-            template,
-            columns,
-        }
-    }
-}
-
-impl Step for PrintStep {
-    async fn process(
-        &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
-        context: &StepContext,
-    ) -> Result<StepContext> {
-        let row = if let Some(template) = self.template.clone() {
-            templates.render(template.clone(), context.data.clone())?
-        } else if let Some(columns) = self.columns.clone() {
-            let mut row = String::new();
-            for (i, column) in columns.iter().enumerate() {
-                if let Some(value) = context.data.get(column) {
-                    if i > 0 {
-                        row.push_str(" | ");
-                    }
-                    row.push_str(&value.to_string());
-                }
-            }
-
-            row
-        } else {
-            context.data.to_string()
-        };
-
-        println!("{}", row);
         Ok(context.clone())
     }
 }

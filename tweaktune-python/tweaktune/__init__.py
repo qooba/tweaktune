@@ -80,10 +80,10 @@ class Pipeline:
         return self
     
     def with_arrow_dataset(self, name: str, dataset):
-        if type(dataset.dataset) is ArrowDataset:
-            self.builder.with_arrow_dataset(dataset.name, dataset.dataset.data.to_reader())
-        elif type(dataset.dataset) is RecordBatchReader:
-            self.builder.with_arrow_dataset(dataset.name, dataset.dataset)
+        if type(dataset) is ArrowDataset:
+            self.builder.with_arrow_dataset(name, dataset.data.to_reader())
+        elif type(dataset) is RecordBatchReader:
+            self.builder.with_arrow_dataset(name, dataset)
         else:
             raise ValueError("Invalid dataset type")
 
