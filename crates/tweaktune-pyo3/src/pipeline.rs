@@ -16,8 +16,7 @@ use tokio::runtime::Runtime;
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{
-        get_dataset_iterator, ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType,
-        JsonlDataset, ParquetDataset,
+        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonlDataset, ParquetDataset,
     },
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
@@ -225,7 +224,6 @@ impl PipelineBuilder {
                         context.set("index", i);
                         context.set_status(StepStatus::Running);
                         process_steps(self, context).await;
-                        // process
                     }))
                     .buffered(self.workers)
                     .collect::<Vec<_>>()
@@ -235,18 +233,9 @@ impl PipelineBuilder {
                     let dataset = self.datasets.get(name).ok_or_err(name)?;
                     match dataset {
                         DatasetType::Jsonl(dataset) => {
-                            stream::iter(dataset.read_all(Some(1)).unwrap().iter().map(
+                            stream::iter(dataset.create_stream(Some(1)).unwrap().map(
                                 |record_batch| async move {
-                                    let mut context = StepContext::new();
-
-                                    let json_rows: Vec<serde_json::Value> =
-                                        serde_arrow::from_record_batch(record_batch).unwrap();
-
-                                    let json_row = json_rows.first().unwrap();
-                                    context.set(name, json_row);
-                                    context.set_status(StepStatus::Running);
-                                    process_steps(self, context).await;
-                                    // process
+                                    map_record_batches(self, name, &record_batch.unwrap()).await;
                                 },
                             ))
                             .buffered(self.workers)
@@ -254,21 +243,19 @@ impl PipelineBuilder {
                             .await;
                         }
                         DatasetType::Parquet(dataset) => {
-                            todo!()
+                            stream::iter(dataset.create_stream(Some(1)).unwrap().map(
+                                |record_batch| async move {
+                                    map_record_batches(self, name, &record_batch.unwrap()).await;
+                                },
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
                         }
                         DatasetType::Arrow(dataset) => {
                             stream::iter(dataset.read_all(Some(1)).unwrap().iter().map(
                                 |record_batch| async move {
-                                    let mut context = StepContext::new();
-
-                                    let json_rows: Vec<serde_json::Value> =
-                                        serde_arrow::from_record_batch(record_batch).unwrap();
-
-                                    let json_row = json_rows.first().unwrap();
-                                    context.set(name, json_row);
-                                    context.set_status(StepStatus::Running);
-                                    process_steps(self, context).await;
-                                    // process
+                                    map_record_batches(self, name, record_batch).await;
                                 },
                             ))
                             .buffered(self.workers)
@@ -276,7 +263,14 @@ impl PipelineBuilder {
                             .await;
                         }
                         DatasetType::Csv(dataset) => {
-                            todo!()
+                            stream::iter(dataset.create_stream(Some(1)).unwrap().map(
+                                |record_batch| async move {
+                                    map_record_batches(self, name, &record_batch.unwrap()).await;
+                                },
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
                         }
                     }
                 }
@@ -287,6 +281,21 @@ impl PipelineBuilder {
 
         result.map_pyerr()
     }
+}
+
+async fn map_record_batches(
+    pipeline: &PipelineBuilder,
+    dataset_name: &str,
+    record_batch: &RecordBatch,
+) {
+    let mut context = StepContext::new();
+
+    let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
+
+    let json_row = json_rows.first().unwrap();
+    context.set(dataset_name, json_row);
+    context.set_status(StepStatus::Running);
+    process_steps(pipeline, context).await;
 }
 
 impl Default for PipelineBuilder {

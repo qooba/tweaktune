@@ -3,14 +3,14 @@ use arrow::csv::reader::{infer_schema_from_files, ReaderBuilder as CsvReaderBuil
 use arrow::datatypes::SchemaRef;
 use arrow::json::reader::{self, infer_json_schema, ReaderBuilder as JsonReaderBuilder};
 use arrow::record_batch::RecordBatch;
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
+use std::f32::consts::E;
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufReader, Write};
 use std::sync::Arc;
 
 pub trait Dataset {
     fn read_all(&self, batch_size: Option<usize>) -> Result<Vec<RecordBatch>>;
-    fn read_next(&mut self) -> Result<Option<RecordBatch>>;
 }
 
 pub trait Writer {
@@ -35,10 +35,11 @@ impl JsonlDataset {
     pub fn new(name: String, path: String) -> Self {
         Self { name, path }
     }
-}
 
-impl Dataset for JsonlDataset {
-    fn read_all(&self, batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+    pub fn create_stream(
+        &self,
+        batch_size: Option<usize>,
+    ) -> Result<arrow::json::reader::Reader<BufReader<File>>> {
         let file_for_infer = File::open(&self.path)?;
         let buf_reader = std::io::BufReader::new(file_for_infer);
         let (inferred_schema, _) = infer_json_schema(buf_reader, None)?;
@@ -52,38 +53,18 @@ impl Dataset for JsonlDataset {
 
         let reader = reader.build(buf_reader)?;
 
+        Ok(reader)
+    }
+}
+
+impl Dataset for JsonlDataset {
+    fn read_all(&self, batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+        let reader = self.create_stream(batch_size)?;
         let mut batches = Vec::new();
         for batch in reader {
             batches.push(batch?);
         }
         Ok(batches)
-    }
-
-    fn read_next(&mut self) -> Result<Option<RecordBatch>> {
-        let file_for_infer = File::open(&self.path)?;
-        let buf_reader = std::io::BufReader::new(file_for_infer);
-        let (inferred_schema, _) = infer_json_schema(buf_reader, None)?;
-
-        let file = File::open(&self.path)?;
-        let buf_reader = std::io::BufReader::new(file);
-        let mut reader = JsonReaderBuilder::new(Arc::new(inferred_schema)).build(buf_reader)?;
-        match reader.next() {
-            Some(Ok(batch)) => Ok(Some(batch)),
-            Some(Err(e)) => Err(e.into()),
-            None => Ok(None),
-        }
-    }
-}
-
-impl Iterator for JsonlDataset {
-    type Item = RecordBatch;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.read_next() {
-            Ok(Some(batch)) => Some(batch),
-            Ok(None) => None,
-            Err(_) => None,
-        }
     }
 }
 
@@ -119,10 +100,11 @@ impl CsvDataset {
             has_header,
         }
     }
-}
 
-impl Dataset for CsvDataset {
-    fn read_all(&self, batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+    pub fn create_stream(
+        &self,
+        batch_size: Option<usize>,
+    ) -> Result<arrow::csv::reader::BufReader<BufReader<BufReader<File>>>> {
         let inferred_schema =
             infer_schema_from_files(&[self.path.clone()], self.delimiter, None, self.has_header)?;
 
@@ -135,38 +117,18 @@ impl Dataset for CsvDataset {
 
         let reader = reader.build(buf_reader)?;
 
+        Ok(reader)
+    }
+}
+
+impl Dataset for CsvDataset {
+    fn read_all(&self, batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+        let reader = self.create_stream(batch_size)?;
         let mut batches = Vec::new();
         for batch in reader {
             batches.push(batch?);
         }
         Ok(batches)
-    }
-
-    fn read_next(&mut self) -> Result<Option<RecordBatch>> {
-        let inferred_schema =
-            infer_schema_from_files(&[self.path.clone()], self.delimiter, None, self.has_header)?;
-
-        let file = File::open(&self.path)?;
-        let buf_reader = std::io::BufReader::new(file);
-        let mut reader = CsvReaderBuilder::new(Arc::new(inferred_schema)).build(buf_reader)?;
-
-        match reader.next() {
-            Some(Ok(batch)) => Ok(Some(batch)),
-            Some(Err(e)) => Err(e.into()),
-            None => Ok(None),
-        }
-    }
-}
-
-impl Iterator for CsvDataset {
-    type Item = RecordBatch;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.read_next() {
-            Ok(Some(batch)) => Some(batch),
-            Ok(None) => None,
-            Err(_) => None,
-        }
     }
 }
 
@@ -180,10 +142,8 @@ impl ParquetDataset {
     pub fn new(name: String, path: String) -> Self {
         Self { name, path }
     }
-}
 
-impl Dataset for ParquetDataset {
-    fn read_all(&self, batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+    pub fn create_stream(&self, batch_size: Option<usize>) -> Result<ParquetRecordBatchReader> {
         let file = File::open(&self.path)?;
         let mut builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
         if let Some(size) = batch_size {
@@ -192,35 +152,19 @@ impl Dataset for ParquetDataset {
 
         let reader = builder.build().unwrap();
 
+        Ok(reader)
+    }
+}
+
+impl Dataset for ParquetDataset {
+    fn read_all(&self, batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+        let reader = self.create_stream(batch_size)?;
+
         let mut batches = Vec::new();
         for batch in reader {
             batches.push(batch?);
         }
         Ok(batches)
-    }
-
-    fn read_next(&mut self) -> Result<Option<RecordBatch>> {
-        let file = File::open(&self.path)?;
-        let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-        let mut reader = builder.build().unwrap();
-
-        match reader.next() {
-            Some(Ok(batch)) => Ok(Some(batch)),
-            Some(Err(e)) => Err(e.into()),
-            None => Ok(None),
-        }
-    }
-}
-
-impl Iterator for ParquetDataset {
-    type Item = RecordBatch;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.read_next() {
-            Ok(Some(batch)) => Some(batch),
-            Ok(None) => None,
-            Err(_) => None,
-        }
     }
 }
 
@@ -262,36 +206,5 @@ impl Dataset for ArrowDataset {
         } else {
             Ok(self.records.clone())
         }
-    }
-
-    fn read_next(&mut self) -> Result<Option<RecordBatch>> {
-        if self.index >= self.records.len() {
-            return Ok(None);
-        }
-
-        self.index += 1;
-
-        Ok(self.records.get(self.index).cloned())
-    }
-}
-
-impl Iterator for ArrowDataset {
-    type Item = RecordBatch;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.read_next() {
-            Ok(Some(batch)) => Some(batch),
-            Ok(None) => None,
-            Err(_) => None,
-        }
-    }
-}
-
-pub fn get_dataset_iterator(dataset: DatasetType) -> Box<dyn Iterator<Item = RecordBatch> + Send> {
-    match dataset {
-        DatasetType::Jsonl(dataset) => Box::new(dataset.into_iter()),
-        DatasetType::Parquet(dataset) => Box::new(dataset.into_iter()),
-        DatasetType::Arrow(dataset) => Box::new(dataset.into_iter()),
-        DatasetType::Csv(dataset) => Box::new(dataset.into_iter()),
     }
 }
