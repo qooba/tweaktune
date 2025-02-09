@@ -19,9 +19,10 @@ impl Jsonl {
         })
     }
 
-    pub fn load(&self) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
+    #[pyo3(signature = (batch_size=None))]
+    pub fn load(&self, batch_size: Option<usize>) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
         // let data = Runtime::new().unwrap().block_on(self.dataset.read_all())?;
-        let data = self.dataset.read_all().unwrap();
+        let data = self.dataset.read_all(batch_size).unwrap();
         Ok(PyArrowType(data))
     }
 }
@@ -40,8 +41,9 @@ impl Csv {
         })
     }
 
-    pub fn load(&self) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
-        let data = self.dataset.read_all().unwrap();
+    #[pyo3(signature = (batch_size=None))]
+    pub fn load(&self, batch_size: Option<usize>) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
+        let data = self.dataset.read_all(batch_size).unwrap();
         Ok(PyArrowType(data))
     }
 }
@@ -60,8 +62,9 @@ impl Parquet {
         })
     }
 
-    pub fn load(&self) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
-        let data = self.dataset.read_all().unwrap();
+    #[pyo3(signature = (batch_size=None))]
+    pub fn load(&self, batch_size: Option<usize>) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
+        let data = self.dataset.read_all(batch_size).unwrap();
         Ok(PyArrowType(data))
     }
 }
@@ -85,8 +88,9 @@ impl Arrow {
         })
     }
 
-    pub fn load(&self) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
-        let data = self.dataset.read_all().unwrap();
+    #[pyo3(signature = (batch_size=None))]
+    pub fn load(&self, batch_size: Option<usize>) -> PyResult<PyArrowType<Vec<RecordBatch>>> {
+        let data = self.dataset.read_all(batch_size).unwrap();
         Ok(PyArrowType(data))
     }
 }

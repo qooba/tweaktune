@@ -31,11 +31,17 @@ impl Errors {
 
 pub trait OptionToResult<T> {
     fn ok_or_err(self, name: &str) -> Result<T>;
+
+    fn expect_tt(self, name: &str) -> T;
 }
 
 impl<T> OptionToResult<T> for Option<T> {
     fn ok_or_err(self, name: &str) -> Result<T> {
-        self.ok_or(anyhow!("{:?} - value not found", name))
+        self.ok_or(anyhow!("🐔 {:?} - value not found", name))
+    }
+
+    fn expect_tt(self, name: &str) -> T {
+        self.unwrap_or_else(|| panic!("🐔 {:?} - value not found", name))
     }
 }
 

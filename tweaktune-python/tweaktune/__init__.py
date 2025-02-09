@@ -127,6 +127,10 @@ class Pipeline:
         
         return PipelineRunner(self.builder)
     
+    def iter_dataset(self, name: str):
+        self.builder.iter_by_dataset(name)
+        return PipelineRunner(self.builder)
+    
     def iter_range(self, *args, **kwargs):
         start = kwargs.get('start', 0)
         stop = kwargs.get('stop', 0)

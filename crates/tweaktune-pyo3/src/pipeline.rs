@@ -1,4 +1,8 @@
-use crate::steps::{PyStep, PyValidator, StepType};
+use crate::{
+    common::ResultExt,
+    steps::{PyStep, PyValidator, StepType},
+};
+use anyhow::Result;
 use arrow::{
     array::{Int32Array, RecordBatch},
     datatypes::{DataType, Field, Schema},
@@ -6,11 +10,15 @@ use arrow::{
     pyarrow::PyArrowType,
 };
 use futures::stream::{self, StreamExt};
-use pyo3::{pyclass, pymethods, PyAny, PyObject};
-use std::{collections::HashMap, os::unix::process, sync::Arc};
+use pyo3::{pyclass, pymethods, PyObject, PyResult};
+use std::collections::HashMap;
 use tokio::runtime::Runtime;
 use tweaktune_core::{
-    datasets::{ArrowDataset, CsvDataset, DatasetType, JsonlDataset, ParquetDataset},
+    common::OptionToResult,
+    datasets::{
+        get_dataset_iterator, ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType,
+        JsonlDataset, ParquetDataset,
+    },
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
     steps::{
@@ -155,6 +163,7 @@ impl PipelineBuilder {
             .push(StepType::PyValidator(PyValidator::new(name, py_func)));
     }
 
+    #[pyo3(signature = (name, template, llm, output, system_template=None))]
     pub fn add_text_generation_step(
         &mut self,
         name: String,
@@ -179,6 +188,7 @@ impl PipelineBuilder {
         )));
     }
 
+    #[pyo3(signature = (name, template=None, columns=None))]
     pub fn add_print_step(
         &mut self,
         name: String,
@@ -205,10 +215,10 @@ impl PipelineBuilder {
         self.templates.compile().unwrap();
     }
 
-    pub fn run(&self) {
-        match &self.iter_by {
-            IterBy::Range { start, stop, step } => {
-                Runtime::new().unwrap().block_on(
+    pub fn run(&self) -> PyResult<()> {
+        let result = Runtime::new()?.block_on(async {
+            match &self.iter_by {
+                IterBy::Range { start, stop, step } => {
                     stream::iter((*start..*stop).step_by(*step).map(|i| async move {
                         let mut context = StepContext::new();
                         context.set("index", i);
@@ -217,16 +227,48 @@ impl PipelineBuilder {
                         // process
                     }))
                     .buffered(self.workers)
-                    .collect::<Vec<_>>(),
-                );
+                    .collect::<Vec<_>>()
+                    .await;
+                }
+                IterBy::Dataset { name } => {
+                    let dataset = self.datasets.get(name).ok_or_err(name)?;
+                    match dataset {
+                        DatasetType::Jsonl(dataset) => {
+                            stream::iter(dataset.read_all(Some(1)).unwrap().iter().map(
+                                |record_batch| async move {
+                                    let mut context = StepContext::new();
+
+                                    let json_rows: Vec<serde_json::Value> =
+                                        serde_arrow::from_record_batch(record_batch).unwrap();
+
+                                    let json_row = json_rows.first().unwrap();
+                                    context.set(name, json_row);
+                                    context.set_status(StepStatus::Running);
+                                    process_steps(self, context).await;
+                                    // process
+                                },
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                        }
+                        DatasetType::Parquet(dataset) => {
+                            todo!()
+                        }
+                        DatasetType::Arrow(dataset) => {
+                            todo!()
+                        }
+                        DatasetType::Csv(dataset) => {
+                            todo!()
+                        }
+                    }
+                }
             }
-            IterBy::Dataset { name: _ } => {
-                todo!()
-                // let dataset = self.datasets.get(name).unwrap();
-                // let data = dataset.read_all().unwrap();
-                // process
-            }
-        }
+
+            Ok::<_, anyhow::Error>(())
+        });
+
+        result.map_pyerr()
     }
 }
 
