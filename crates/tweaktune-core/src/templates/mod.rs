@@ -1,5 +1,5 @@
 use crate::common::{OptionToResult, ResultExt};
-use crate::steps::StepContext;
+use crate::steps::{StepContext, StepContextData};
 use anyhow::Result;
 use minijinja::Environment;
 use std::collections::HashMap;
@@ -36,7 +36,7 @@ impl Templates {
         Ok(())
     }
 
-    pub fn render(&self, name: String, items: StepContext) -> Result<String> {
+    pub fn render(&self, name: String, items: StepContextData) -> Result<String> {
         let environment = ENVIRONMENT
             .read()
             .map_anyhow_err()?

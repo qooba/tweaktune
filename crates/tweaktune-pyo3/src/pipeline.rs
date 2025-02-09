@@ -161,10 +161,15 @@ impl PipelineBuilder {
         template: String,
         llm: String,
         output: String,
+        system_template: Option<String>,
     ) {
         self.steps
             .push(StepType::TextGeneration(TextGenerationStep::new(
-                name, template, llm, output,
+                name,
+                template,
+                llm,
+                output,
+                system_template,
             )));
     }
 
@@ -367,6 +372,7 @@ pub enum Step {
         template: String,
         llm: String,
         output: String,
+        system_template: Option<String>,
     },
     DataSampler {
         name: String,

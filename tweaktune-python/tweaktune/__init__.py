@@ -95,14 +95,14 @@ class Pipeline:
     
     def with_llm(self, llm: LLM):
         if llm.__class__ == LLM.OpenAI:
-            self.builder.with_openai_llm(llm.name, llm.model, llm.base_url, llm.api_key)
+            self.builder.with_openai_llm(llm.name, llm.base_url, llm.api_key, llm.model)
         else:
             raise ValueError("Invalid LLM type")
         
         return self
     
-    def with_openai_llm(self, name: str, model: str, base_url: str, api_key: str):
-        self.builder.with_openai_llm(name, model, base_url, api_key)
+    def with_openai_llm(self, name: str, base_url: str, api_key: str, model: str):
+        self.builder.with_openai_llm(name, base_url, api_key, model)
         return self
 
     def with_embedings(self, embeddings: Embeddings):
@@ -156,7 +156,7 @@ class PipelineRunner:
         if step.__class__ == Step.Py:
             self.builder.add_py_step(step.name, PyStepWrapper(step.py_func))
         elif step.__class__ == Step.TextGeneration:
-            self.builder.add_text_generation_step(step.name, step.template, step.llm, step.output)
+            self.builder.add_text_generation_step(step.name, step.template, step.llm, step.output, step.system_template)
         elif step.__class__ == Step.DataSampler:
             self.builder.add_data_sampler_step(step.name, step.dataset, step.size)
         elif step.__class__ == Step.Judge:
@@ -177,8 +177,8 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def generate_text(self, template: str, llm: str, output: str, name: str = "GENERATE-TEXT"):
-        self.builder.add_text_generation_step(self.__name(name), template, llm, output)
+    def generate_text(self, template: str, llm: str, output: str, system_template: str = None, name: str = "GENERATE-TEXT"):
+        self.builder.add_text_generation_step(self.__name(name), template, llm, output, system_template)
         self.step_index += 1
         return self
     

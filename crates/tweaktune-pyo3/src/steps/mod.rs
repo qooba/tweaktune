@@ -16,7 +16,7 @@ use tokio::runtime::Runtime;
 use tweaktune_core::common::ResultExt;
 use tweaktune_core::datasets::DatasetType;
 use tweaktune_core::embeddings::EmbeddingsType;
-use tweaktune_core::llms::LLMType;
+use tweaktune_core::llms::{LLMType, OpenAILLM, LLM};
 use tweaktune_core::steps::{
     CsvWriterStep, JsonlWriterStep, PrintStep, Step, StepContext, StepStatus, TextGenerationStep,
 };
@@ -55,6 +55,22 @@ impl StepTest {
     pub fn new(config: PyRef<StepConfigTest>) -> PyResult<Self> {
         let name = config.name.clone();
         Ok(StepTest { name })
+    }
+
+    pub fn call_llm(&self, prompt: String) -> PyResult<String> {
+        let llm = OpenAILLM::new(
+            "test".to_string(),
+            "http://localhost:8093".to_string(),
+            "test_api_key".to_string(),
+            "speakleash/Bielik-11B-v2.3-Instruct".to_string(),
+        );
+
+        let t: Result<String> = Runtime::new().unwrap().block_on(async {
+            let result = llm.call(prompt).await.unwrap();
+            Ok(result.choices[0].message.content.clone())
+        });
+
+        Ok(t.unwrap())
     }
 
     pub fn embed(&self, input: String, lang: PyRef<Lang>) -> PyResult<String> {

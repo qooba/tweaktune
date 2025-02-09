@@ -1,14 +1,22 @@
-use crate::{common::ResultExt, datasets::DatasetType, embeddings, llms, templates::Templates};
+use crate::{
+    common::ResultExt,
+    datasets::DatasetType,
+    embeddings,
+    llms::{self, LLM},
+    templates::Templates,
+};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{collections::HashMap, fs::File, io::Write};
+use std::{collections::HashMap, f32::consts::E, fs::File, io::Write};
 use tokio::time::error::Elapsed;
+
+pub type StepContextData = serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepContext {
     status: StepStatus,
-    data: serde_json::Value,
+    data: StepContextData,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,17 +72,25 @@ pub trait Step {
 pub struct TextGenerationStep {
     pub name: String,
     pub template: String,
+    pub system_template: Option<String>,
     pub llm: String,
     pub output: String,
 }
 
 impl TextGenerationStep {
-    pub fn new(name: String, template: String, llm: String, output: String) -> Self {
+    pub fn new(
+        name: String,
+        template: String,
+        llm: String,
+        output: String,
+        system_template: Option<String>,
+    ) -> Self {
         Self {
             name,
             template,
             llm,
             output,
+            system_template,
         }
     }
 }
@@ -84,13 +100,24 @@ impl Step for TextGenerationStep {
         &self,
         _datasets: &HashMap<String, DatasetType>,
         templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
+        llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
     ) -> Result<StepContext> {
-        let template = templates.render(self.template.clone(), context.clone());
+        let template = templates.render(self.template.clone(), context.data.clone());
         let mut context = context.clone();
-        context.data[self.output.clone()] = serde_json::to_value(template.unwrap()).unwrap();
+
+        let llm = llms.get(&self.llm).expect("LLM");
+        let llms::LLMType::OpenAI(llm) = llm;
+        match llm.call(template?).await {
+            Ok(response) => {
+                context.data[self.output.clone()] =
+                    serde_json::to_value(response.choices[0].message.content.clone())?;
+            }
+            Err(_e) => {
+                context.set_status(StepStatus::Failed);
+            }
+        };
         Ok(context)
     }
 }
@@ -122,7 +149,7 @@ impl Step for JsonlWriterStep {
     ) -> Result<StepContext> {
         let file = File::options().append(true).create(true).open(&self.path)?;
         let mut writer = std::io::BufWriter::new(file);
-        let row = templates.render(self.template.clone(), context.clone())?;
+        let row = templates.render(self.template.clone(), context.data.clone())?;
         writeln!(writer, "{}", row)?;
         writer.flush()?;
 
@@ -156,7 +183,7 @@ impl Step for PrintStep {
         context: &StepContext,
     ) -> Result<StepContext> {
         let row = if let Some(template) = self.template.clone() {
-            templates.render(template.clone(), context.clone())?
+            templates.render(template.clone(), context.data.clone())?
         } else if let Some(columns) = self.columns.clone() {
             let mut row = String::new();
             for (i, column) in columns.iter().enumerate() {

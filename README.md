@@ -72,28 +72,57 @@ import tweaktune
 from tweaktune import Pipeline, IterBy, Dataset, LLM, Embeddings, Template, Step
 import json
 
-template = """{"test": "{{data.test}}", "index": "{{data.index}}", "status": "{{status}}"}"""
+
 
 class CustomStep:
 
     def process(self, context):
-        context["data"]["test"] = "world1"
+        
+        context["data"]["test"] = "world " + str(context["data"]["index"])
         return context
 
 def validate_mod(context):
     return context["data"]["index"] % 2 == 0
 
 p = Pipeline()\
-        .with_dataset(Dataset.Jsonl("my_jsonl", "/home/jovyan/SpeakLeash/swaggset/datasets/persona_pl_full.jsonl"))\
-        .with_dataset(Dataset.Parquet("my_pq", "/home/jovyan/SpeakLeash/swaggset/datasets/persona_pl_full.parquet"))\
-        .with_dataset(Dataset.Csv("my_csv", "/home/jovyan/SpeakLeash/swaggset/datasets/persona_pl_full.csv", delimiter=",", has_header=True))\
-        .with_template(Template.Jinja("my_template", template))\
-        .with_llm(LLM.OpenAI("my_llm", "Bielik", "http://localhost:8000", "key"))\
-    .iter(IterBy.Range(11))\
+        .with_workers(1)\
+        .with_jsonl_dataset("my_jsonl", "/home/jovyan/SpeakLeash/swaggset/datasets/persona_pl_full.jsonl")\
+        .with_parquet_dataset("my_pq", "/home/jovyan/SpeakLeash/swaggset/datasets/persona_pl_full.parquet")\
+        .with_csv_dataset("my_csv", "/home/jovyan/SpeakLeash/swaggset/datasets/persona_pl_full.csv", delimiter=",", has_header=True)\
+        .with_template("json_template", """{"test": "{{test}}", "index": "{{index}}", "output": "{{new_output}}"}""")\
+        .with_template("calc_template", """Ile jest 2 + {{index}}. Zwróć sam wynik nie dodawaj nic więcej.""")\
+        .with_openai_llm("my_llm", "http://localhost:8093", "api_key", "speakleash/Bielik-11B-v2.3-Instruct")\
+    .iter_range(3)\
         .step(CustomStep())\
+        .print(["test", "index"])\
         .validate(lambda context: context["data"]["index"] % 2 == 0)\
-        .generate_text("my_template","my_llm", "new_output")\
-        .write_jsonl("/home/jovyan/SpeakLeash/tweaktune/notebooks/output.jsonl","my_template")\
-        .write_csv("/home/jovyan/SpeakLeash/tweaktune/notebooks/output.csv",["index","status","test"],";")\
-    .run()
+        .validate(validate_mod)\
+        .generate_text("calc_template","my_llm", "new_output")\
+        .print(["test", "index", "new_output"])\
+        .write_jsonl("/home/jovyan/SpeakLeash/tweaktune/notebooks/output.jsonl","json_template")\
+        .write_csv("/home/jovyan/SpeakLeash/tweaktune/notebooks/output.csv",["index","test"],",")\
+        .print(template="json_template")\
+        .print()\
+    .run()    
+```
+
+
+```
+<s><|im_start|>system
+You are an expert in composing functions. You are given a question and a set of possible functions. Based on the question, you will need to make one or more function/tool calls to achieve the purpose.
+If none of the functions can be used, point it out. If the given question lacks the parameters required by the function, also point it out.
+You should only return the function calls in your response.
+
+If you decide to invoke any of the function(s), you MUST put it in the format of [func_name1(params_name1=params_value1, params_name2=params_value2...), func_name2(params)]
+You SHOULD NOT include any other text in the response.
+
+At each turn, you should try your best to complete the tasks requested by the user within the current turn. Continue to output functions to call until you have fulfilled the user's request to the best of your ability. Once you have no more functions to call, the system will consider the current turn complete and proceed to the next turn or task.
+
+Here is a list of functions in JSON format that you can invoke.
+[{'name': 'find_recipes', 'description': 'Find recipes based on dietary restrictions, meal type, and preferred ingredients. Note that the provided function is in Python 3 syntax.', 'parameters': {'type': 'dict', 'properties': {'diet': {'type': 'string', 'description': "The dietary restrictions, e.g., 'vegan', 'gluten-free'."}, 'meal_type': {'type': 'string', 'description': "The type of meal, e.g., 'dinner', 'breakfast'."}, 'ingredients': {'type': 'array', 'items': {'type': 'string'}, 'description': 'The preferred ingredients. If left blank, it will default to return general recipes.'}}, 'required': ['diet', 'meal_type']}}]
+
+<|im_end|>
+<|im_start|>user
+What are some gluten-free recipes for dinner?<|im_end|>
+<|im_start|>assistant
 ```
