@@ -122,10 +122,11 @@ impl PipelineBuilder {
         base_url: String,
         api_key: String,
         model: String,
+        max_tokens: u32,
     ) {
         self.llms.add(
             name.clone(),
-            LLMType::OpenAI(OpenAILLM::new(name, base_url, api_key, model)),
+            LLMType::OpenAI(OpenAILLM::new(name, base_url, api_key, model, max_tokens)),
         );
     }
 
@@ -404,6 +405,7 @@ pub enum LLM {
         model: String,
         base_url: String,
         api_key: String,
+        max_tokens: u32,
     },
 }
 

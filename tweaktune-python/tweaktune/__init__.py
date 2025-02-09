@@ -95,14 +95,14 @@ class Pipeline:
     
     def with_llm(self, llm: LLM):
         if llm.__class__ == LLM.OpenAI:
-            self.builder.with_openai_llm(llm.name, llm.base_url, llm.api_key, llm.model)
+            self.builder.with_openai_llm(llm.name, llm.base_url, llm.api_key, llm.model, llm.max_tokens)
         else:
             raise ValueError("Invalid LLM type")
         
         return self
     
-    def with_openai_llm(self, name: str, base_url: str, api_key: str, model: str):
-        self.builder.with_openai_llm(name, base_url, api_key, model)
+    def with_openai_llm(self, name: str, base_url: str, api_key: str, model: str, max_tokens: int = 250):
+        self.builder.with_openai_llm(name, base_url, api_key, model, max_tokens)
         return self
 
     def with_embedings(self, embeddings: Embeddings):

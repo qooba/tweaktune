@@ -29,16 +29,24 @@ pub struct OpenAILLM {
     pub base_url: String,
     pub api_key: String,
     pub model: String,
+    pub max_tokens: u32,
 }
 
 impl OpenAILLM {
-    pub fn new(name: String, base_url: String, api_key: String, model: String) -> Self {
+    pub fn new(
+        name: String,
+        base_url: String,
+        api_key: String,
+        model: String,
+        max_tokens: u32,
+    ) -> Self {
         HTTP_CLIENT.get_or_init(Client::new);
         Self {
             name,
             base_url,
             api_key,
             model,
+            max_tokens,
         }
     }
 }
@@ -49,7 +57,7 @@ impl LLM for OpenAILLM {
         let request = ChatCompletionRequest {
             model: self.model.clone(),
             messages,
-            max_tokens: 100,
+            max_tokens: self.max_tokens,
             stream: None,
         };
         let response = HTTP_CLIENT
