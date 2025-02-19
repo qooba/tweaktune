@@ -3,7 +3,9 @@ use base64::{engine::general_purpose, Engine as _};
 use once_cell::sync::OnceCell;
 use rand::distributions::Alphanumeric;
 use rand::{Rng, RngCore};
+use regex::Regex;
 use serde::de::DeserializeOwned;
+use serde_json::Value;
 use std::io::{self, Result as IoResult};
 use std::{env, fs, path::PathBuf};
 
@@ -278,6 +280,38 @@ where
 
 pub fn unwrap_str(val: Option<String>, default: &str) -> String {
     val.unwrap_or(String::from(default))
+}
+
+fn extract_json_block_md(text: &str) -> Result<Value> {
+    extract_json_regex(text, r"```json(.*?)```")
+}
+
+fn extract_json_block(text: &str) -> Result<Value> {
+    extract_json_regex(text, r"\{(.*?)\}")
+}
+
+fn extract_json_regex(text: &str, re: &str) -> Result<Value> {
+    let re = Regex::new(re)?;
+    let captures = re
+        .captures(text)
+        .ok_or_else(|| anyhow!("No JSON block found"))?;
+    let json_str = captures
+        .get(1)
+        .ok_or_else(|| anyhow!("No JSON block found"))?
+        .as_str();
+    let json: Value = serde_json::from_str(json_str)?;
+    Ok(json)
+}
+
+pub fn extract_json(text: &str) -> Result<Value> {
+    let value = match serde_json::from_str(text) {
+        Ok(v) => v,
+        Err(_e) => match extract_json_block_md(text) {
+            Ok(v) => v,
+            Err(_e) => extract_json_block(text)?,
+        },
+    };
+    Ok(value)
 }
 
 #[cfg(test)]

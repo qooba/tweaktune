@@ -21,8 +21,8 @@ use tweaktune_core::{
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
     steps::{
-        CsvWriterStep, JsonlWriterStep, Step as StepCore, StepContext, StepStatus,
-        TextGenerationStep,
+        CsvWriterStep, JsonGenerationStep, JsonlWriterStep, Step as StepCore, StepContext,
+        StepStatus, TextGenerationStep,
     },
     templates::Templates,
 };
@@ -182,6 +182,27 @@ impl PipelineBuilder {
             )));
     }
 
+    #[pyo3(signature = (name, template, llm, output, json_path, system_template=None))]
+    pub fn add_json_generation_step(
+        &mut self,
+        name: String,
+        template: String,
+        llm: String,
+        output: String,
+        json_path: String,
+        system_template: Option<String>,
+    ) {
+        self.steps
+            .push(StepType::JsonGeneration(JsonGenerationStep::new(
+                name,
+                template,
+                llm,
+                output,
+                json_path,
+                system_template,
+            )));
+    }
+
     pub fn add_write_jsonl_step(&mut self, name: String, path: String, template: String) {
         self.steps.push(StepType::JsonWriter(JsonlWriterStep::new(
             name, path, template,
@@ -325,6 +346,18 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
             }
             StepType::TextGeneration(text_generation_step) => {
                 context = text_generation_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await
+                    .unwrap();
+            }
+            StepType::JsonGeneration(json_generation_step) => {
+                context = json_generation_step
                     .process(
                         &pipeline.datasets.resources,
                         &pipeline.templates,

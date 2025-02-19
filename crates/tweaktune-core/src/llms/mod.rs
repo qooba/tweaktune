@@ -62,16 +62,14 @@ impl LLM for OpenAILLM {
         };
         let response = HTTP_CLIENT
             .get()
-            .unwrap()
+            .expect("HTTP client not initialized")
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&request)
             .send()
-            .await
-            .unwrap()
+            .await?
             .json::<ChatCompletionResponse>()
-            .await
-            .unwrap();
+            .await?;
         Ok(response)
     }
 

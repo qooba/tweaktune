@@ -1,15 +1,15 @@
 use crate::{
-    common::ResultExt,
+    common::{extract_json, ResultExt},
     datasets::DatasetType,
     embeddings,
     llms::{self, LLM},
     templates::Templates,
 };
 use anyhow::Result;
+use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{collections::HashMap, f32::consts::E, fs::File, io::Write};
-use tokio::time::error::Elapsed;
+use std::{collections::HashMap, fs::File, io::Write};
 
 pub type StepContextData = serde_json::Value;
 
@@ -93,6 +93,28 @@ impl TextGenerationStep {
             system_template,
         }
     }
+
+    pub async fn generate(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<Option<String>> {
+        let template = templates.render(self.template.clone(), context.data.clone());
+
+        let llm = llms.get(&self.llm).expect("LLM");
+        let llms::LLMType::OpenAI(llm) = llm;
+        let result = match llm.call(template?).await {
+            Ok(response) => Some(response.choices[0].message.content.clone()),
+            Err(e) => {
+                debug!("Failed to generate text: {}", e);
+                None
+            }
+        };
+        Ok(result)
+    }
 }
 
 impl Step for TextGenerationStep {
@@ -104,20 +126,87 @@ impl Step for TextGenerationStep {
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
     ) -> Result<StepContext> {
-        let template = templates.render(self.template.clone(), context.data.clone());
         let mut context = context.clone();
+        let result = self
+            .generate(_datasets, templates, llms, _embeddings, &context)
+            .await?;
 
-        let llm = llms.get(&self.llm).expect("LLM");
-        let llms::LLMType::OpenAI(llm) = llm;
-        match llm.call(template?).await {
-            Ok(response) => {
-                context.data[self.output.clone()] =
-                    serde_json::to_value(response.choices[0].message.content.clone())?;
+        match result {
+            Some(value) => {
+                context.data[self.output.clone()] = serde_json::to_value(value)?;
             }
-            Err(_e) => {
+            None => {
                 context.set_status(StepStatus::Failed);
             }
         };
+        Ok(context)
+    }
+}
+
+pub struct JsonGenerationStep {
+    pub name: String,
+    pub generation_step: TextGenerationStep,
+    pub output: String,
+    pub json_path: String,
+}
+
+impl JsonGenerationStep {
+    pub fn new(
+        name: String,
+        template: String,
+        llm: String,
+        output: String,
+        json_path: String,
+        system_template: Option<String>,
+    ) -> Self {
+        Self {
+            generation_step: TextGenerationStep::new(
+                name.clone(),
+                template,
+                llm,
+                output.clone(),
+                system_template,
+            ),
+            output,
+            name,
+            json_path,
+        }
+    }
+}
+
+impl Step for JsonGenerationStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+        let result = self
+            .generation_step
+            .generate(_datasets, templates, llms, _embeddings, &context)
+            .await?;
+
+        match result {
+            Some(value) => match extract_json(&value) {
+                Ok(mut value) => {
+                    self.json_path.split(".").for_each(|key| {
+                        value = value[key].clone();
+                    });
+                    context.data[self.output.clone()] = value;
+                }
+                Err(e) => {
+                    debug!("Failed to extract JSON: {}", e);
+                    context.set_status(StepStatus::Failed);
+                }
+            },
+            None => {
+                context.set_status(StepStatus::Failed);
+            }
+        };
+
         Ok(context)
     }
 }

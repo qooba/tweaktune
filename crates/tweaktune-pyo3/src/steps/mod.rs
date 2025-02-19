@@ -18,7 +18,8 @@ use tweaktune_core::datasets::DatasetType;
 use tweaktune_core::embeddings::{self, EmbeddingsType};
 use tweaktune_core::llms::{self, LLMType, OpenAILLM, LLM};
 use tweaktune_core::steps::{
-    CsvWriterStep, JsonlWriterStep, Step, StepContext, StepStatus, TextGenerationStep,
+    CsvWriterStep, JsonGenerationStep, JsonlWriterStep, Step, StepContext, StepStatus,
+    TextGenerationStep,
 };
 use tweaktune_core::templates::Templates;
 
@@ -241,6 +242,7 @@ pub enum StepType {
     Py(PyStep),
     PyValidator(PyValidator),
     TextGeneration(TextGenerationStep),
+    JsonGeneration(JsonGenerationStep),
     JsonWriter(JsonlWriterStep),
     CsvWriter(CsvWriterStep),
     Print(PrintStep),

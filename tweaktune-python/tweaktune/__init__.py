@@ -88,7 +88,7 @@ class Pipeline:
             raise ValueError("Invalid dataset type")
 
         return self
-
+    
     def with_template(self, name: str, template: str):
         self.builder.with_jinja_template(name, template)
         return self
@@ -115,6 +115,10 @@ class Pipeline:
     
     def with_workers(self, workers: int):
         self.builder.with_workers(workers)
+        return self
+    
+    def from_yaml(self, path_or_url: str):
+        #TODO: Implement fetch configuration from yaml
         return self
     
     def iter(self, iter_by: IterBy):
@@ -161,6 +165,8 @@ class PipelineRunner:
             self.builder.add_py_step(step.name, PyStepWrapper(step.py_func))
         elif step.__class__ == Step.TextGeneration:
             self.builder.add_text_generation_step(step.name, step.template, step.llm, step.output, step.system_template)
+        elif step.__class__ == Step.JsonGeneration:
+            self.builder.add_json_generation_step(step.name, step.template, step.llm, step.output, step.json_path, step.system_template)
         elif step.__class__ == Step.DataSampler:
             self.builder.add_data_sampler_step(step.name, step.dataset, step.size)
         elif step.__class__ == Step.Judge:
@@ -183,6 +189,11 @@ class PipelineRunner:
 
     def generate_text(self, template: str, llm: str, output: str, system_template: str = None, name: str = "GENERATE-TEXT"):
         self.builder.add_text_generation_step(self.__name(name), template, llm, output, system_template)
+        self.step_index += 1
+        return self
+
+    def generate_json(self, template: str, llm: str, output: str, json_path: str, system_template: str = None, name: str = "GENERATE-JSON"):
+        self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template)
         self.step_index += 1
         return self
     
