@@ -1,10 +1,9 @@
 use anyhow::Result;
 use arrow::csv::reader::{infer_schema_from_files, ReaderBuilder as CsvReaderBuilder};
 use arrow::datatypes::SchemaRef;
-use arrow::json::reader::{self, infer_json_schema, ReaderBuilder as JsonReaderBuilder};
+use arrow::json::reader::{infer_json_schema, ReaderBuilder as JsonReaderBuilder};
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
-use std::f32::consts::E;
 use std::fs::File;
 use std::io::{BufReader, Write};
 use std::sync::Arc;

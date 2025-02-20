@@ -2,15 +2,12 @@ use crate::{
     common::ResultExt,
     steps::{PrintStep, PyStep, PyValidator, StepType},
 };
-use anyhow::Result;
-use arrow::{
-    array::{Int32Array, RecordBatch},
-    datatypes::{DataType, Field, Schema},
-    ffi_stream::ArrowArrayStreamReader,
-    pyarrow::PyArrowType,
-};
+use arrow::{array::RecordBatch, ffi_stream::ArrowArrayStreamReader, pyarrow::PyArrowType};
 use futures::stream::{self, StreamExt};
+use indicatif::ProgressBar;
+use log::debug;
 use pyo3::{pyclass, pymethods, PyObject, PyResult};
+use serde_json::de;
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 use tweaktune_core::{
@@ -21,8 +18,8 @@ use tweaktune_core::{
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
     steps::{
-        CsvWriterStep, JsonGenerationStep, JsonlWriterStep, Step as StepCore, StepContext,
-        StepStatus, TextGenerationStep,
+        CsvWriterStep, DataSamplerStep, JsonGenerationStep, JsonlWriterStep, Step as StepCore,
+        StepContext, StepStatus, TextGenerationStep,
     },
     templates::Templates,
 };
@@ -65,9 +62,11 @@ impl PipelineBuilder {
 
     pub fn with_workers(&mut self, workers: usize) {
         self.workers = workers;
+        debug!("Setting workers to {}", workers);
     }
 
     pub fn with_json_dataset(&mut self, name: String, path: String) {
+        debug!("Added JSON dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Jsonl(JsonlDataset::new(name, path)),
@@ -75,6 +74,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_parquet_dataset(&mut self, name: String, path: String) {
+        debug!("Added Parquet dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Parquet(ParquetDataset::new(name, path)),
@@ -86,6 +86,7 @@ impl PipelineBuilder {
         name: String,
         mut reader: PyArrowType<ArrowArrayStreamReader>,
     ) {
+        debug!("Added Arrow dataset: {}", &name);
         let mut batches = Vec::new();
         for batch in reader.0.by_ref() {
             batches.push(batch.unwrap());
@@ -104,6 +105,7 @@ impl PipelineBuilder {
         delimiter: String,
         has_header: bool,
     ) {
+        debug!("Added CSV dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Csv(CsvDataset::new(
@@ -123,6 +125,7 @@ impl PipelineBuilder {
         model: String,
         max_tokens: u32,
     ) {
+        debug!("Added OpenAI LLM: {}", &name);
         self.llms.add(
             name.clone(),
             LLMType::OpenAI(OpenAILLM::new(name, base_url, api_key, model, max_tokens)),
@@ -136,6 +139,7 @@ impl PipelineBuilder {
         api_key: String,
         model: String,
     ) {
+        debug!("Added OpenAI embeddings: {}", &name);
         self.embeddings.add(
             name.clone(),
             EmbeddingsType::OpenAI(OpenAIEmbeddings::new(name, base_url, api_key, model)),
@@ -143,6 +147,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_jinja_template(&mut self, name: String, template: String) {
+        debug!("Added Jinja template: {}", &name);
         self.templates.add(name, template);
     }
 
@@ -155,10 +160,12 @@ impl PipelineBuilder {
     }
 
     pub fn add_py_step(&mut self, name: String, py_func: PyObject) {
+        debug!("Added Python step: {}", &name);
         self.steps.push(StepType::Py(PyStep::new(name, py_func)));
     }
 
     pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
+        debug!("Added Python validator step: {}", &name);
         self.steps
             .push(StepType::PyValidator(PyValidator::new(name, py_func)));
     }
@@ -172,6 +179,10 @@ impl PipelineBuilder {
         output: String,
         system_template: Option<String>,
     ) {
+        debug!(
+            "Added text generation step with llm: {}, template: {}",
+            &llm, &template
+        );
         self.steps
             .push(StepType::TextGeneration(TextGenerationStep::new(
                 name,
@@ -192,6 +203,10 @@ impl PipelineBuilder {
         json_path: String,
         system_template: Option<String>,
     ) {
+        debug!(
+            "Added JSON generation step with template: {}, llm: {} and json path: {}",
+            &llm, &template, &json_path
+        );
         self.steps
             .push(StepType::JsonGeneration(JsonGenerationStep::new(
                 name,
@@ -204,6 +219,7 @@ impl PipelineBuilder {
     }
 
     pub fn add_write_jsonl_step(&mut self, name: String, path: String, template: String) {
+        debug!("Added JSONL writer step: {}", &name);
         self.steps.push(StepType::JsonWriter(JsonlWriterStep::new(
             name, path, template,
         )));
@@ -216,6 +232,7 @@ impl PipelineBuilder {
         template: Option<String>,
         columns: Option<Vec<String>>,
     ) {
+        debug!("Added print step");
         self.steps
             .push(StepType::Print(PrintStep::new(name, template, columns)));
     }
@@ -227,8 +244,29 @@ impl PipelineBuilder {
         columns: Vec<String>,
         delimiter: String,
     ) {
+        debug!("Added CSV writer step: {}", &name);
         self.steps.push(StepType::CsvWriter(CsvWriterStep::new(
             name, path, columns, delimiter,
+        )));
+    }
+
+    pub fn add_data_sampler_step(
+        &mut self,
+        name: String,
+        dataset: String,
+        size: usize,
+        output: String,
+    ) {
+        debug!(
+            "Added data sampler on dataset: {} with size: {}",
+            &dataset, &size
+        );
+        self.steps.push(StepType::DataSampler(DataSamplerStep::new(
+            name,
+            dataset,
+            size,
+            output,
+            &self.datasets.resources,
         )));
     }
 
@@ -240,6 +278,9 @@ impl PipelineBuilder {
         let result = Runtime::new()?.block_on(async {
             match &self.iter_by {
                 IterBy::Range { start, stop, step } => {
+                    debug!("Iterating by range: {}..{}..{}", start, stop, step);
+                    let bar = ProgressBar::new((stop - start) as u64);
+
                     stream::iter((*start..*stop).step_by(*step).map(|i| async move {
                         let mut context = StepContext::new();
                         context.set("index", i);
@@ -251,6 +292,7 @@ impl PipelineBuilder {
                     .await;
                 }
                 IterBy::Dataset { name } => {
+                    debug!("Iterating by dataset: {}", name);
                     let dataset = self.datasets.get(name).ok_or_err(name)?;
                     match dataset {
                         DatasetType::Jsonl(dataset) => {
@@ -406,6 +448,18 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
             }
             StepType::Print(print_step) => {
                 context = print_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await
+                    .unwrap();
+            }
+            StepType::DataSampler(data_sampler_step) => {
+                context = data_sampler_step
                     .process(
                         &pipeline.datasets.resources,
                         &pipeline.templates,

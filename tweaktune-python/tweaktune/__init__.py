@@ -197,8 +197,8 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
-    def sample(self, dataset: str, size: str, name: str = "SAMPLE"):
-        self.builder.add_data_sampler_step(self.__name(name), dataset, size)
+    def sample(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
+        self.builder.add_data_sampler_step(self.__name(name), dataset, size, output)
         self.step_index += 1
         return self
     

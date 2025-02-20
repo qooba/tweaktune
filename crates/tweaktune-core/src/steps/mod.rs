@@ -1,15 +1,20 @@
 use crate::{
-    common::{extract_json, ResultExt},
-    datasets::DatasetType,
+    common::{extract_json, OptionToResult, ResultExt},
+    datasets::{Dataset, DatasetType},
     embeddings,
     llms::{self, LLM},
     templates::Templates,
 };
 use anyhow::Result;
+use arrow::array::RecordBatch;
 use log::{debug, error, info};
+use parquet::arrow::arrow_reader::ParquetRecordBatchReader;
+use rand::seq::SliceRandom;
+use reqwest::header::CONTENT_DISPOSITION;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{collections::HashMap, fs::File, io::Write};
+use std::io::{BufReader, Write};
+use std::{collections::HashMap, fs::File};
 
 pub type StepContextData = serde_json::Value;
 
@@ -289,6 +294,66 @@ impl Step for CsvWriterStep {
         writer.flush()?;
 
         Ok(context.clone())
+    }
+}
+
+pub struct DataSamplerStep {
+    pub name: String,
+    pub dataset: String,
+    pub size: usize,
+    pub output: String,
+    arrow_batches: Vec<RecordBatch>,
+}
+
+impl DataSamplerStep {
+    pub fn new(
+        name: String,
+        dataset: String,
+        size: usize,
+        output: String,
+        datasets: &HashMap<String, DatasetType>,
+    ) -> Self {
+        let dataset_type = datasets.get(&dataset).ok_or_err(&dataset).unwrap();
+        let arrow_batches = match dataset_type {
+            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all(None).unwrap(),
+            DatasetType::Csv(csv_dataset) => csv_dataset.read_all(None).unwrap(),
+            DatasetType::Parquet(parquet_dataset) => parquet_dataset.read_all(None).unwrap(),
+            DatasetType::Arrow(arrow_dataset) => arrow_dataset.read_all(None).unwrap(),
+        };
+
+        Self {
+            name,
+            dataset,
+            size,
+            output,
+            arrow_batches,
+        }
+    }
+}
+
+impl Step for DataSamplerStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+        let mut rng = rand::thread_rng();
+        let record_batch = self.arrow_batches.choose(&mut rng).unwrap();
+
+        let json_rows: Vec<serde_json::Value> =
+            serde_arrow::from_record_batch(record_batch).unwrap();
+
+        let json_rows: Vec<serde_json::Value> = json_rows
+            .choose_multiple(&mut rng, self.size)
+            .cloned()
+            .collect();
+
+        context.set(&self.output, json_rows);
+        Ok(context)
     }
 }
 
