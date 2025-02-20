@@ -3,12 +3,14 @@ use crate::{
     steps::{PrintStep, PyStep, PyValidator, StepType},
 };
 use arrow::{array::RecordBatch, ffi_stream::ArrowArrayStreamReader, pyarrow::PyArrowType};
+use console::{style, Emoji};
 use futures::stream::{self, StreamExt};
-use indicatif::ProgressBar;
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use log::debug;
 use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use serde_json::de;
 use std::collections::HashMap;
+use std::{cmp::min, fmt::Write};
 use tokio::runtime::Runtime;
 use tweaktune_core::{
     common::OptionToResult,
@@ -281,11 +283,18 @@ impl PipelineBuilder {
                     debug!("Iterating by range: {}..{}..{}", start, stop, step);
                     let bar = ProgressBar::new((stop - start) as u64);
 
-                    stream::iter((*start..*stop).step_by(*step).map(|i| async move {
-                        let mut context = StepContext::new();
-                        context.set("index", i);
-                        context.set_status(StepStatus::Running);
-                        process_steps(self, context).await;
+                     bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",)
+                    .unwrap().progress_chars("#>-"));
+
+                    stream::iter((*start..*stop).step_by(*step).map(|i| {
+                        let bar = &bar;
+                        async move {
+                            let mut context = StepContext::new();
+                            context.set("index", i);
+                            context.set_status(StepStatus::Running);
+                            process_steps(self, context).await;
+                            bar.inc(1);
+                        }
                     }))
                     .buffered(self.workers)
                     .collect::<Vec<_>>()

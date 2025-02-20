@@ -14,6 +14,7 @@ license.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 arrow = { workspace = true }
+console = { workspace = true }
 futures = { workspace = true }
 indicatif = { workspace = true }
 log = { workspace = true}
