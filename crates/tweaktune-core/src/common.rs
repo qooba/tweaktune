@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
+use log::debug;
 use once_cell::sync::OnceCell;
 use rand::distributions::Alphanumeric;
 use rand::{Rng, RngCore};
@@ -304,6 +305,7 @@ fn extract_json_regex(text: &str, re: &str) -> Result<Value> {
 }
 
 pub fn extract_json(text: &str) -> Result<Value> {
+    debug!("EXTRACT JSON {}", &text);
     let value = match serde_json::from_str(text) {
         Ok(v) => v,
         Err(_e) => match extract_json_block_md(text) {

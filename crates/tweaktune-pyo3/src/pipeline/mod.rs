@@ -9,8 +9,8 @@ use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use log::debug;
 use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use serde_json::de;
-use std::collections::HashMap;
-use std::{cmp::min, fmt::Write};
+use std::{cmp::min, fmt::Write, sync::atomic::AtomicBool};
+use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
 use tweaktune_core::{
     common::OptionToResult,
@@ -277,6 +277,13 @@ impl PipelineBuilder {
     }
 
     pub fn run(&self) -> PyResult<()> {
+        let running = Arc::new(AtomicBool::new(true));
+        let r = running.clone();
+        ctrlc::set_handler(move || {
+            r.store(false, std::sync::atomic::Ordering::SeqCst);
+        })
+        .map_pyerr()?;
+
         let result = Runtime::new()?.block_on(async {
             match &self.iter_by {
                 IterBy::Range { start, stop, step } => {
@@ -288,7 +295,13 @@ impl PipelineBuilder {
 
                     stream::iter((*start..*stop).step_by(*step).map(|i| {
                         let bar = &bar;
+                        if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                            bar.finish_with_message("Interrupted");
+                            std::process::exit(1);
+                        }
+
                         async move {
+
                             let mut context = StepContext::new();
                             context.set("index", i);
                             context.set_status(StepStatus::Running);
@@ -302,13 +315,26 @@ impl PipelineBuilder {
                 }
                 IterBy::Dataset { name } => {
                     debug!("Iterating by dataset: {}", name);
+                    let bar = ProgressBar::new(0);
+
+                    bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] ({pos})",).unwrap());
+
                     let dataset = self.datasets.get(name).ok_or_err(name)?;
                     match dataset {
                         DatasetType::Jsonl(dataset) => {
                             stream::iter(dataset.create_stream(Some(1)).unwrap().map(
-                                |record_batch| async move {
-                                    map_record_batches(self, name, &record_batch.unwrap()).await;
-                                },
+                                |record_batch|{ 
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, &record_batch.unwrap()).await;
+                                        bar.inc(1);
+                                }},
                             ))
                             .buffered(self.workers)
                             .collect::<Vec<_>>()
@@ -316,9 +342,18 @@ impl PipelineBuilder {
                         }
                         DatasetType::Parquet(dataset) => {
                             stream::iter(dataset.create_stream(Some(1)).unwrap().map(
-                                |record_batch| async move {
-                                    map_record_batches(self, name, &record_batch.unwrap()).await;
-                                },
+                                |record_batch|{
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+                                    
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, &record_batch.unwrap()).await;
+                                        bar.inc(1);
+                                }},
                             ))
                             .buffered(self.workers)
                             .collect::<Vec<_>>()
@@ -326,9 +361,18 @@ impl PipelineBuilder {
                         }
                         DatasetType::Arrow(dataset) => {
                             stream::iter(dataset.read_all(Some(1)).unwrap().iter().map(
-                                |record_batch| async move {
-                                    map_record_batches(self, name, record_batch).await;
-                                },
+                                |record_batch| {
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, record_batch).await;
+                                        bar.inc(1);
+                                }},
                             ))
                             .buffered(self.workers)
                             .collect::<Vec<_>>()
@@ -336,9 +380,18 @@ impl PipelineBuilder {
                         }
                         DatasetType::Csv(dataset) => {
                             stream::iter(dataset.create_stream(Some(1)).unwrap().map(
-                                |record_batch| async move {
-                                    map_record_batches(self, name, &record_batch.unwrap()).await;
-                                },
+                                |record_batch| {
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, &record_batch.unwrap()).await;
+                                        bar.inc(1);
+                                }},
                             ))
                             .buffered(self.workers)
                             .collect::<Vec<_>>()

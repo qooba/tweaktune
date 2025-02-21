@@ -18,3 +18,6 @@ pyo3-build: ## Test musl
 
 pyo3-publish: ## Test musl
 	twine upload --verbose  --repository pypi ./target/wheels/*
+
+test:
+	cargo test --release datasets::tests::it_works -- --nocapture

@@ -1,13 +1,14 @@
+use anyhow::bail;
+use anyhow::Result;
 use regex::Regex;
 use serde::de::DeserializeOwned;
 use std::env;
 use std::fs;
-use tweaktune_abstractions::{err, Result};
 use url::Url;
 
-pub async fn read_config_str(path: &String, replace_env: Option<bool>) -> Result<String> {
+pub fn read_config_str(path: &String, replace_env: Option<bool>) -> Result<String> {
     let configuration_str = if Url::parse(path).is_ok() {
-        reqwest::get(path).await?.text().await?
+        reqwest::blocking::get(path)?.text()?
     } else {
         fs::read_to_string(path)?
     };
@@ -19,21 +20,28 @@ pub async fn read_config_str(path: &String, replace_env: Option<bool>) -> Result
     }
 }
 
-pub async fn read_config_bytes(path: &String) -> Result<Vec<u8>> {
+pub fn read_config_bytes(path: &String) -> Result<Vec<u8>> {
     let res = if Url::parse(path).is_ok() {
-        reqwest::get(path).await?.bytes().await?.to_vec()
+        reqwest::blocking::get(path)?.bytes()?.to_vec()
     } else {
         fs::read(path)?
     };
     Ok(res)
 }
 
-pub async fn read_config<T>(path: &String, replace_env: Option<bool>) -> Result<T>
+pub fn read_config<T>(path: &String, replace_env: Option<bool>) -> Result<T>
 where
     T: DeserializeOwned,
 {
-    let config = read_config_str(path, replace_env).await?;
-    let o: T = serde_yaml::from_str(&config)?;
+    let config = read_config_str(path, replace_env)?;
+
+    let o: T = if path.ends_with(".yaml") || path.ends_with(".yml") {
+        serde_yaml::from_str(&config)?
+    } else if path.ends_with(".json") {
+        serde_json::from_str(&config)?
+    } else {
+        bail!("Unsupported file format");
+    };
 
     Ok(o)
 }
@@ -54,7 +62,7 @@ impl ReplaceTokens {
             let from = format!("${{{}}}", &token);
             let to = match env::var(token) {
                 Ok(v) => v,
-                Err(_) => return Err(err!(ReplaceTokensError::NoEnv(token.to_string()))),
+                Err(_) => bail!(ReplaceTokensError::NoEnv(token.to_string())),
             };
             text = text.replace(&from, &to);
         }
