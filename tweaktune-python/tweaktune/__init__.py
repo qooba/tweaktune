@@ -5,6 +5,7 @@ from .tweaktune import Step, Jsonl, Parquet, Csv, Arrow, Lang, PipelineBuilder, 
 from datasets.arrow_dataset import Dataset as ArrowDataset
 from pyarrow.lib import RecordBatchReader
 import json
+import os
 from typing import List, overload
 
 #def hello():
@@ -192,7 +193,7 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def generate_json(self, template: str, llm: str, output: str, json_path: str, system_template: str = None, name: str = "GENERATE-JSON"):
+    def generate_json(self, template: str, llm: str, output: str, json_path: str = None, system_template: str = None, name: str = "GENERATE-JSON"):
         self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template)
         self.step_index += 1
         return self
@@ -228,6 +229,14 @@ class PipelineRunner:
             
         name = "PRINT"
         self.builder.add_print_step(self.__name(name), template=template, columns=columns)
+        return self
+
+    def debug(self, target: str = None):
+        self.builder.log("debug", target)
+        return self
+
+    def log(self, level: str = None, target: str = None):
+        self.builder.log(level, target)
         return self
     
     def run(self):

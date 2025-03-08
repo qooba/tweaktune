@@ -16,6 +16,7 @@ anyhow = { workspace = true }
 arrow = { workspace = true }
 console = { workspace = true }
 ctrlc = { workspace = true }
+env_logger = { workspace = true }
 futures = { workspace = true }
 indicatif = { workspace = true }
 log = { workspace = true}

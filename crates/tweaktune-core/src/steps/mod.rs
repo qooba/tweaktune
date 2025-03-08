@@ -114,7 +114,7 @@ impl TextGenerationStep {
         let result = match llm.call(template?).await {
             Ok(response) => Some(response.choices[0].message.content.clone()),
             Err(e) => {
-                debug!("Failed to generate text: {}", e);
+                debug!(target: "generate", "Failed to generate text: {}", e);
                 None
             }
         };
@@ -152,7 +152,7 @@ pub struct JsonGenerationStep {
     pub name: String,
     pub generation_step: TextGenerationStep,
     pub output: String,
-    pub json_path: String,
+    pub json_path: Option<String>,
 }
 
 impl JsonGenerationStep {
@@ -161,7 +161,7 @@ impl JsonGenerationStep {
         template: String,
         llm: String,
         output: String,
-        json_path: String,
+        json_path: Option<String>,
         system_template: Option<String>,
     ) -> Self {
         Self {
@@ -197,13 +197,17 @@ impl Step for JsonGenerationStep {
         match result {
             Some(value) => match extract_json(&value) {
                 Ok(mut value) => {
-                    self.json_path.split(".").for_each(|key| {
-                        value = value[key].clone();
-                    });
+                    if let Some(json_path) = &self.json_path {
+                        json_path.split(".").for_each(|key| {
+                            value = value[key].clone();
+                        });
+                    }
+
+                    debug!(target:"generate", "Generated VALUE: {}", value);
                     context.data[self.output.clone()] = value;
                 }
                 Err(e) => {
-                    debug!("Failed to extract JSON: {}", e);
+                    debug!(target:"generate", "Failed to extract JSON: {}", e);
                     context.set_status(StepStatus::Failed);
                 }
             },

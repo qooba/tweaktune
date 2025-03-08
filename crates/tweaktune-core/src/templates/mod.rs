@@ -1,7 +1,11 @@
 use crate::common::{OptionToResult, ResultExt};
 use crate::steps::{StepContext, StepContextData};
-use anyhow::Result;
+use anyhow::{bail, Result};
+use log::debug;
 use minijinja::Environment;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
+use serde::de;
 use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
 
@@ -27,6 +31,24 @@ impl Templates {
 
     pub fn compile(&self) -> Result<()> {
         let mut e = Environment::new();
+        e.add_filter("jstr", |value: String| {
+            serde_json::to_string(&value).unwrap()
+        });
+
+        e.add_filter("shuffle", |value: String| {
+            match serde_json::from_str::<Vec<serde_json::Value>>(&value) {
+                Ok(arr) => {
+                    let mut arr = arr;
+                    arr.shuffle(&mut thread_rng());
+                    serde_json::to_string(&arr).unwrap()
+                }
+                Err(_) => {
+                    log::debug!("Failed to shuffle array");
+                    value
+                }
+            }
+        });
+
         for (k, v) in self.templates.clone() {
             e.add_template_owned(k, v).map_anyhow_err()?;
         }
@@ -43,7 +65,24 @@ impl Templates {
             .get()
             .cloned()
             .ok_or_err("ENVIRONMENT")?;
-        let tmpl = environment.get_template(&name).map_anyhow_err()?;
-        tmpl.render(items).map_anyhow_err()
+        let tmpl = match environment.get_template(&name) {
+            Ok(t) => {
+                debug!(target:"template", "Template found: {}", name);
+                t
+            }
+            Err(e) => {
+                debug!(target:"template", "Template not found: {}", name);
+                bail!("Template not found: {}", e);
+            }
+        };
+        let rendered_template = match tmpl.render(items) {
+            Ok(t) => t,
+            Err(e) => {
+                debug!(target:"template", "Failed to render template: {}", e);
+                bail!("Failed to render template: {}", e);
+            }
+        };
+        debug!(target:"template", "-------------------\nRENDERED TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
+        Ok(rendered_template)
     }
 }

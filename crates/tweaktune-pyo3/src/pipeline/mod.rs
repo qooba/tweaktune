@@ -9,7 +9,7 @@ use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use log::debug;
 use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use serde_json::de;
-use std::{cmp::min, fmt::Write, sync::atomic::AtomicBool};
+use std::{cmp::min, env, fmt::Write, sync::atomic::AtomicBool};
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
 use tweaktune_core::{
@@ -195,19 +195,19 @@ impl PipelineBuilder {
             )));
     }
 
-    #[pyo3(signature = (name, template, llm, output, json_path, system_template=None))]
+    #[pyo3(signature = (name, template, llm, output, json_path=None, system_template=None))]
     pub fn add_json_generation_step(
         &mut self,
         name: String,
         template: String,
         llm: String,
         output: String,
-        json_path: String,
+        json_path: Option<String>,
         system_template: Option<String>,
     ) {
         debug!(
-            "Added JSON generation step with template: {}, llm: {} and json path: {}",
-            &llm, &template, &json_path
+            "Added JSON generation step with template: {}, llm: {}",
+            &llm, &template
         );
         self.steps
             .push(StepType::JsonGeneration(JsonGenerationStep::new(
@@ -274,6 +274,21 @@ impl PipelineBuilder {
 
     pub fn compile(&self) {
         self.templates.compile().unwrap();
+    }
+
+    #[pyo3(signature = (level=None, target=None))]
+    pub fn log(&self, level: Option<&str>, target: Option<&str>) {
+        let level = match level {
+            Some("debug") => log::LevelFilter::Debug,
+            Some("info") => log::LevelFilter::Info,
+            Some("warn") => log::LevelFilter::Warn,
+            Some("error") => log::LevelFilter::Error,
+            _ => log::LevelFilter::Info,
+        };
+
+        env_logger::builder()
+            .filter(target, level)
+            .init();
     }
 
     pub fn run(&self) -> PyResult<()> {
