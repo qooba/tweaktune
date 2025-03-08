@@ -6,7 +6,7 @@ use crate::{
     templates::Templates,
 };
 use anyhow::Result;
-use arrow::array::RecordBatch;
+use arrow::{array::RecordBatch, row};
 use log::{debug, error, info};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReader;
 use rand::seq::SliceRandom;
@@ -108,10 +108,17 @@ impl TextGenerationStep {
         context: &StepContext,
     ) -> Result<Option<String>> {
         let template = templates.render(self.template.clone(), context.data.clone());
+        let template = match template {
+            Ok(t) => t,
+            Err(e) => {
+                debug!(target: "generate", "Failed to render template: {}", e);
+                return Ok(None);
+            }
+        };
 
         let llm = llms.get(&self.llm).expect("LLM");
         let llms::LLMType::OpenAI(llm) = llm;
-        let result = match llm.call(template?).await {
+        let result = match llm.call(template).await {
             Ok(response) => Some(response.choices[0].message.content.clone()),
             Err(e) => {
                 debug!(target: "generate", "Failed to generate text: {}", e);
@@ -247,11 +254,20 @@ impl Step for JsonlWriterStep {
     ) -> Result<StepContext> {
         let file = File::options().append(true).create(true).open(&self.path)?;
         let mut writer = std::io::BufWriter::new(file);
-        let row = templates.render(self.template.clone(), context.data.clone())?;
-        writeln!(writer, "{}", row)?;
-        writer.flush()?;
+        let row = templates.render(self.template.clone(), context.data.clone());
+        let mut context = context.clone();
+        match row {
+            Ok(r) => {
+                writeln!(writer, "{}", r)?;
+                writer.flush()?;
+            }
+            Err(e) => {
+                debug!("Failed to render template: {}", e);
+                context.set_status(StepStatus::Failed);
+            }
+        };
 
-        Ok(context.clone())
+        Ok(context)
     }
 }
 

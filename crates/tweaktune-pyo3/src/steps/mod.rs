@@ -6,6 +6,7 @@ use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use arrow::pyarrow::PyArrowType;
 use arrow::record_batch::RecordBatch;
+use log::debug;
 use minijinja::Environment;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -279,8 +280,18 @@ impl Step for PyStep {
             Ok(result)
         });
 
-        let result: StepContext = serde_json::from_str(&result.unwrap())?;
-        Ok(result)
+        match result {
+            Ok(result) => {
+                let result: StepContext = serde_json::from_str(&result)?;
+                Ok(result)
+            }
+            Err(e) => {
+                debug!("{:?}", e);
+                let mut context = context.clone();
+                context.set_status(StepStatus::Failed);
+                Ok(context)
+            }
+        }
     }
 }
 

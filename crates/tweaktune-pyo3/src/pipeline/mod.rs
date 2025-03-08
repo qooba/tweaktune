@@ -25,6 +25,7 @@ use tweaktune_core::{
     },
     templates::Templates,
 };
+use anyhow::Result;
 
 #[pyclass]
 pub struct PipelineBuilder {
@@ -320,7 +321,7 @@ impl PipelineBuilder {
                             let mut context = StepContext::new();
                             context.set("index", i);
                             context.set_status(StepStatus::Running);
-                            process_steps(self, context).await;
+                            process_steps(self, context).await.unwrap();
                             bar.inc(1);
                         }
                     }))
@@ -347,7 +348,7 @@ impl PipelineBuilder {
 
                                     async move {
                                         bar.inc_length(1);
-                                        map_record_batches(self, name, &record_batch.unwrap()).await;
+                                        map_record_batches(self, name, &record_batch.unwrap()).await.unwrap();
                                         bar.inc(1);
                                 }},
                             ))
@@ -427,7 +428,7 @@ async fn map_record_batches(
     pipeline: &PipelineBuilder,
     dataset_name: &str,
     record_batch: &RecordBatch,
-) {
+) -> Result<()> {
     let mut context = StepContext::new();
 
     let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
@@ -435,7 +436,8 @@ async fn map_record_batches(
     let json_row = json_rows.first().unwrap();
     context.set(dataset_name, json_row);
     context.set_status(StepStatus::Running);
-    process_steps(pipeline, context).await;
+    process_steps(pipeline, context).await?;
+    Ok(())
 }
 
 impl Default for PipelineBuilder {
@@ -444,7 +446,7 @@ impl Default for PipelineBuilder {
     }
 }
 
-async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
+async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) -> Result<()> {
     for step in &pipeline.steps {
         if matches!(context.get_status(), StepStatus::Failed) {
             break;
@@ -460,8 +462,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::TextGeneration(text_generation_step) => {
                 context = text_generation_step
@@ -472,8 +473,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::JsonGeneration(json_generation_step) => {
                 context = json_generation_step
@@ -484,8 +484,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::PyValidator(py_validator) => {
                 context = py_validator
@@ -496,8 +495,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::JsonWriter(jsonl_writer_step) => {
                 context = jsonl_writer_step
@@ -508,8 +506,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::CsvWriter(csv_writer_step) => {
                 context = csv_writer_step
@@ -520,8 +517,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::Print(print_step) => {
                 context = print_step
@@ -532,8 +528,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::DataSampler(data_sampler_step) => {
                 context = data_sampler_step
@@ -544,11 +539,12 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
         }
     }
+
+    Ok(())
 }
 
 #[pyclass]
