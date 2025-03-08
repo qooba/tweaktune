@@ -1,9 +1,12 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
+use log::debug;
 use once_cell::sync::OnceCell;
 use rand::distributions::Alphanumeric;
 use rand::{Rng, RngCore};
+use regex::Regex;
 use serde::de::DeserializeOwned;
+use serde_json::Value;
 use std::io::{self, Result as IoResult};
 use std::{env, fs, path::PathBuf};
 
@@ -31,15 +34,23 @@ impl Errors {
 
 pub trait OptionToResult<T> {
     fn ok_or_err(self, name: &str) -> Result<T>;
+
+    fn expect_tt(self, name: &str) -> T;
 }
 
 impl<T> OptionToResult<T> for Option<T> {
     fn ok_or_err(self, name: &str) -> Result<T> {
-        self.ok_or(anyhow!("{:?} - value not found", name))
+        self.ok_or(anyhow!("🐔 {:?} - value not found", name))
+    }
+
+    fn expect_tt(self, name: &str) -> T {
+        self.unwrap_or_else(|| panic!("🐔 {:?} - value not found", name))
     }
 }
 
 pub trait ResultExt<T, E> {
+    fn map_tt_err(self, message: &str) -> Result<T>;
+
     fn map_anyhow_err(self) -> Result<T>;
 
     fn map_io_err(self) -> IoResult<T>;
@@ -50,6 +61,10 @@ pub trait ResultExt<T, E> {
 }
 
 impl<T, E: std::fmt::Debug> ResultExt<T, E> for Result<T, E> {
+    fn map_tt_err(self, message: &str) -> Result<T> {
+        self.map_err(|e| anyhow!("🐔 {:?}", message))
+    }
+
     fn map_anyhow_err(self) -> Result<T> {
         self.map_err(|e| anyhow!("{:?}", e))
     }
@@ -268,6 +283,43 @@ pub fn unwrap_str(val: Option<String>, default: &str) -> String {
     val.unwrap_or(String::from(default))
 }
 
+fn extract_json_block_md(text: &str) -> Result<Value> {
+    let json_str = extract_json_regex(text, r"(?s)```json\s*(.*?)\s*```")?;
+    let json: Value = serde_json::from_str(&json_str)?;
+    Ok(json)
+}
+
+fn extract_json_block(text: &str) -> Result<Value> {
+    let json_str = extract_json_regex(text, r"(?s)\{(.*?)\}\s*")?;
+    let json_str = format!("{{ {} }}", json_str.trim());
+    let json: Value = serde_json::from_str(&json_str)?;
+    Ok(json)
+}
+
+fn extract_json_regex(text: &str, re: &str) -> Result<String> {
+    let re = Regex::new(re)?;
+    let captures = re
+        .captures(text)
+        .ok_or_else(|| anyhow!("No JSON block found, captures"))?;
+    let json_str = captures
+        .get(1)
+        .ok_or_else(|| anyhow!("No JSON block found"))?
+        .as_str();
+    Ok(json_str.to_string())
+}
+
+pub fn extract_json(text: &str) -> Result<Value> {
+    // debug!(target: "extract_json", "EXTRACT JSON {}", &text);
+    let value = match serde_json::from_str(text) {
+        Ok(v) => v,
+        Err(_e) => match extract_json_block_md(text) {
+            Ok(v) => v,
+            Err(_e) => extract_json_block(text)?,
+        },
+    };
+    Ok(value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -320,6 +372,53 @@ mod tests {
     #[tokio::test]
     async fn test_generate_token() -> Result<()> {
         let _token = generate_token(50);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_extract_json_md() -> Result<()> {
+        let tekst = r#"W oparciu o podane informacje, przygotowałem przykładowe pytanie Anny Kowalskiej, pasjonatki kulinarnej, skierowane do chatbota z funkcją obliczania miesięcznej raty spłaty kredytu.
+    
+    ```json
+    {
+      "message": "Anna Kowalska pytanie o ratę kredytu:",
+      "question": {
+        "name": "Anna Kowalska",
+        " laughed_last": "2023-05-25 15:28:30",
+        "case": "kulinarny kredyt",
+        "loan_amount": 50000,
+        "interest_rate": 0.05,
+        "repayment_term": 5
+      }
+    }
+    ```
+    
+    W tym przykładzie:
+    - Pytanie zaczyna się od przedstawienia się użytkownika i kontekstu pytania (w tym prz
+        "#;
+        let json = extract_json(tekst)?;
+        println!("{:?}", json);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_extract_json() -> Result<()> {
+        let tekst = r#"Na podstawie podanych informacji, przygotowałem przykładowe pytanie, które może zadać Pani Alicja Straczyńska-Błach, wykorzystując funkcję `search_book_reviews`:
+    
+     JSON:
+    {
+      "message": "Czy możesz polecić książki o wielkich kompozytorach muzyki klasycznej, szczególnie z okresu romantyzmu?"
+    }
+    
+    W tym przykładzie:
+    - **book_title** lub **book_author** zostały pominięte, ponieważ Pani Alicja nie szuka konkretnego tytułu ani autora, ale raczej ogólnego tematu.
+    - Założyłem, że chce znaleźć książki związane z wielkimi kompozytorami muzyki klasycznej, a okres romantyzmu jest dla niej istotny ze względu na
+    
+        "#;
+        let json = extract_json(tekst)?;
+        println!("{:?}", json);
 
         Ok(())
     }

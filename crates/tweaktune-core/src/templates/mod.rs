@@ -1,9 +1,15 @@
-use std::{collections::HashMap, hash::Hash, sync::Arc};
-
+use crate::common::{OptionToResult, ResultExt};
+use crate::steps::{StepContext, StepContextData};
+use anyhow::{bail, Result};
+use log::debug;
 use minijinja::Environment;
-use std::sync::OnceLock;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
+use serde::de;
+use std::collections::HashMap;
+use std::sync::{OnceLock, RwLock};
 
-static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
+static ENVIRONMENT: RwLock<OnceLock<Environment>> = RwLock::new(OnceLock::new());
 
 #[derive(Default, Clone)]
 pub struct Templates {
@@ -23,16 +29,60 @@ impl Templates {
         self.templates.remove(name);
     }
 
-    pub fn render(&self, name: String, items: Vec<serde_json::Value>) -> String {
-        let environment = ENVIRONMENT.get_or_init(|| {
-            let mut e = Environment::new();
-            self.templates.clone().into_iter().for_each(|(k, v)| {
-                e.add_template_owned(k, v).unwrap();
-            });
-            e
+    pub fn compile(&self) -> Result<()> {
+        let mut e = Environment::new();
+        e.add_filter("jstr", |value: String| {
+            serde_json::to_string(&value).unwrap()
         });
 
-        let tmpl = environment.get_template(&name).unwrap();
-        tmpl.render(items).unwrap()
+        e.add_filter("shuffle", |value: String| {
+            match serde_json::from_str::<Vec<serde_json::Value>>(&value) {
+                Ok(arr) => {
+                    let mut arr = arr;
+                    arr.shuffle(&mut thread_rng());
+                    serde_json::to_string(&arr).unwrap()
+                }
+                Err(_) => {
+                    log::debug!("Failed to shuffle array");
+                    value
+                }
+            }
+        });
+
+        for (k, v) in self.templates.clone() {
+            e.add_template_owned(k, v).map_anyhow_err()?;
+        }
+        let mut lock = ENVIRONMENT.write().unwrap();
+        *lock = OnceLock::new();
+        lock.set(e).map_anyhow_err()?;
+        Ok(())
+    }
+
+    pub fn render(&self, name: String, items: StepContextData) -> Result<String> {
+        let environment = ENVIRONMENT
+            .read()
+            .map_anyhow_err()?
+            .get()
+            .cloned()
+            .ok_or_err("ENVIRONMENT")?;
+        let tmpl = match environment.get_template(&name) {
+            Ok(t) => {
+                debug!(target:"template", "Template found: {}", name);
+                t
+            }
+            Err(e) => {
+                debug!(target:"template", "Template not found: {}", name);
+                bail!("Template not found: {}", e);
+            }
+        };
+        let rendered_template = match tmpl.render(items) {
+            Ok(t) => t,
+            Err(e) => {
+                debug!(target:"template", "Failed to render template: {}", e);
+                bail!("Failed to render template: {}", e);
+            }
+        };
+        debug!(target:"template", "-------------------\nRENDERED TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
+        Ok(rendered_template)
     }
 }

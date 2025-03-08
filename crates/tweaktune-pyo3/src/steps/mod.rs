@@ -13,10 +13,14 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
+use tweaktune_core::common::ResultExt;
 use tweaktune_core::datasets::DatasetType;
-use tweaktune_core::embeddings::EmbeddingsType;
-use tweaktune_core::llms::LLMType;
-use tweaktune_core::steps::{Step, TextGenerationStep};
+use tweaktune_core::embeddings::{self, EmbeddingsType};
+use tweaktune_core::llms::{self, LLMType, OpenAILLM, LLM};
+use tweaktune_core::steps::{
+    CsvWriterStep, DataSamplerStep, JsonGenerationStep, JsonlWriterStep, Step, StepContext,
+    StepStatus, TextGenerationStep,
+};
 use tweaktune_core::templates::Templates;
 
 #[pyclass]
@@ -52,6 +56,23 @@ impl StepTest {
     pub fn new(config: PyRef<StepConfigTest>) -> PyResult<Self> {
         let name = config.name.clone();
         Ok(StepTest { name })
+    }
+
+    pub fn call_llm(&self, prompt: String) -> PyResult<String> {
+        let llm = OpenAILLM::new(
+            "test".to_string(),
+            "http://localhost:8093".to_string(),
+            "test_api_key".to_string(),
+            "speakleash/Bielik-11B-v2.3-Instruct".to_string(),
+            250,
+        );
+
+        let t: Result<String> = Runtime::new().unwrap().block_on(async {
+            let result = llm.call(prompt).await.unwrap();
+            Ok(result.choices[0].message.content.clone())
+        });
+
+        Ok(t.unwrap())
     }
 
     pub fn embed(&self, input: String, lang: PyRef<Lang>) -> PyResult<String> {
@@ -219,7 +240,13 @@ impl StepTest {
 
 pub enum StepType {
     Py(PyStep),
+    PyValidator(PyValidator),
     TextGeneration(TextGenerationStep),
+    JsonGeneration(JsonGenerationStep),
+    JsonWriter(JsonlWriterStep),
+    CsvWriter(CsvWriterStep),
+    Print(PrintStep),
+    DataSampler(DataSamplerStep),
 }
 
 pub struct PyStep {
@@ -240,17 +267,117 @@ impl Step for PyStep {
         _templates: &Templates,
         _llms: &HashMap<String, LLMType>,
         _embeddings: &HashMap<String, EmbeddingsType>,
-        batch: &RecordBatch,
-    ) -> Result<RecordBatch> {
-        let result_batch: PyResult<PyArrowType<RecordBatch>> = Python::with_gil(|py| {
-            let result: PyArrowType<RecordBatch> = self
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let json = serde_json::to_string(context)?;
+
+        let result: PyResult<String> = Python::with_gil(|py| {
+            let result: String = self
                 .py_func
-                .call_method1(py, "process", (PyArrowType(batch.clone()),))?
+                .call_method1(py, "process", (json,))?
                 .extract(py)?;
             Ok(result)
         });
 
-        let result_batch = result_batch?.0;
-        Ok(result_batch)
+        let result: StepContext = serde_json::from_str(&result.unwrap())?;
+        Ok(result)
+    }
+}
+
+pub struct PyValidator {
+    pub name: String,
+    pub py_func: PyObject,
+}
+
+impl PyValidator {
+    pub fn new(name: String, py_func: PyObject) -> Self {
+        Self { name, py_func }
+    }
+}
+
+impl Step for PyValidator {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, LLMType>,
+        _embeddings: &HashMap<String, EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let json = serde_json::to_string(context)?;
+
+        let result: PyResult<bool> = Python::with_gil(|py| {
+            let result: bool = self
+                .py_func
+                .call_method1(py, "process", (json,))?
+                .extract(py)?;
+            Ok(result)
+        });
+
+        let result = result.map_tt_err("VALIDATOR MUST RETURN BOOL")?;
+        let mut context = context.clone();
+        if !result {
+            context.set_status(StepStatus::Failed);
+        }
+
+        Ok(context)
+    }
+}
+
+pub struct PrintStep {
+    pub name: String,
+    pub template: Option<String>,
+    pub columns: Option<Vec<String>>,
+}
+
+impl PrintStep {
+    pub fn new(name: String, template: Option<String>, columns: Option<Vec<String>>) -> Self {
+        Self {
+            name,
+            template,
+            columns,
+        }
+    }
+}
+
+impl Step for PrintStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut row = if let Some(template) = self.template.clone() {
+            templates.render(template.clone(), context.data.clone())?
+        } else if let Some(columns) = self.columns.clone() {
+            let mut row = String::new();
+            for (i, column) in columns.iter().enumerate() {
+                if let Some(value) = context.data.get(column) {
+                    if i > 0 {
+                        row.push_str(" | ");
+                    }
+                    row.push_str(&value.to_string());
+                }
+            }
+
+            row
+        } else {
+            context.data.to_string()
+        };
+
+        row.push('\n');
+
+        Python::with_gil(|py| {
+            let sys = py.import("sys").unwrap();
+            let stdout = sys.getattr("stdout").unwrap();
+            let write = stdout.getattr("write").unwrap();
+            write.call1((row,)).unwrap();
+        });
+
+        // println!("{}", row);
+
+        Ok(context.clone())
     }
 }
