@@ -65,6 +65,15 @@ impl JsonlDataset {
         let stream = serde_json::Deserializer::from_reader(buf_reader).into_iter::<Value>();
         Ok(stream.map(|value| value.map_err(anyhow::Error::from)))
     }
+
+    pub fn read_all_json(&self) -> Result<Vec<Value>> {
+        let stream = self.create_json_stream()?;
+        let mut records = Vec::new();
+        for record in stream {
+            records.push(record?);
+        }
+        Ok(records)
+    }
 }
 
 impl Dataset for JsonlDataset {

@@ -6,7 +6,7 @@ use crate::{
     templates::Templates,
 };
 use anyhow::Result;
-use arrow::{array::RecordBatch, row};
+use arrow::{array::RecordBatch, json, row};
 use log::{debug, error, info};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReader;
 use rand::seq::SliceRandom;
@@ -322,7 +322,18 @@ pub struct DataSamplerStep {
     pub dataset: String,
     pub size: usize,
     pub output: String,
-    arrow_batches: Vec<RecordBatch>,
+    json_batches: Vec<Vec<serde_json::Value>>,
+}
+
+fn map_to_json(record_batches: &Vec<RecordBatch>) -> Vec<Vec<serde_json::Value>> {
+    let json_rows = record_batches
+        .iter()
+        .map(|record_batch| {
+            let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
+            jv
+        })
+        .collect();
+    json_rows
 }
 
 impl DataSamplerStep {
@@ -334,11 +345,15 @@ impl DataSamplerStep {
         datasets: &HashMap<String, DatasetType>,
     ) -> Self {
         let dataset_type = datasets.get(&dataset).ok_or_err(&dataset).unwrap();
-        let arrow_batches = match dataset_type {
-            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all(None).unwrap(),
-            DatasetType::Csv(csv_dataset) => csv_dataset.read_all(None).unwrap(),
-            DatasetType::Parquet(parquet_dataset) => parquet_dataset.read_all(None).unwrap(),
-            DatasetType::Arrow(arrow_dataset) => arrow_dataset.read_all(None).unwrap(),
+        let json_batches = match dataset_type {
+            DatasetType::Jsonl(jsonl_dataset) => vec![jsonl_dataset.read_all_json().unwrap()],
+            DatasetType::Csv(csv_dataset) => map_to_json(&csv_dataset.read_all(None).unwrap()),
+            DatasetType::Parquet(parquet_dataset) => {
+                map_to_json(&parquet_dataset.read_all(None).unwrap())
+            }
+            DatasetType::Arrow(arrow_dataset) => {
+                map_to_json(&arrow_dataset.read_all(None).unwrap())
+            }
         };
 
         Self {
@@ -346,7 +361,7 @@ impl DataSamplerStep {
             dataset,
             size,
             output,
-            arrow_batches,
+            json_batches,
         }
     }
 }
@@ -362,14 +377,11 @@ impl Step for DataSamplerStep {
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let mut rng = rand::thread_rng();
-        let record_batch = self.arrow_batches.choose(&mut rng).unwrap();
-
-        let json_rows: Vec<serde_json::Value> =
-            serde_arrow::from_record_batch(record_batch).unwrap();
-
-        let json_rows: Vec<serde_json::Value> = json_rows
+        let json_rows = self.json_batches.choose(&mut rng).unwrap();
+        let json_rows: Vec<Vec<serde_json::Value>> = json_rows
             .choose_multiple(&mut rng, self.size)
             .cloned()
+            .map(|row| vec![row])
             .collect();
 
         context.set(&self.output, json_rows);
