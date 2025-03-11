@@ -58,6 +58,13 @@ impl JsonlDataset {
 
         Ok(reader)
     }
+
+    pub fn create_json_stream(&self) -> Result<impl Iterator<Item = Result<Value>>> {
+        let file = File::open(&self.path)?;
+        let buf_reader = BufReader::new(file);
+        let stream = serde_json::Deserializer::from_reader(buf_reader).into_iter::<Value>();
+        Ok(stream.map(|value| value.map_err(anyhow::Error::from)))
+    }
 }
 
 impl Dataset for JsonlDataset {

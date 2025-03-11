@@ -348,7 +348,9 @@ impl PipelineBuilder {
 
                                     async move {
                                         bar.inc_length(1);
-                                        map_record_batches(self, name, &record_batch.unwrap()).await.unwrap();
+                                        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(&record_batch.unwrap()).unwrap();
+                                        let json_row = json_rows.first().unwrap();
+                                        map_record_batches(self, name, json_row).await.unwrap();
                                         bar.inc(1);
                                 }},
                             ))
@@ -367,7 +369,9 @@ impl PipelineBuilder {
                                     
                                     async move {
                                         bar.inc_length(1);
-                                        map_record_batches(self, name, &record_batch.unwrap()).await;
+                                        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(&record_batch.unwrap()).unwrap();
+                                        let json_row = json_rows.first().unwrap();
+                                        map_record_batches(self, name, json_row).await.unwrap();
                                         bar.inc(1);
                                 }},
                             ))
@@ -386,7 +390,9 @@ impl PipelineBuilder {
 
                                     async move {
                                         bar.inc_length(1);
-                                        map_record_batches(self, name, record_batch).await;
+                                        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
+                                        let json_row = json_rows.first().unwrap();
+                                        map_record_batches(self, name, json_row).await.unwrap();
                                         bar.inc(1);
                                 }},
                             ))
@@ -405,7 +411,9 @@ impl PipelineBuilder {
 
                                     async move {
                                         bar.inc_length(1);
-                                        map_record_batches(self, name, &record_batch.unwrap()).await;
+                                        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(&record_batch.unwrap()).unwrap();
+                                        let json_row = json_rows.first().unwrap();
+                                        map_record_batches(self, name, json_row).await.unwrap();
                                         bar.inc(1);
                                 }},
                             ))
@@ -427,13 +435,10 @@ impl PipelineBuilder {
 async fn map_record_batches(
     pipeline: &PipelineBuilder,
     dataset_name: &str,
-    record_batch: &RecordBatch,
+    json_row: &serde_json::Value,
 ) -> Result<()> {
     let mut context = StepContext::new();
 
-    let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
-
-    let json_row = json_rows.first().unwrap();
     context.set(dataset_name, json_row);
     context.set_status(StepStatus::Running);
     process_steps(pipeline, context).await?;
