@@ -1,4 +1,5 @@
 use crate::config::read_config;
+use crate::steps::{flat_map_to_json, map_to_json};
 use anyhow::Result;
 use arrow::csv::reader::{infer_schema_from_files, ReaderBuilder as CsvReaderBuilder};
 use arrow::datatypes::SchemaRef;
@@ -255,19 +256,40 @@ impl Dataset for JsonDataset {
 #[derive(Clone)]
 pub struct MixedDataset {
     _name: String,
-    path: String,
+    datasets: Vec<String>,
 }
 
 impl MixedDataset {
-    pub fn new(name: String, path: String) -> Self {
-        Self { _name: name, path }
+    pub fn new(name: String, datasets: Vec<String>) -> Self {
+        Self {
+            _name: name,
+            datasets,
+        }
     }
 
-    pub fn read_all_json(&self) -> Result<Vec<Value>> {
-        let file = File::open(&self.path)?;
-        let buf_reader = BufReader::new(file);
-        let values: Vec<Value> = serde_json::from_reader(buf_reader)?;
-        Ok(values)
+    pub fn read_all_json(&self, datasets: HashMap<String, DatasetType>) -> Result<Vec<Value>> {
+        let values: Vec<Vec<Value>> = self
+            .datasets
+            .iter()
+            .map(|dataset| {
+                let dataset = datasets.get(dataset).unwrap();
+                match dataset {
+                    DatasetType::Json(json_dataset) => json_dataset.read_all_json().unwrap(),
+                    DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all_json().unwrap(),
+                    DatasetType::Csv(csv_dataset) => {
+                        flat_map_to_json(&csv_dataset.read_all(None).unwrap())
+                    }
+                    DatasetType::Parquet(parquet_dataset) => {
+                        flat_map_to_json(&parquet_dataset.read_all(None).unwrap())
+                    }
+                    DatasetType::Arrow(arrow_dataset) => {
+                        flat_map_to_json(&arrow_dataset.read_all(None).unwrap())
+                    }
+                }
+            })
+            .collect();
+
+        Ok(values.first().unwrap().clone())
     }
 }
 

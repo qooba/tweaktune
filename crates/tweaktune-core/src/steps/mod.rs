@@ -325,10 +325,21 @@ pub struct DataSamplerStep {
     json_batches: Vec<Vec<serde_json::Value>>,
 }
 
-fn map_to_json(record_batches: &Vec<RecordBatch>) -> Vec<Vec<serde_json::Value>> {
+pub fn map_to_json(record_batches: &[RecordBatch]) -> Vec<Vec<serde_json::Value>> {
     let json_rows = record_batches
         .iter()
         .map(|record_batch| {
+            let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
+            jv
+        })
+        .collect();
+    json_rows
+}
+
+pub fn flat_map_to_json(record_batches: &[RecordBatch]) -> Vec<serde_json::Value> {
+    let json_rows = record_batches
+        .iter()
+        .flat_map(|record_batch| {
             let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
             jv
         })
