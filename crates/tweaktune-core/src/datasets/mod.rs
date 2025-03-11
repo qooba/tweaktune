@@ -23,6 +23,7 @@ pub trait Writer {
 #[derive(Clone)]
 pub enum DatasetType {
     Jsonl(JsonlDataset),
+    Json(JsonDataset),
     Csv(CsvDataset),
     Parquet(ParquetDataset),
     Arrow(ArrowDataset),
@@ -223,6 +224,56 @@ impl Dataset for ArrowDataset {
         } else {
             Ok(self.records.clone())
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct JsonDataset {
+    _name: String,
+    path: String,
+}
+
+impl JsonDataset {
+    pub fn new(name: String, path: String) -> Self {
+        Self { _name: name, path }
+    }
+
+    pub fn read_all_json(&self) -> Result<Vec<Value>> {
+        let file = File::open(&self.path)?;
+        let buf_reader = BufReader::new(file);
+        let values: Vec<Value> = serde_json::from_reader(buf_reader)?;
+        Ok(values)
+    }
+}
+
+impl Dataset for JsonDataset {
+    fn read_all(&self, _batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+        unimplemented!()
+    }
+}
+
+#[derive(Clone)]
+pub struct MixedDataset {
+    _name: String,
+    path: String,
+}
+
+impl MixedDataset {
+    pub fn new(name: String, path: String) -> Self {
+        Self { _name: name, path }
+    }
+
+    pub fn read_all_json(&self) -> Result<Vec<Value>> {
+        let file = File::open(&self.path)?;
+        let buf_reader = BufReader::new(file);
+        let values: Vec<Value> = serde_json::from_reader(buf_reader)?;
+        Ok(values)
+    }
+}
+
+impl Dataset for MixedDataset {
+    fn read_all(&self, _batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+        unimplemented!()
     }
 }
 

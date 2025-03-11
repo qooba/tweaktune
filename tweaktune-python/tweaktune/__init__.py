@@ -51,6 +51,8 @@ class Pipeline:
 
     def with_dataset(self, dataset: Dataset):
         if dataset.__class__ == Dataset.Jsonl:
+            self.builder.with_jsonl_dataset(dataset.name, dataset.path)
+        elif dataset.__class__ == Dataset.Json:
             self.builder.with_json_dataset(dataset.name, dataset.path)
         elif dataset.__class__ == Dataset.Parquet:
             self.builder.with_parquet_dataset(dataset.name, dataset.path)
@@ -69,8 +71,13 @@ class Pipeline:
         return self
     
     def with_jsonl_dataset(self, name: str, path: str):
+        self.builder.with_jsonl_dataset(name, path)
+        return self
+    
+    def with_json_dataset(self, name: str, path: str):
         self.builder.with_json_dataset(name, path)
         return self
+
     
     def with_parquet_dataset(self, name: str, path: str):
         self.builder.with_parquet_dataset(name, path)

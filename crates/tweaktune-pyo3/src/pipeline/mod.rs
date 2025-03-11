@@ -15,7 +15,7 @@ use tokio::runtime::Runtime;
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{
-        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonlDataset, ParquetDataset,
+        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonDataset, JsonlDataset, ParquetDataset
     },
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
@@ -68,11 +68,19 @@ impl PipelineBuilder {
         debug!("Setting workers to {}", workers);
     }
 
+    pub fn with_jsonl_dataset(&mut self, name: String, path: String) {
+        debug!("Added JSONL dataset: {}", &name);
+        self.datasets.add(
+            name.clone(),
+            DatasetType::Jsonl(JsonlDataset::new(name, path)),
+        );
+    }
+
     pub fn with_json_dataset(&mut self, name: String, path: String) {
         debug!("Added JSON dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Jsonl(JsonlDataset::new(name, path)),
+            DatasetType::Json(JsonDataset::new(name, path)),
         );
     }
 
@@ -349,6 +357,26 @@ impl PipelineBuilder {
                                     async move {
                                         bar.inc_length(1);
                                         map_record_batches(self, name, &json_row.unwrap()).await.unwrap();
+                                        bar.inc(1);
+                                }},
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                        }
+                        DatasetType::Json(dataset) => {
+                            let json_items = dataset.read_all_json().unwrap();
+                            stream::iter(json_items.iter().map(
+                                |json_row|{ 
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, json_row).await.unwrap();
                                         bar.inc(1);
                                 }},
                             ))
