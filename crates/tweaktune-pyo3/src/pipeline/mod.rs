@@ -15,7 +15,7 @@ use tokio::runtime::Runtime;
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{
-        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonDataset, JsonlDataset, ParquetDataset
+        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonDataset, JsonlDataset, MixedDataset, ParquetDataset
     },
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
@@ -81,6 +81,14 @@ impl PipelineBuilder {
         self.datasets.add(
             name.clone(),
             DatasetType::Json(JsonDataset::new(name, path)),
+        );
+    }
+
+    pub fn with_mixed_dataset(&mut self, name: String, datasets: Vec<String>) {
+        debug!("Added MIXED dataset: {}", &name);
+        self.datasets.add(
+            name.clone(),
+            DatasetType::Mixed(MixedDataset::new(name, datasets)),
         );
     }
 
@@ -384,6 +392,27 @@ impl PipelineBuilder {
                             .collect::<Vec<_>>()
                             .await;
                         }
+                        DatasetType::Mixed(dataset) => {
+                            let json_items = dataset.read_all_json(&self.datasets.resources).unwrap();
+                            stream::iter(json_items.iter().map(
+                                |json_row|{ 
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, json_row).await.unwrap();
+                                        bar.inc(1);
+                                }},
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                        }
+
                         DatasetType::Parquet(dataset) => {
                             stream::iter(dataset.create_stream(Some(1)).unwrap().map(
                                 |record_batch|{

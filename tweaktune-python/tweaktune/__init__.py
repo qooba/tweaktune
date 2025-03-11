@@ -54,6 +54,8 @@ class Pipeline:
             self.builder.with_jsonl_dataset(dataset.name, dataset.path)
         elif dataset.__class__ == Dataset.Json:
             self.builder.with_json_dataset(dataset.name, dataset.path)
+        elif dataset.__class__ == Dataset.Mixed:
+            self.builder.with_mixed_dataset(dataset.name, dataset.datasets)
         elif dataset.__class__ == Dataset.Parquet:
             self.builder.with_parquet_dataset(dataset.name, dataset.path)
         elif dataset.__class__ == Dataset.Csv:
@@ -78,6 +80,9 @@ class Pipeline:
         self.builder.with_json_dataset(name, path)
         return self
 
+    def with_mixed_dataset(self, name: str, datasets: List[str]):
+        self.builder.with_mixed_dataset(name, datasets)
+        return self
     
     def with_parquet_dataset(self, name: str, path: str):
         self.builder.with_parquet_dataset(name, path)

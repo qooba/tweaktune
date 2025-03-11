@@ -28,6 +28,7 @@ pub enum DatasetType {
     Csv(CsvDataset),
     Parquet(ParquetDataset),
     Arrow(ArrowDataset),
+    Mixed(MixedDataset),
 }
 
 #[derive(Clone)]
@@ -267,7 +268,7 @@ impl MixedDataset {
         }
     }
 
-    pub fn read_all_json(&self, datasets: HashMap<String, DatasetType>) -> Result<Vec<Value>> {
+    pub fn read_all_json(&self, datasets: &HashMap<String, DatasetType>) -> Result<Vec<Value>> {
         let values: Vec<Vec<Value>> = self
             .datasets
             .iter()
@@ -285,11 +286,34 @@ impl MixedDataset {
                     DatasetType::Arrow(arrow_dataset) => {
                         flat_map_to_json(&arrow_dataset.read_all(None).unwrap())
                     }
+                    _ => unimplemented!(),
                 }
             })
             .collect();
 
-        Ok(values.first().unwrap().clone())
+        let mut cartesian_product = vec![HashMap::new()];
+
+        for (i, dataset_values) in values.iter().enumerate() {
+            let dataset_name = &self.datasets[i];
+            let mut new_product = Vec::new();
+
+            for record in dataset_values {
+                for existing_combination in &cartesian_product {
+                    let mut new_combination = existing_combination.clone();
+                    new_combination.insert(dataset_name.clone(), record.clone());
+                    new_product.push(new_combination);
+                }
+            }
+
+            cartesian_product = new_product;
+        }
+
+        let result: Vec<Value> = cartesian_product
+            .into_iter()
+            .map(|combination| serde_json::to_value(combination).unwrap())
+            .collect();
+
+        Ok(result)
     }
 }
 

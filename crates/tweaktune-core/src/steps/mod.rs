@@ -359,6 +359,9 @@ impl DataSamplerStep {
         let json_batches = match dataset_type {
             DatasetType::Jsonl(jsonl_dataset) => vec![jsonl_dataset.read_all_json().unwrap()],
             DatasetType::Json(json_dataset) => vec![json_dataset.read_all_json().unwrap()],
+            DatasetType::Mixed(mixed_dataset) => {
+                vec![mixed_dataset.read_all_json(datasets).unwrap()]
+            }
             DatasetType::Csv(csv_dataset) => map_to_json(&csv_dataset.read_all(None).unwrap()),
             DatasetType::Parquet(parquet_dataset) => {
                 map_to_json(&parquet_dataset.read_all(None).unwrap())
