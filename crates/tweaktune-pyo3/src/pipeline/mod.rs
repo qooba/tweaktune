@@ -15,7 +15,7 @@ use tokio::runtime::Runtime;
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{
-        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonlDataset, ParquetDataset,
+        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonDataset, JsonlDataset, MixedDataset, ParquetDataset
     },
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
@@ -25,6 +25,7 @@ use tweaktune_core::{
     },
     templates::Templates,
 };
+use anyhow::Result;
 
 #[pyclass]
 pub struct PipelineBuilder {
@@ -67,11 +68,27 @@ impl PipelineBuilder {
         debug!("Setting workers to {}", workers);
     }
 
+    pub fn with_jsonl_dataset(&mut self, name: String, path: String) {
+        debug!("Added JSONL dataset: {}", &name);
+        self.datasets.add(
+            name.clone(),
+            DatasetType::Jsonl(JsonlDataset::new(name, path)),
+        );
+    }
+
     pub fn with_json_dataset(&mut self, name: String, path: String) {
         debug!("Added JSON dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Jsonl(JsonlDataset::new(name, path)),
+            DatasetType::Json(JsonDataset::new(name, path)),
+        );
+    }
+
+    pub fn with_mixed_dataset(&mut self, name: String, datasets: Vec<String>) {
+        debug!("Added MIXED dataset: {}", &name);
+        self.datasets.add(
+            name.clone(),
+            DatasetType::Mixed(MixedDataset::new(name, datasets)),
         );
     }
 
@@ -266,11 +283,31 @@ impl PipelineBuilder {
         self.steps.push(StepType::DataSampler(DataSamplerStep::new(
             name,
             dataset,
-            size,
+            Some(size),
             output,
             &self.datasets.resources,
         )));
     }
+
+    pub fn add_data_read_step(
+        &mut self,
+        name: String,
+        dataset: String,
+        output: String,
+    ) {
+        debug!(
+            "Added data read on dataset: {}",
+            &dataset
+        );
+        self.steps.push(StepType::DataSampler(DataSamplerStep::new(
+            name,
+            dataset,
+            None,
+            output,
+            &self.datasets.resources,
+        )));
+    }
+
 
     pub fn compile(&self) {
         self.templates.compile().unwrap();
@@ -320,7 +357,7 @@ impl PipelineBuilder {
                             let mut context = StepContext::new();
                             context.set("index", i);
                             context.set_status(StepStatus::Running);
-                            process_steps(self, context).await;
+                            process_steps(self, context).await.unwrap();
                             bar.inc(1);
                         }
                     }))
@@ -337,8 +374,8 @@ impl PipelineBuilder {
                     let dataset = self.datasets.get(name).ok_or_err(name)?;
                     match dataset {
                         DatasetType::Jsonl(dataset) => {
-                            stream::iter(dataset.create_stream(Some(1)).unwrap().map(
-                                |record_batch|{ 
+                            stream::iter(dataset.create_json_stream().unwrap().map(
+                                |json_row|{ 
                                     let bar = &bar;
                                     if !running.load(std::sync::atomic::Ordering::SeqCst) {
                                         bar.finish_with_message("Interrupted");
@@ -347,7 +384,7 @@ impl PipelineBuilder {
 
                                     async move {
                                         bar.inc_length(1);
-                                        map_record_batches(self, name, &record_batch.unwrap()).await;
+                                        map_record_batches(self, name, &json_row.unwrap()).await.unwrap();
                                         bar.inc(1);
                                 }},
                             ))
@@ -355,6 +392,47 @@ impl PipelineBuilder {
                             .collect::<Vec<_>>()
                             .await;
                         }
+                        DatasetType::Json(dataset) => {
+                            let json_items = dataset.read_all_json().unwrap();
+                            stream::iter(json_items.iter().map(
+                                |json_row|{ 
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, json_row).await.unwrap();
+                                        bar.inc(1);
+                                }},
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                        }
+                        DatasetType::Mixed(dataset) => {
+                            let json_items = dataset.read_all_json(&self.datasets.resources).unwrap();
+                            stream::iter(json_items.iter().map(
+                                |json_row|{ 
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, json_row).await.unwrap();
+                                        bar.inc(1);
+                                }},
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                        }
+
                         DatasetType::Parquet(dataset) => {
                             stream::iter(dataset.create_stream(Some(1)).unwrap().map(
                                 |record_batch|{
@@ -366,7 +444,9 @@ impl PipelineBuilder {
                                     
                                     async move {
                                         bar.inc_length(1);
-                                        map_record_batches(self, name, &record_batch.unwrap()).await;
+                                        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(&record_batch.unwrap()).unwrap();
+                                        let json_row = json_rows.first().unwrap();
+                                        map_record_batches(self, name, json_row).await.unwrap();
                                         bar.inc(1);
                                 }},
                             ))
@@ -385,7 +465,9 @@ impl PipelineBuilder {
 
                                     async move {
                                         bar.inc_length(1);
-                                        map_record_batches(self, name, record_batch).await;
+                                        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
+                                        let json_row = json_rows.first().unwrap();
+                                        map_record_batches(self, name, json_row).await.unwrap();
                                         bar.inc(1);
                                 }},
                             ))
@@ -404,7 +486,9 @@ impl PipelineBuilder {
 
                                     async move {
                                         bar.inc_length(1);
-                                        map_record_batches(self, name, &record_batch.unwrap()).await;
+                                        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(&record_batch.unwrap()).unwrap();
+                                        let json_row = json_rows.first().unwrap();
+                                        map_record_batches(self, name, json_row).await.unwrap();
                                         bar.inc(1);
                                 }},
                             ))
@@ -426,16 +510,14 @@ impl PipelineBuilder {
 async fn map_record_batches(
     pipeline: &PipelineBuilder,
     dataset_name: &str,
-    record_batch: &RecordBatch,
-) {
+    json_row: &serde_json::Value,
+) -> Result<()> {
     let mut context = StepContext::new();
 
-    let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
-
-    let json_row = json_rows.first().unwrap();
     context.set(dataset_name, json_row);
     context.set_status(StepStatus::Running);
-    process_steps(pipeline, context).await;
+    process_steps(pipeline, context).await?;
+    Ok(())
 }
 
 impl Default for PipelineBuilder {
@@ -444,7 +526,7 @@ impl Default for PipelineBuilder {
     }
 }
 
-async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
+async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) -> Result<()> {
     for step in &pipeline.steps {
         if matches!(context.get_status(), StepStatus::Failed) {
             break;
@@ -460,8 +542,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::TextGeneration(text_generation_step) => {
                 context = text_generation_step
@@ -472,8 +553,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::JsonGeneration(json_generation_step) => {
                 context = json_generation_step
@@ -484,8 +564,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::PyValidator(py_validator) => {
                 context = py_validator
@@ -496,8 +575,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::JsonWriter(jsonl_writer_step) => {
                 context = jsonl_writer_step
@@ -508,8 +586,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::CsvWriter(csv_writer_step) => {
                 context = csv_writer_step
@@ -520,8 +597,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::Print(print_step) => {
                 context = print_step
@@ -532,8 +608,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
             StepType::DataSampler(data_sampler_step) => {
                 context = data_sampler_step
@@ -544,11 +619,12 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) {
                         &pipeline.embeddings.resources,
                         &context,
                     )
-                    .await
-                    .unwrap();
+                    .await?;
             }
         }
     }
+
+    Ok(())
 }
 
 #[pyclass]

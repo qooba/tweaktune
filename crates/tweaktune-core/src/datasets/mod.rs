@@ -1,4 +1,5 @@
 use crate::config::read_config;
+use crate::steps::{flat_map_to_json, map_to_json};
 use anyhow::Result;
 use arrow::csv::reader::{infer_schema_from_files, ReaderBuilder as CsvReaderBuilder};
 use arrow::datatypes::SchemaRef;
@@ -23,9 +24,11 @@ pub trait Writer {
 #[derive(Clone)]
 pub enum DatasetType {
     Jsonl(JsonlDataset),
+    Json(JsonDataset),
     Csv(CsvDataset),
     Parquet(ParquetDataset),
     Arrow(ArrowDataset),
+    Mixed(MixedDataset),
 }
 
 #[derive(Clone)]
@@ -57,6 +60,22 @@ impl JsonlDataset {
         let reader = reader.build(buf_reader)?;
 
         Ok(reader)
+    }
+
+    pub fn create_json_stream(&self) -> Result<impl Iterator<Item = Result<Value>>> {
+        let file = File::open(&self.path)?;
+        let buf_reader = BufReader::new(file);
+        let stream = serde_json::Deserializer::from_reader(buf_reader).into_iter::<Value>();
+        Ok(stream.map(|value| value.map_err(anyhow::Error::from)))
+    }
+
+    pub fn read_all_json(&self) -> Result<Vec<Value>> {
+        let stream = self.create_json_stream()?;
+        let mut records = Vec::new();
+        for record in stream {
+            records.push(record?);
+        }
+        Ok(records)
     }
 }
 
@@ -207,6 +226,100 @@ impl Dataset for ArrowDataset {
         } else {
             Ok(self.records.clone())
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct JsonDataset {
+    _name: String,
+    path: String,
+}
+
+impl JsonDataset {
+    pub fn new(name: String, path: String) -> Self {
+        Self { _name: name, path }
+    }
+
+    pub fn read_all_json(&self) -> Result<Vec<Value>> {
+        let file = File::open(&self.path)?;
+        let buf_reader = BufReader::new(file);
+        let values: Vec<Value> = serde_json::from_reader(buf_reader)?;
+        Ok(values)
+    }
+}
+
+impl Dataset for JsonDataset {
+    fn read_all(&self, _batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+        unimplemented!()
+    }
+}
+
+#[derive(Clone)]
+pub struct MixedDataset {
+    _name: String,
+    datasets: Vec<String>,
+}
+
+impl MixedDataset {
+    pub fn new(name: String, datasets: Vec<String>) -> Self {
+        Self {
+            _name: name,
+            datasets,
+        }
+    }
+
+    pub fn read_all_json(&self, datasets: &HashMap<String, DatasetType>) -> Result<Vec<Value>> {
+        let values: Vec<Vec<Value>> = self
+            .datasets
+            .iter()
+            .map(|dataset| {
+                let dataset = datasets.get(dataset).unwrap();
+                match dataset {
+                    DatasetType::Json(json_dataset) => json_dataset.read_all_json().unwrap(),
+                    DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all_json().unwrap(),
+                    DatasetType::Csv(csv_dataset) => {
+                        flat_map_to_json(&csv_dataset.read_all(None).unwrap())
+                    }
+                    DatasetType::Parquet(parquet_dataset) => {
+                        flat_map_to_json(&parquet_dataset.read_all(None).unwrap())
+                    }
+                    DatasetType::Arrow(arrow_dataset) => {
+                        flat_map_to_json(&arrow_dataset.read_all(None).unwrap())
+                    }
+                    _ => unimplemented!(),
+                }
+            })
+            .collect();
+
+        let mut cartesian_product = vec![HashMap::new()];
+
+        for (i, dataset_values) in values.iter().enumerate() {
+            let dataset_name = &self.datasets[i];
+            let mut new_product = Vec::new();
+
+            for record in dataset_values {
+                for existing_combination in &cartesian_product {
+                    let mut new_combination = existing_combination.clone();
+                    new_combination.insert(dataset_name.clone(), record.clone());
+                    new_product.push(new_combination);
+                }
+            }
+
+            cartesian_product = new_product;
+        }
+
+        let result: Vec<Value> = cartesian_product
+            .into_iter()
+            .map(|combination| serde_json::to_value(combination).unwrap())
+            .collect();
+
+        Ok(result)
+    }
+}
+
+impl Dataset for MixedDataset {
+    fn read_all(&self, _batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+        unimplemented!()
     }
 }
 

@@ -6,7 +6,7 @@ use crate::{
     templates::Templates,
 };
 use anyhow::Result;
-use arrow::array::RecordBatch;
+use arrow::{array::RecordBatch, json, row};
 use log::{debug, error, info};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReader;
 use rand::seq::SliceRandom;
@@ -108,10 +108,17 @@ impl TextGenerationStep {
         context: &StepContext,
     ) -> Result<Option<String>> {
         let template = templates.render(self.template.clone(), context.data.clone());
+        let template = match template {
+            Ok(t) => t,
+            Err(e) => {
+                debug!(target: "generate", "Failed to render template: {}", e);
+                return Ok(None);
+            }
+        };
 
         let llm = llms.get(&self.llm).expect("LLM");
         let llms::LLMType::OpenAI(llm) = llm;
-        let result = match llm.call(template?).await {
+        let result = match llm.call(template).await {
             Ok(response) => Some(response.choices[0].message.content.clone()),
             Err(e) => {
                 debug!(target: "generate", "Failed to generate text: {}", e);
@@ -247,11 +254,20 @@ impl Step for JsonlWriterStep {
     ) -> Result<StepContext> {
         let file = File::options().append(true).create(true).open(&self.path)?;
         let mut writer = std::io::BufWriter::new(file);
-        let row = templates.render(self.template.clone(), context.data.clone())?;
-        writeln!(writer, "{}", row)?;
-        writer.flush()?;
+        let row = templates.render(self.template.clone(), context.data.clone());
+        let mut context = context.clone();
+        match row {
+            Ok(r) => {
+                writeln!(writer, "{}", r)?;
+                writer.flush()?;
+            }
+            Err(e) => {
+                debug!("Failed to render template: {}", e);
+                context.set_status(StepStatus::Failed);
+            }
+        };
 
-        Ok(context.clone())
+        Ok(context)
     }
 }
 
@@ -304,25 +320,53 @@ impl Step for CsvWriterStep {
 pub struct DataSamplerStep {
     pub name: String,
     pub dataset: String,
-    pub size: usize,
+    pub size: Option<usize>,
     pub output: String,
-    arrow_batches: Vec<RecordBatch>,
+    json_batches: Vec<serde_json::Value>,
+}
+
+pub fn map_to_json(record_batches: &[RecordBatch]) -> Vec<Vec<serde_json::Value>> {
+    let json_rows = record_batches
+        .iter()
+        .map(|record_batch| {
+            let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
+            jv
+        })
+        .collect();
+    json_rows
+}
+
+pub fn flat_map_to_json(record_batches: &[RecordBatch]) -> Vec<serde_json::Value> {
+    let json_rows = record_batches
+        .iter()
+        .flat_map(|record_batch| {
+            let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
+            jv
+        })
+        .collect();
+    json_rows
 }
 
 impl DataSamplerStep {
     pub fn new(
         name: String,
         dataset: String,
-        size: usize,
+        size: Option<usize>,
         output: String,
         datasets: &HashMap<String, DatasetType>,
     ) -> Self {
         let dataset_type = datasets.get(&dataset).ok_or_err(&dataset).unwrap();
-        let arrow_batches = match dataset_type {
-            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all(None).unwrap(),
-            DatasetType::Csv(csv_dataset) => csv_dataset.read_all(None).unwrap(),
-            DatasetType::Parquet(parquet_dataset) => parquet_dataset.read_all(None).unwrap(),
-            DatasetType::Arrow(arrow_dataset) => arrow_dataset.read_all(None).unwrap(),
+        let json_batches = match dataset_type {
+            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all_json().unwrap(),
+            DatasetType::Json(json_dataset) => json_dataset.read_all_json().unwrap(),
+            DatasetType::Mixed(mixed_dataset) => mixed_dataset.read_all_json(datasets).unwrap(),
+            DatasetType::Csv(csv_dataset) => flat_map_to_json(&csv_dataset.read_all(None).unwrap()),
+            DatasetType::Parquet(parquet_dataset) => {
+                flat_map_to_json(&parquet_dataset.read_all(None).unwrap())
+            }
+            DatasetType::Arrow(arrow_dataset) => {
+                flat_map_to_json(&arrow_dataset.read_all(None).unwrap())
+            }
         };
 
         Self {
@@ -330,7 +374,7 @@ impl DataSamplerStep {
             dataset,
             size,
             output,
-            arrow_batches,
+            json_batches,
         }
     }
 }
@@ -346,15 +390,15 @@ impl Step for DataSamplerStep {
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let mut rng = rand::thread_rng();
-        let record_batch = self.arrow_batches.choose(&mut rng).unwrap();
 
-        let json_rows: Vec<serde_json::Value> =
-            serde_arrow::from_record_batch(record_batch).unwrap();
-
-        let json_rows: Vec<serde_json::Value> = json_rows
-            .choose_multiple(&mut rng, self.size)
-            .cloned()
-            .collect();
+        let json_rows: Vec<serde_json::Value> = if let Some(size) = self.size {
+            self.json_batches
+                .choose_multiple(&mut rng, size)
+                .cloned()
+                .collect()
+        } else {
+            self.json_batches.clone()
+        };
 
         context.set(&self.output, json_rows);
         Ok(context)
