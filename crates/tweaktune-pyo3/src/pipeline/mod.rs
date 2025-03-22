@@ -283,11 +283,31 @@ impl PipelineBuilder {
         self.steps.push(StepType::DataSampler(DataSamplerStep::new(
             name,
             dataset,
-            size,
+            Some(size),
             output,
             &self.datasets.resources,
         )));
     }
+
+    pub fn add_data_read_step(
+        &mut self,
+        name: String,
+        dataset: String,
+        output: String,
+    ) {
+        debug!(
+            "Added data read on dataset: {}",
+            &dataset
+        );
+        self.steps.push(StepType::DataSampler(DataSamplerStep::new(
+            name,
+            dataset,
+            None,
+            output,
+            &self.datasets.resources,
+        )));
+    }
+
 
     pub fn compile(&self) {
         self.templates.compile().unwrap();

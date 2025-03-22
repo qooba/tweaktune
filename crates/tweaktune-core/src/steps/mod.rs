@@ -320,9 +320,9 @@ impl Step for CsvWriterStep {
 pub struct DataSamplerStep {
     pub name: String,
     pub dataset: String,
-    pub size: usize,
+    pub size: Option<usize>,
     pub output: String,
-    json_batches: Vec<Vec<serde_json::Value>>,
+    json_batches: Vec<serde_json::Value>,
 }
 
 pub fn map_to_json(record_batches: &[RecordBatch]) -> Vec<Vec<serde_json::Value>> {
@@ -351,23 +351,21 @@ impl DataSamplerStep {
     pub fn new(
         name: String,
         dataset: String,
-        size: usize,
+        size: Option<usize>,
         output: String,
         datasets: &HashMap<String, DatasetType>,
     ) -> Self {
         let dataset_type = datasets.get(&dataset).ok_or_err(&dataset).unwrap();
         let json_batches = match dataset_type {
-            DatasetType::Jsonl(jsonl_dataset) => vec![jsonl_dataset.read_all_json().unwrap()],
-            DatasetType::Json(json_dataset) => vec![json_dataset.read_all_json().unwrap()],
-            DatasetType::Mixed(mixed_dataset) => {
-                vec![mixed_dataset.read_all_json(datasets).unwrap()]
-            }
-            DatasetType::Csv(csv_dataset) => map_to_json(&csv_dataset.read_all(None).unwrap()),
+            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all_json().unwrap(),
+            DatasetType::Json(json_dataset) => json_dataset.read_all_json().unwrap(),
+            DatasetType::Mixed(mixed_dataset) => mixed_dataset.read_all_json(datasets).unwrap(),
+            DatasetType::Csv(csv_dataset) => flat_map_to_json(&csv_dataset.read_all(None).unwrap()),
             DatasetType::Parquet(parquet_dataset) => {
-                map_to_json(&parquet_dataset.read_all(None).unwrap())
+                flat_map_to_json(&parquet_dataset.read_all(None).unwrap())
             }
             DatasetType::Arrow(arrow_dataset) => {
-                map_to_json(&arrow_dataset.read_all(None).unwrap())
+                flat_map_to_json(&arrow_dataset.read_all(None).unwrap())
             }
         };
 
@@ -392,12 +390,15 @@ impl Step for DataSamplerStep {
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let mut rng = rand::thread_rng();
-        let json_rows = self.json_batches.choose(&mut rng).unwrap();
-        let json_rows: Vec<Vec<serde_json::Value>> = json_rows
-            .choose_multiple(&mut rng, self.size)
-            .cloned()
-            .map(|row| vec![row])
-            .collect();
+
+        let json_rows: Vec<serde_json::Value> = if let Some(size) = self.size {
+            self.json_batches
+                .choose_multiple(&mut rng, size)
+                .cloned()
+                .collect()
+        } else {
+            self.json_batches.clone()
+        };
 
         context.set(&self.output, json_rows);
         Ok(context)

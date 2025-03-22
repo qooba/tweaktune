@@ -165,7 +165,8 @@ class Pipeline:
 
         self.builder.iter_by_range(start, stop, step)
         return PipelineRunner(self.builder)
-   
+
+
 class PipelineRunner:
 
     def __init__(self, builder: PipelineBuilder):
@@ -199,6 +200,14 @@ class PipelineRunner:
         self.builder.add_py_step(self.__name(name), PyStepWrapper(step))
         self.step_index += 1
         return self
+    
+    def map(self, func, name: str = "PY-STEP"):
+        name = self.__name(name)
+        step = type(name.replace("-","_"), (object,), {'process': lambda self, context: func(context)})()
+        self.builder.add_py_step(name, PyStepWrapper(step))
+        self.step_index += 1
+        return self
+
 
     def generate_text(self, template: str, llm: str, output: str, system_template: str = None, name: str = "GENERATE-TEXT"):
         self.builder.add_text_generation_step(self.__name(name), template, llm, output, system_template)
@@ -212,6 +221,11 @@ class PipelineRunner:
     
     def sample(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
         self.builder.add_data_sampler_step(self.__name(name), dataset, size, output)
+        self.step_index += 1
+        return self
+    
+    def read(self, dataset: str, output: str, name: str = "SAMPLE"):
+        self.builder.add_data_read_step(self.__name(name), dataset, output)
         self.step_index += 1
         return self
     
