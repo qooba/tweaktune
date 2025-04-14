@@ -7,13 +7,14 @@ members = [
     #"crates/onceuponai-actors-mistralrs",
     #"crates/onceuponai-candle",
     "crates/tweaktune-core",
-    "crates/tweaktune", "crates/tweaktune-pyo3",
+    #"crates/tweaktune", 
+    "crates/tweaktune-pyo3",
     "tweaktune-python",
     #"crates/onceuponai/src-tauri"
     ]
 
 [workspace.package]
-version = "0.0.3"
+version = "0.0.1"
 edition = "2021"
 description = "TweakTune"
 repository = "https://github.com/qooba/tweaktune"

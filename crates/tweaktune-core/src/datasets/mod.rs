@@ -7,7 +7,7 @@ use arrow::json::reader::{infer_json_schema, ReaderBuilder as JsonReaderBuilder}
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Write};
@@ -343,32 +343,72 @@ impl OpenApiDataset {
             open_api_spec: config,
         }
     }
+
+    pub fn read_all_json(&self) -> Result<Vec<Value>> {
+        let mut functions = Vec::new();
+
+        for (path, path_item) in &self.open_api_spec.paths {
+            if let Some(get_item) = &path_item.get {
+                let mut parameters = HashMap::new();
+                let mut required = Vec::new();
+
+                if let Some(params) = &get_item.parameters {
+                    for param in params {
+                        let mut property = HashMap::new();
+                        property.insert(
+                            "type".to_string(),
+                            Value::String(param.schema.type_.clone()),
+                        );
+                        if let Some(description) = &param.description {
+                            property.insert(
+                                "description".to_string(),
+                                Value::String(description.clone()),
+                            );
+                        }
+                        if let Some(enum_values) = &param.schema.enum_ {
+                            property.insert(
+                                "enum".to_string(),
+                                Value::Array(
+                                    enum_values
+                                        .iter()
+                                        .map(|v| Value::String(v.clone()))
+                                        .collect(),
+                                ),
+                            );
+                        }
+                        parameters.insert(param.name.clone(), property);
+                        if param.required.unwrap_or(false) {
+                            required.push(param.name.clone());
+                        }
+                    }
+                }
+
+                let function = json!({
+                    "type": "function",
+                    "function": {
+                        "name": format!("{}_{}", "get", path.replace("/", "_").trim_start_matches('_')),
+                        "description": get_item.summary.clone().unwrap_or_default(),
+                        "parameters": {
+                            "type": "object",
+                            "properties": parameters,
+                            "required": required,
+                            "additionalProperties": false
+                        },
+                        "strict": true
+                    }
+                });
+
+                functions.push(function);
+            }
+        }
+
+        Ok(functions)
+    }
 }
 
 impl Dataset for OpenApiDataset {
     fn read_all(&self, _batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
-        /*
-        if let Some(size) = batch_size {
-            if self.records.is_empty() {
-                return Ok(vec![]);
-            }
-
-            let schema: SchemaRef = self.records[0].schema();
-            let contcatenated_batches = arrow::compute::concat_batches(&schema, &self.records)?;
-            let num_rows = contcatenated_batches.num_rows();
-            let mut batches = Vec::new();
-            for start in (0..num_rows).step_by(size) {
-                let end = std::cmp::min(start + size, num_rows);
-                let batch = contcatenated_batches.slice(start, end - start);
-                batches.push(batch);
-            }
-
-            Ok(batches)
-        } else {
-            Ok(self.records.clone())
-        }
-        */
-        todo!()
+        unimplemented!();
     }
 }
 
@@ -414,7 +454,7 @@ struct OpenApiPath {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct OpenApiPathItem {
-    tags: Vec<String>,
+    tags: Option<Vec<String>>,
     summary: Option<String>,
     description: Option<String>,
     parameters: Option<Vec<OpenApiParameter>>,
@@ -451,7 +491,7 @@ struct OpenApiParameter {
     name: String,
     #[serde(rename = "in")]
     in_: String,
-    description: String,
+    description: Option<String>,
     required: Option<bool>,
     schema: OpenApiSchema,
 }
@@ -474,12 +514,17 @@ struct OpenApiProperty {
 #[cfg(test)]
 mod tests {
     use crate::datasets::OpenApiDataset;
+    use anyhow::Result;
 
     #[test]
-    fn it_works() {
-        let url = "https://petstore3.swagger.io/api/v3/openapi.json";
+    fn it_works() -> Result<()> {
+        //let url = "https://petstore3.swagger.io/api/v3/openapi.json";
+        let url = "http://localhost:8085/openapi.json";
         let spec = OpenApiDataset::new("test".to_string(), url.to_string());
-        println!("{:?}", spec);
-        println!("hello");
+        let funcs = spec.read_all_json().unwrap();
+        for func in funcs {
+            println!("{}\n", func);
+        }
+        Ok(())
     }
 }
