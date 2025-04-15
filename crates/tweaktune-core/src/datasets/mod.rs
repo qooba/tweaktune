@@ -404,20 +404,50 @@ impl OpenApiDataset {
                             required.push("request_body".to_string());
 
                             let mut props = HashMap::new();
-                            for (key, value) in &component.properties {
-                                let mut prop = HashMap::new();
+                            if let Some(component_properties) = &component.properties {
+                                for (key, value) in component_properties {
+                                    let mut prop = HashMap::new();
 
-                                if let Some(t) = value.type_.clone() {
-                                    prop.insert("type".to_string(), Value::String(t));
-                                }
+                                    if let Some(t) = value.type_.clone() {
+                                        prop.insert("type".to_string(), Value::String(t));
+                                    }
 
-                                if let Some(description) = &value.description {
-                                    prop.insert(
-                                        "description".to_string(),
-                                        Value::String(description.clone()),
-                                    );
+                                    if let Some(description) = &value.description {
+                                        prop.insert(
+                                            "description".to_string(),
+                                            Value::String(description.clone()),
+                                        );
+                                    }
+
+                                    if let Some(any_of) = &value.any_of {
+                                        let types = any_of
+                                            .iter()
+                                            .map(|v| v.type_.clone().unwrap_or_default())
+                                            .collect::<Vec<String>>();
+
+                                        prop.insert("type".to_string(), json!(types));
+                                    }
+
+                                    if let Some(enum_values) = &value.ref_ {
+                                        let enum_values =
+                                            enum_values.replace("#/components/schemas/", "");
+                                        if let Some(enums) =
+                                            self.open_api_spec.components.schemas.get(&enum_values)
+                                        {
+                                            if let Some(e) = &enums.enum_ {
+                                                prop.insert("enum".to_string(), json!(e.clone()));
+                                                prop.insert(
+                                                    "type".to_string(),
+                                                    Value::String(
+                                                        enums.type_.as_ref().unwrap().clone(),
+                                                    ),
+                                                );
+                                            }
+                                        }
+                                    }
+
+                                    props.insert(key.clone(), prop);
                                 }
-                                props.insert(key.clone(), prop);
                             }
 
                             property.insert("properties".to_string(), json!(props));
@@ -431,8 +461,8 @@ impl OpenApiDataset {
         json!({
             "type": "function",
             "function": {
-                "name": format!("{}_{}", method, path.replace("/", "_").trim_start_matches('_').trim_end_matches('_')),
-                "description": item.summary.clone().unwrap_or_default(),
+                "name": item.summary.as_ref().unwrap().replace(" ", "_").to_lowercase(),
+                "description": item.description.clone().unwrap_or_default(),
                 "parameters": {
                     "type": "object",
                     "properties": parameters,
@@ -496,8 +526,10 @@ struct OpenApiComponentSchema {
     type_: Option<String>,
     description: Option<String>,
     title: Option<String>,
-    properties: HashMap<String, OpenApiComponentSchemaProperty>,
+    properties: Option<HashMap<String, OpenApiComponentSchemaProperty>>,
     required: Option<Vec<String>>,
+    #[serde(rename = "enum")]
+    enum_: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -512,6 +544,8 @@ struct OpenApiComponentSchemaProperty {
     #[serde(rename = "$ref")]
     ref_: Option<String>,
     items: Option<OpenApiSchemaRef>,
+    #[serde(rename = "anyOf")]
+    any_of: Option<Vec<OpenApiComponentSchemaProperty>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
