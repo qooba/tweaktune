@@ -344,60 +344,127 @@ impl OpenApiDataset {
         }
     }
 
+    fn build_function_from_path_item(
+        &self,
+        path: &str,
+        method: &str,
+        item: &OpenApiPathItem,
+    ) -> Value {
+        let mut parameters = HashMap::new();
+        let mut required = Vec::new();
+
+        if let Some(params) = &item.parameters {
+            for param in params {
+                let mut property = HashMap::new();
+                property.insert(
+                    "type".to_string(),
+                    Value::String(param.schema.type_.clone()),
+                );
+                if let Some(description) = &param.description {
+                    property.insert(
+                        "description".to_string(),
+                        Value::String(description.clone()),
+                    );
+                }
+                if let Some(enum_values) = &param.schema.enum_ {
+                    property.insert(
+                        "enum".to_string(),
+                        Value::Array(
+                            enum_values
+                                .iter()
+                                .map(|v| Value::String(v.clone()))
+                                .collect(),
+                        ),
+                    );
+                }
+                parameters.insert(param.name.clone(), property);
+                if param.required.unwrap_or(false) {
+                    required.push(param.name.clone());
+                }
+            }
+        }
+
+        if let Some(request_body) = &item.request_body {
+            if let Some(content) = &request_body.content {
+                for schema_ref in content.values() {
+                    if let Some(schema) = &schema_ref.schema.ref_ {
+                        let schema = schema.replace("#/components/schemas/", "");
+                        if let Some(component) = self.open_api_spec.components.schemas.get(&schema)
+                        {
+                            let mut property = HashMap::new();
+                            if let Some(t) = component.type_.clone() {
+                                property.insert("type".to_string(), Value::String(t));
+                            }
+                            if let Some(description) = &component.description {
+                                property.insert(
+                                    "description".to_string(),
+                                    Value::String(description.clone()),
+                                );
+                            }
+                            required.push("request_body".to_string());
+
+                            let mut props = HashMap::new();
+                            for (key, value) in &component.properties {
+                                let mut prop = HashMap::new();
+
+                                if let Some(t) = value.type_.clone() {
+                                    prop.insert("type".to_string(), Value::String(t));
+                                }
+
+                                if let Some(description) = &value.description {
+                                    prop.insert(
+                                        "description".to_string(),
+                                        Value::String(description.clone()),
+                                    );
+                                }
+                                props.insert(key.clone(), prop);
+                            }
+
+                            property.insert("properties".to_string(), json!(props));
+                            parameters.insert("request_body".to_string(), property);
+                        }
+                    }
+                }
+            }
+        }
+
+        json!({
+            "type": "function",
+            "function": {
+                "name": format!("{}_{}", method, path.replace("/", "_").trim_start_matches('_').trim_end_matches('_')),
+                "description": item.summary.clone().unwrap_or_default(),
+                "parameters": {
+                    "type": "object",
+                    "properties": parameters,
+                    "required": required,
+                    "additionalProperties": false
+                },
+                "strict": true
+            }
+        })
+    }
+
     pub fn read_all_json(&self) -> Result<Vec<Value>> {
         let mut functions = Vec::new();
 
         for (path, path_item) in &self.open_api_spec.paths {
             if let Some(get_item) = &path_item.get {
-                let mut parameters = HashMap::new();
-                let mut required = Vec::new();
+                let function = self.build_function_from_path_item(path, "get", get_item);
+                functions.push(function);
+            }
 
-                if let Some(params) = &get_item.parameters {
-                    for param in params {
-                        let mut property = HashMap::new();
-                        property.insert(
-                            "type".to_string(),
-                            Value::String(param.schema.type_.clone()),
-                        );
-                        if let Some(description) = &param.description {
-                            property.insert(
-                                "description".to_string(),
-                                Value::String(description.clone()),
-                            );
-                        }
-                        if let Some(enum_values) = &param.schema.enum_ {
-                            property.insert(
-                                "enum".to_string(),
-                                Value::Array(
-                                    enum_values
-                                        .iter()
-                                        .map(|v| Value::String(v.clone()))
-                                        .collect(),
-                                ),
-                            );
-                        }
-                        parameters.insert(param.name.clone(), property);
-                        if param.required.unwrap_or(false) {
-                            required.push(param.name.clone());
-                        }
-                    }
-                }
+            if let Some(post_item) = &path_item.post {
+                let function = self.build_function_from_path_item(path, "post", post_item);
+                functions.push(function);
+            }
 
-                let function = json!({
-                    "type": "function",
-                    "function": {
-                        "name": format!("{}_{}", "get", path.replace("/", "_").trim_start_matches('_')),
-                        "description": get_item.summary.clone().unwrap_or_default(),
-                        "parameters": {
-                            "type": "object",
-                            "properties": parameters,
-                            "required": required,
-                            "additionalProperties": false
-                        },
-                        "strict": true
-                    }
-                });
+            if let Some(put_item) = &path_item.put {
+                let function = self.build_function_from_path_item(path, "put", put_item);
+                functions.push(function);
+            }
 
+            if let Some(delete_item) = &path_item.delete {
+                let function = self.build_function_from_path_item(path, "delete", delete_item);
                 functions.push(function);
             }
         }
@@ -427,7 +494,10 @@ struct OpenApiComponents {
 struct OpenApiComponentSchema {
     #[serde(rename = "type")]
     type_: Option<String>,
+    description: Option<String>,
+    title: Option<String>,
     properties: HashMap<String, OpenApiComponentSchemaProperty>,
+    required: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -515,12 +585,19 @@ struct OpenApiProperty {
 mod tests {
     use crate::datasets::OpenApiDataset;
     use anyhow::Result;
+    // use serde_json;
 
     #[test]
     fn it_works() -> Result<()> {
         //let url = "https://petstore3.swagger.io/api/v3/openapi.json";
         let url = "http://localhost:8085/openapi.json";
         let spec = OpenApiDataset::new("test".to_string(), url.to_string());
+
+        // println!(
+        //     "spec: {:?}",
+        //     serde_json::to_string(&spec.open_api_spec).unwrap()
+        // );
+
         let funcs = spec.read_all_json().unwrap();
         for func in funcs {
             println!("{}\n", func);
