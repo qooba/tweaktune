@@ -68,6 +68,16 @@ impl PipelineBuilder {
         debug!("Setting workers to {}", workers);
     }
 
+    pub fn with_tools_dataset(&mut self, name: String, tools: String) {
+        debug!("Added TOOLS dataset: {}", &name);
+        todo!("Implement adding JSON SCHEMA TOOLS ");
+        // self.datasets.add(
+        //     name.clone(),
+        //     DatasetType::Jsonl(JsonlDataset::new(name, path)),
+        // );
+    }
+
+
     pub fn with_jsonl_dataset(&mut self, name: String, path: String) {
         debug!("Added JSONL dataset: {}", &name);
         self.datasets.add(

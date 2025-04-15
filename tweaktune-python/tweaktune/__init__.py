@@ -6,7 +6,11 @@ from datasets.arrow_dataset import Dataset as ArrowDataset
 from pyarrow.lib import RecordBatchReader
 import json
 import os
-from typing import List, overload
+from typing import List, overload, Optional, Union
+from pydantic import BaseModel, Field, create_model
+from pydantic.fields import FieldInfo
+import inspect
+
 
 #def hello():
 #    return "Hello, World!"
@@ -26,6 +30,63 @@ from typing import List, overload
 #    buffer = sink.getvalue().to_pybytes()
 #    step.read_pyarrow(buffer)
 
+def function_to_schema(func: callable) -> BaseModel:
+    """
+    Converts a function with annotated parameters to json schema https://json-schema.org/
+    including descriptions from Field(..., description=...).
+    """
+    func_name = func.__name__
+    func_params = func.__annotations__
+
+    sig = inspect.signature(func)
+    model_fields = {}
+    param_descriptions = {}
+
+    for param_name, param in sig.parameters.items():
+        if param_name in ["args", "kwargs"]:
+            continue
+        if param_name == "return":
+            continue
+
+        param_type = func_params.get(param_name, param.annotation)
+        default = param.default
+
+        if isinstance(default, FieldInfo):
+            description = default.description
+            model_fields[param_name] = (param_type, default)
+            if description:
+                param_descriptions[param_name] = description
+        else:
+            model_fields[param_name] = (param_type, Field(...))
+
+    schema = create_model(func_name, **model_fields).model_json_schema()
+    defs = schema.pop("$defs", {})
+
+    if "properties" in schema:
+        for prop in schema["properties"].values():
+            if "$ref" in prop:
+                ref_path = prop.pop("$ref")
+                if ref_path.startswith("#/$defs/"):
+                    def_key = ref_path.split("/")[-1]
+                    if def_key in defs:
+                        prop.update(defs[def_key])
+
+            if "anyOf" in prop:
+                prop["type"] = [t["type"] for t in prop.pop("anyOf")]
+
+            prop.pop("title", None)
+    schema["additionalProperties"] = False
+    schema.pop("title", None)
+
+    return {
+        "type": "function",
+        "function": {
+            "name": func_name,
+            "description": func.__doc__,
+            "parameters": schema,
+            "strict": True,
+        }
+    }
 
 
 class PyStepWrapper:
@@ -71,7 +132,12 @@ class Pipeline:
             raise ValueError("Invalid dataset type")
         
         return self
-    
+
+    def with_tools_dataset(self, name: str, tools: List[callable]):
+        tools = json.dumps([function_to_schema(tool) for tool in tools])
+        self.builder.with_tools_dataset(name, tools)
+        return self
+
     def with_jsonl_dataset(self, name: str, path: str):
         self.builder.with_jsonl_dataset(name, path)
         return self
