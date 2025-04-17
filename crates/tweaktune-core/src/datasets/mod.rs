@@ -30,6 +30,7 @@ pub enum DatasetType {
     Parquet(ParquetDataset),
     Arrow(ArrowDataset),
     Mixed(MixedDataset),
+    OpenApi(OpenApiDataset),
 }
 
 #[derive(Clone)]

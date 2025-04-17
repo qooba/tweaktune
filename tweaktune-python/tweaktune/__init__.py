@@ -152,6 +152,11 @@ class Pipeline:
         
         return self
 
+    def with_openapi_dataset(self, name: str, path_or_url: str):
+        """Adds an OpenAPI dataset to the pipeline."""
+        self.builder.with_openapi_dataset(name, path_or_url)
+        return self
+
     def with_tools_dataset(self, name: str, tools: List[callable]):
         """Converts a list of functions to json schema and adds them to the pipeline."""
         json_list = [function_to_json_schema(tool) for tool in tools]

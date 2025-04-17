@@ -15,7 +15,7 @@ use tokio::runtime::Runtime;
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{
-        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonDataset, JsonListDataset, JsonlDataset, MixedDataset, ParquetDataset
+        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonDataset, JsonListDataset, JsonlDataset, MixedDataset, OpenApiDataset, ParquetDataset
     },
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
@@ -66,6 +66,14 @@ impl PipelineBuilder {
     pub fn with_workers(&mut self, workers: usize) {
         self.workers = workers;
         debug!("Setting workers to {}", workers);
+    }
+
+    pub fn with_openapi_dataset(&mut self, name: String, path_or_url: String) {
+        debug!("Added OPEN_API dataset: {}", &name);
+        self.datasets.add(
+             name.clone(),
+             DatasetType::OpenApi(OpenApiDataset::new(name, path_or_url)),
+        );
     }
 
     pub fn with_json_list_dataset(&mut self, name: String, json_list: Vec<String>) {
@@ -421,6 +429,26 @@ impl PipelineBuilder {
                             .await;
                         }
                         DatasetType::JsonList(dataset) => {
+                            let json_items = dataset.read_all_json().unwrap();
+                            stream::iter(json_items.iter().map(
+                                |json_row|{ 
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, json_row).await.unwrap();
+                                        bar.inc(1);
+                                }},
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                        }
+                        DatasetType::OpenApi(dataset) => {
                             let json_items = dataset.read_all_json().unwrap();
                             stream::iter(json_items.iter().map(
                                 |json_row|{ 

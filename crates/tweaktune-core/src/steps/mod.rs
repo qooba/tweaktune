@@ -360,6 +360,7 @@ impl DataSamplerStep {
             DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all_json().unwrap(),
             DatasetType::Json(json_dataset) => json_dataset.read_all_json().unwrap(),
             DatasetType::JsonList(json_list_dataset) => json_list_dataset.read_all_json().unwrap(),
+            DatasetType::OpenApi(openapi_dataset) => openapi_dataset.read_all_json().unwrap(),
             DatasetType::Mixed(mixed_dataset) => mixed_dataset.read_all_json(datasets).unwrap(),
             DatasetType::Csv(csv_dataset) => flat_map_to_json(&csv_dataset.read_all(None).unwrap()),
             DatasetType::Parquet(parquet_dataset) => {
