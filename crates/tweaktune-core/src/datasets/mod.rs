@@ -491,17 +491,15 @@ impl OpenApiDataset {
 
         json!({
             "type": "function",
-            "function": {
-                "name": item.summary.as_ref().unwrap().replace(" ", "_").to_lowercase(),
-                "description": item.description.clone().unwrap_or_default(),
-                "parameters": {
-                    "type": "object",
-                    "properties": parameters,
-                    "required": required,
-                    "additionalProperties": false
-                },
-                "strict": true
-            }
+            "name": item.summary.as_ref().unwrap().replace(" ", "_").to_lowercase(),
+            "description": item.description.clone().unwrap_or_default(),
+            "parameters": {
+                "type": "object",
+                "properties": parameters,
+                "required": required,
+                "additionalProperties": false
+            },
+            "strict": true
         })
     }
 
