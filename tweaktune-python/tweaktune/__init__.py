@@ -30,7 +30,22 @@ import inspect
 #    buffer = sink.getvalue().to_pybytes()
 #    step.read_pyarrow(buffer)
 
-def function_to_schema(func: callable) -> BaseModel:
+def __pydantic_to_json_schema(model: BaseModel) -> dict:
+    """
+    Converts a Pydantic model to JSON schema.
+    """
+    schema = model.model_json_schema()
+    schema = normalize_schema(schema)
+    name = schema.pop("title", None)
+
+    return json.dumps({
+        "type": "json_schema",
+        "name": name,
+        "schema": schema,
+        "strict": True,
+    })
+
+def __function_to_json_schema(func: callable) -> BaseModel:
     """
     Converts a function with annotated parameters to json schema https://json-schema.org/
     including descriptions from Field(..., description=...).
@@ -60,6 +75,20 @@ def function_to_schema(func: callable) -> BaseModel:
             model_fields[param_name] = (param_type, Field(...))
 
     schema = create_model(func_name, **model_fields).model_json_schema()
+    schema = normalize_schema(schema)
+    schema.pop("title", None)
+
+    return json.dumps({
+        "type": "function",
+        "name": func_name,
+        "description": func.__doc__,
+        "parameters": schema,
+        "strict": True,
+    })
+
+
+
+def normalize_schema(schema):
     defs = schema.pop("$defs", {})
 
     if "properties" in schema:
@@ -76,17 +105,7 @@ def function_to_schema(func: callable) -> BaseModel:
 
             prop.pop("title", None)
     schema["additionalProperties"] = False
-    schema.pop("title", None)
-
-    return {
-        "type": "function",
-        "function": {
-            "name": func_name,
-            "description": func.__doc__,
-            "parameters": schema,
-            "strict": True,
-        }
-    }
+    return schema
 
 
 class PyStepWrapper:
@@ -134,9 +153,17 @@ class Pipeline:
         return self
 
     def with_tools_dataset(self, name: str, tools: List[callable]):
-        tools = json.dumps([function_to_schema(tool) for tool in tools])
-        self.builder.with_tools_dataset(name, tools)
+        """Converts a list of functions to json schema and adds them to the pipeline."""
+        json_list = [__function_to_json_schema(tool) for tool in tools]
+        self.builder.with_json_list_dataset(name, json_list)
         return self
+    
+    def with_pydantic_models_dataset(self, name: str, models: List[BaseModel]):
+        """Converts a list of Pydantic models to json schema and adds them to the pipeline."""
+        json_list = [__pydantic_to_json_schema(model) for model in models]
+        self.builder.with_json_list_dataset(name, json_list)
+        return self
+
 
     def with_jsonl_dataset(self, name: str, path: str):
         self.builder.with_jsonl_dataset(name, path)

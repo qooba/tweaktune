@@ -25,6 +25,7 @@ pub trait Writer {
 pub enum DatasetType {
     Jsonl(JsonlDataset),
     Json(JsonDataset),
+    JsonList(JsonListDataset),
     Csv(CsvDataset),
     Parquet(ParquetDataset),
     Arrow(ArrowDataset),
@@ -249,6 +250,36 @@ impl JsonDataset {
 }
 
 impl Dataset for JsonDataset {
+    fn read_all(&self, _batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+        unimplemented!()
+    }
+}
+
+#[derive(Clone)]
+pub struct JsonListDataset {
+    _name: String,
+    json_list: Vec<String>,
+}
+
+impl JsonListDataset {
+    pub fn new(name: String, json_list: Vec<String>) -> Self {
+        Self {
+            _name: name,
+            json_list,
+        }
+    }
+
+    pub fn read_all_json(&self) -> Result<Vec<Value>> {
+        let values: Vec<Value> = self
+            .json_list
+            .iter()
+            .map(|json_str| serde_json::from_str(json_str).unwrap())
+            .collect();
+        Ok(values)
+    }
+}
+
+impl Dataset for JsonListDataset {
     fn read_all(&self, _batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
         unimplemented!()
     }

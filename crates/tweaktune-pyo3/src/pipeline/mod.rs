@@ -15,7 +15,7 @@ use tokio::runtime::Runtime;
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{
-        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonDataset, JsonlDataset, MixedDataset, ParquetDataset
+        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonDataset, JsonListDataset, JsonlDataset, MixedDataset, ParquetDataset
     },
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
@@ -68,15 +68,13 @@ impl PipelineBuilder {
         debug!("Setting workers to {}", workers);
     }
 
-    pub fn with_tools_dataset(&mut self, name: String, tools: String) {
-        debug!("Added TOOLS dataset: {}", &name);
-        todo!("Implement adding JSON SCHEMA TOOLS ");
-        // self.datasets.add(
-        //     name.clone(),
-        //     DatasetType::Jsonl(JsonlDataset::new(name, path)),
-        // );
+    pub fn with_json_list_dataset(&mut self, name: String, json_list: Vec<String>) {
+        debug!("Added JSON_LIST dataset: {}", &name);
+        self.datasets.add(
+             name.clone(),
+             DatasetType::JsonList(JsonListDataset::new(name, json_list)),
+        );
     }
-
 
     pub fn with_jsonl_dataset(&mut self, name: String, path: String) {
         debug!("Added JSONL dataset: {}", &name);
@@ -403,6 +401,26 @@ impl PipelineBuilder {
                             .await;
                         }
                         DatasetType::Json(dataset) => {
+                            let json_items = dataset.read_all_json().unwrap();
+                            stream::iter(json_items.iter().map(
+                                |json_row|{ 
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, json_row).await.unwrap();
+                                        bar.inc(1);
+                                }},
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                        }
+                        DatasetType::JsonList(dataset) => {
                             let json_items = dataset.read_all_json().unwrap();
                             stream::iter(json_items.iter().map(
                                 |json_row|{ 
