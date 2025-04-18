@@ -20,5 +20,5 @@ pyo3-publish: ## Test musl
 	twine upload --verbose  --repository pypi ./target/wheels/*
 
 test:
-	RUST_LOG=debug cargo test --release common::tests::test_extract_json -- --nocapture
-#	cargo test --release datasets::tests::it_works -- --nocapture
+#	RUST_LOG=debug cargo test --release common::tests::test_extract_json -- --nocapture
+	cargo test --release datasets::tests::it_works -- --nocapture

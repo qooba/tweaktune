@@ -6,7 +6,11 @@ from datasets.arrow_dataset import Dataset as ArrowDataset
 from pyarrow.lib import RecordBatchReader
 import json
 import os
-from typing import List, overload
+from typing import List, overload, Optional, Union
+from pydantic import BaseModel, Field, create_model
+from pydantic.fields import FieldInfo
+import inspect
+
 
 #def hello():
 #    return "Hello, World!"
@@ -26,6 +30,82 @@ from typing import List, overload
 #    buffer = sink.getvalue().to_pybytes()
 #    step.read_pyarrow(buffer)
 
+def pydantic_to_json_schema(model: BaseModel) -> dict:
+    """
+    Converts a Pydantic model to JSON schema.
+    """
+    schema = model.model_json_schema()
+    schema = normalize_schema(schema)
+    name = schema.pop("title", None)
+
+    return json.dumps({
+        "type": "json_schema",
+        "name": name,
+        "schema": schema,
+        "strict": True,
+    })
+
+def function_to_json_schema(func: callable) -> BaseModel:
+    """
+    Converts a function with annotated parameters to json schema https://json-schema.org/
+    including descriptions from Field(..., description=...).
+    """
+    func_name = func.__name__
+    func_params = func.__annotations__
+
+    sig = inspect.signature(func)
+    model_fields = {}
+    param_descriptions = {}
+
+    for param_name, param in sig.parameters.items():
+        if param_name in ["args", "kwargs"]:
+            continue
+        if param_name == "return":
+            continue
+
+        param_type = func_params.get(param_name, param.annotation)
+        default = param.default
+
+        if isinstance(default, FieldInfo):
+            description = default.description
+            model_fields[param_name] = (param_type, default)
+            if description:
+                param_descriptions[param_name] = description
+        else:
+            model_fields[param_name] = (param_type, Field(...))
+
+    schema = create_model(func_name, **model_fields).model_json_schema()
+    schema = normalize_schema(schema)
+    schema.pop("title", None)
+
+    return json.dumps({
+        "type": "function",
+        "name": func_name,
+        "description": func.__doc__,
+        "parameters": schema,
+        "strict": True,
+    })
+
+
+
+def normalize_schema(schema):
+    defs = schema.pop("$defs", {})
+
+    if "properties" in schema:
+        for prop in schema["properties"].values():
+            if "$ref" in prop:
+                ref_path = prop.pop("$ref")
+                if ref_path.startswith("#/$defs/"):
+                    def_key = ref_path.split("/")[-1]
+                    if def_key in defs:
+                        prop.update(defs[def_key])
+
+            if "anyOf" in prop:
+                prop["type"] = [t["type"] for t in prop.pop("anyOf")]
+
+            prop.pop("title", None)
+    schema["additionalProperties"] = False
+    return schema
 
 
 class PyStepWrapper:
@@ -71,28 +151,57 @@ class Pipeline:
             raise ValueError("Invalid dataset type")
         
         return self
+
+    def with_openapi_dataset(self, name: str, path_or_url: str):
+        """Adds an OpenAPI dataset to the pipeline."""
+        self.builder.with_openapi_dataset(name, path_or_url)
+        return self
+
+    def with_tools_dataset(self, name: str, tools: List[callable]):
+        """Converts a list of functions to json schema and adds them to the pipeline."""
+        json_list = [function_to_json_schema(tool) for tool in tools]
+        self.builder.with_json_list_dataset(name, json_list)
+        return self
     
+    def with_pydantic_models_dataset(self, name: str, models: List[BaseModel]):
+        """Converts a list of Pydantic models to json schema and adds them to the pipeline."""
+        json_list = [pydantic_to_json_schema(model) for model in models]
+        self.builder.with_json_list_dataset(name, json_list)
+        return self
+    
+    def with_dicts_dataset(self, name: str, dicts: List[dict]):
+        """Converts a list of dictionaries to json schema and adds them to the pipeline."""
+        json_list = [json.dumps(d) for d in dicts]
+        self.builder.with_json_list_dataset(name, json_list)
+        return self
+
     def with_jsonl_dataset(self, name: str, path: str):
+        """Adds a jsonl dataset to the pipeline."""
         self.builder.with_jsonl_dataset(name, path)
         return self
     
     def with_json_dataset(self, name: str, path: str):
+        """Adds a json dataset to the pipeline."""
         self.builder.with_json_dataset(name, path)
         return self
 
     def with_mixed_dataset(self, name: str, datasets: List[str]):
+        """Adds a mixed dataset to the pipeline."""
         self.builder.with_mixed_dataset(name, datasets)
         return self
     
     def with_parquet_dataset(self, name: str, path: str):
+        """Adds a parquet dataset to the pipeline."""
         self.builder.with_parquet_dataset(name, path)
         return self
     
     def with_csv_dataset(self, name: str, path: str, delimiter: str, has_header: bool):
+        """Adds a csv dataset to the pipeline."""
         self.builder.with_csv_dataset(name, path, delimiter, has_header)
         return self
     
     def with_arrow_dataset(self, name: str, dataset):
+        """Adds an arrow dataset to the pipeline."""
         if type(dataset) is ArrowDataset:
             self.builder.with_arrow_dataset(name, dataset.data.to_reader())
         elif type(dataset) is RecordBatchReader:
@@ -103,10 +212,12 @@ class Pipeline:
         return self
     
     def with_template(self, name: str, template: str):
+        """Adds a template to the pipeline."""
         self.builder.with_jinja_template(name, template)
         return self
     
     def with_llm(self, llm: LLM):
+        """Adds a LLM to the pipeline."""
         if llm.__class__ == LLM.OpenAI:
             self.builder.with_openai_llm(llm.name, llm.base_url, llm.api_key, llm.model, llm.max_tokens)
         else:
@@ -115,6 +226,7 @@ class Pipeline:
         return self
     
     def with_openai_llm(self, name: str, base_url: str, api_key: str, model: str, max_tokens: int = 250):
+        """Adds an OpenAI LLM to the pipeline."""
         self.builder.with_openai_llm(name, base_url, api_key, model, max_tokens)
         return self
 
