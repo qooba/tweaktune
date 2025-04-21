@@ -1,34 +1,17 @@
 from enum import Enum
-import pyarrow as pa
 from .tweaktune import StepTest, StepConfigTest
 from .tweaktune import Step, Jsonl, Parquet, Csv, Arrow, Lang, PipelineBuilder, IterBy, Dataset, LLM, Embeddings, Template
-from datasets.arrow_dataset import Dataset as ArrowDataset
-from pyarrow.lib import RecordBatchReader
 import json
-import os
 from typing import List, overload, Optional, Union
 from pydantic import BaseModel, Field, create_model
 from pydantic.fields import FieldInfo
 import inspect
 
-
-#def hello():
-#    return "Hello, World!"
-#
-#def get_buffer(step: Step):
-#    b = step.create_arrow_buffer()
-#    reader = pa.ipc.open_stream(b)
-#
-#    d = reader.read_all()
-#    return d.to_pandas()
-#
-#def read_buffer(step: Step, data: pa.lib.Table):
-#    sink = pa.BufferOutputStream()
-#    writer = pa.ipc.new_stream(sink, data.schema)
-#    writer.write_table(data)
-#    writer.close()
-#    buffer = sink.getvalue().to_pybytes()
-#    step.read_pyarrow(buffer)
+def package_installation_hint(package_name: str):
+    OKGREEN = '\033[92m'
+    ENDC = '\033[0m'
+    BOLD = "\033[1m"
+    print(f"\t{BOLD}Please install:{ENDC}\t{OKGREEN}{package_name}{ENDC}{BOLD}{ENDC}")
 
 def pydantic_to_json_schema(model: BaseModel) -> dict:
     """
@@ -141,12 +124,24 @@ class Pipeline:
         elif dataset.__class__ == Dataset.Csv:
             self.builder.with_csv_dataset(dataset.name, dataset.path, dataset.delimiter, dataset.has_header)
         elif dataset.__class__ == Dataset.Arrow:
-            if type(dataset.dataset) is ArrowDataset:
-                self.builder.with_arrow_dataset(dataset.name, dataset.dataset.data.to_reader())
-            elif type(dataset.dataset) is RecordBatchReader:
-                self.builder.with_arrow_dataset(dataset.name, dataset.dataset)
-            else:
-                raise ValueError("Invalid dataset type")
+            try:
+                from datasets.arrow_dataset import Dataset as ArrowDataset
+                from pyarrow.lib import RecordBatchReader
+
+                if type(dataset) is ArrowDataset:
+                    self.builder.with_arrow_dataset(dataset.name, dataset.data.to_reader())
+                elif type(dataset) is RecordBatchReader:
+                    self.builder.with_arrow_dataset(dataset.name, dataset)
+                else:
+                    raise ValueError("Invalid dataset type")
+
+                return self
+
+            except ModuleNotFoundError:
+                package_installation_hint("datasets")
+                package_installation_hint("pyarrow")
+                raise
+
         else:
             raise ValueError("Invalid dataset type")
         
@@ -202,14 +197,24 @@ class Pipeline:
     
     def with_arrow_dataset(self, name: str, dataset):
         """Adds an arrow dataset to the pipeline."""
-        if type(dataset) is ArrowDataset:
-            self.builder.with_arrow_dataset(name, dataset.data.to_reader())
-        elif type(dataset) is RecordBatchReader:
-            self.builder.with_arrow_dataset(name, dataset)
-        else:
-            raise ValueError("Invalid dataset type")
+        try:
+            from datasets.arrow_dataset import Dataset as ArrowDataset
+            from pyarrow.lib import RecordBatchReader
 
-        return self
+            if type(dataset) is ArrowDataset:
+                self.builder.with_arrow_dataset(name, dataset.data.to_reader())
+            elif type(dataset) is RecordBatchReader:
+                self.builder.with_arrow_dataset(name, dataset)
+            else:
+                raise ValueError("Invalid dataset type")
+
+            return self
+
+        except ModuleNotFoundError:
+            package_installation_hint("datasets")
+            package_installation_hint("pyarrow")
+            raise
+
     
     def with_template(self, name: str, template: str):
         """Adds a template to the pipeline."""
