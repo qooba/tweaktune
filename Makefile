@@ -12,6 +12,8 @@ pyo3-develop: ## Test musl
 # You can already do that by passing --compatibility linux or --skip-auditwheel
 
 pyo3-build: ## Test musl
+	rm ./target/wheels/* && \
+	cp README.md ./tweaktune-python/README.md && \
 	cd ./tweaktune-python && \
     maturin build --release --compatibility manylinux2014  --skip-auditwheel
 
