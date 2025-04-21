@@ -10,7 +10,7 @@ By submitting a pull request, issue, or otherwise contributing to the project, y
    - You certify that you created the contribution yourself, or that you have the right to submit it under the project's license.
 
 2. **Grant of License.**
-   - You grant the project maintainers the perpetual, worldwide, non-exclusive right to use, copy, modify, and distribute your contributions under the project's current license (MIT License).
+   - You grant the project maintainers the perpetual, worldwide, non-exclusive right to use, copy, modify, and distribute your contributions under the project's current license (APACHE 2.0 or MIT License).
    - You also agree that your contributions may be relicensed under a different license in the future if necessary to maintain the project's flexibility and openness.
 
 3. **No Compensation.**
