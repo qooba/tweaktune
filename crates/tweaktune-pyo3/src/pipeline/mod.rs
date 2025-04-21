@@ -347,10 +347,17 @@ impl PipelineBuilder {
     pub fn run(&self) -> PyResult<()> {
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
-        ctrlc::set_handler(move || {
+        match ctrlc::set_handler(move || {
             r.store(false, std::sync::atomic::Ordering::SeqCst);
-        })
-        .map_pyerr()?;
+        }) {
+            Ok(_) => {
+                debug!("Ctrl-C handler set");
+            }
+            Err(e) => {
+                debug!("Error setting Ctrl-C handler: {}", e);
+            }
+        }
+        
 
         let result = Runtime::new()?.block_on(async {
             match &self.iter_by {
