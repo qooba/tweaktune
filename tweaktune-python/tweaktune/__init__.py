@@ -2,7 +2,7 @@ from enum import Enum
 from .tweaktune import StepTest, StepConfigTest
 from .tweaktune import Step, Jsonl, Parquet, Csv, Arrow, Lang, PipelineBuilder, IterBy, Dataset, LLM, Embeddings, Template
 import json
-from typing import List, overload, Optional, Union
+from typing import List, overload, Optional, Union, Tuple
 from pydantic import BaseModel, Field, create_model
 from pydantic.fields import FieldInfo
 import inspect
@@ -98,6 +98,19 @@ class PyStepWrapper:
     def process(self, context):
         context = json.loads(context)
         return json.dumps(self.step.process(context))
+    
+
+class UnslothWrapper:
+    def __init__(self, model, tokenizer):
+        self.model = model
+        self.tokenizer = tokenizer
+
+    def process(self, messages: dict):
+        inputs = self.tokenizer.apply_chat_template(messages, tokenize = True, add_generation_prompt = True, return_tensors = "pt").to("cuda")
+        output_ids = self.model.generate(input_ids = inputs, max_new_tokens = 1024, use_cache = True)
+        output_text = self.tokenizer.decode(output_ids[0], skip_special_tokens=False)
+        
+        return output_text
     
 class PyStepValidatorWrapper:
     def __init__(self, func):
@@ -224,20 +237,59 @@ class Pipeline:
     def with_llm(self, llm: LLM):
         """Adds a LLM to the pipeline."""
         if llm.__class__ == LLM.OpenAI:
-            self.builder.with_openai_llm(llm.name, llm.base_url, llm.api_key, llm.model, llm.max_tokens)
+            self.builder.with_llm_api(llm.name, llm.base_url, llm.api_key, llm.model, llm.max_tokens)
         else:
             raise ValueError("Invalid LLM type")
         
         return self
     
-    def with_openai_llm(self, name: str, base_url: str, api_key: str, model: str, max_tokens: int = 250):
+    def with_llm_api(self, name: str, base_url: str, api_key: str, model: str, max_tokens: int = 2048):
         """Adds an OpenAI LLM to the pipeline."""
-        self.builder.with_openai_llm(name, base_url, api_key, model, max_tokens)
+        self.builder.with_llm_api(name, base_url, api_key, model, max_tokens)
         return self
+    
+    def with_llm_unsloth(self, name: str, 
+                         model_name: str, 
+                         load_in_4bit: bool = True, 
+                         dtype = None, 
+                         max_seq_length: int = 2048, 
+                         hf_token: str = None,
+                         chat_template: Union[str, Tuple[str, str]] = "chatml",
+                         mapping: dict = None,
+                         map_eos_token: bool = True,
+                         ):
+        try:
+            from unsloth import FastLanguageModel
+            from unsloth.chat_templates import get_chat_template
+
+            model, tokenizer = FastLanguageModel.from_pretrained(
+                model_name = model_name,
+                max_seq_length = max_seq_length,
+                dtype = dtype,
+                load_in_4bit = load_in_4bit,
+                token = hf_token
+            )
+
+            if not mapping:
+                mapping = {"role" : "from", "content" : "value", "user" : "human", "assistant" : "gpt"}
+
+            tokenizer = get_chat_template(
+               tokenizer,
+               chat_template = chat_template,
+               mapping = mapping,
+               map_eos_token = map_eos_token
+            )
+            FastLanguageModel.for_inference(model)
+            self.builder.with_llm_unsloth(name, UnslothWrapper(model, tokenizer))
+
+            return self
+        except ModuleNotFoundError:
+            package_installation_hint("unsloth")
+            raise
 
     def with_embedings(self, embeddings: Embeddings):
         if embeddings.__class__ == Embeddings.OpenAI:
-            self.builder.with_embeddings(embeddings.name, embeddings.model, embeddings.base_url, embeddings.api_key)
+            self.builder.with_embeddings_api(embeddings.name, embeddings.model, embeddings.base_url, embeddings.api_key)
         else:
             raise ValueError("Invalid Embeddings type")
         

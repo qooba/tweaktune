@@ -26,3 +26,6 @@ arrow = [
     "datasets ~=3.2.0", 
     "pyarrow ~=19.0.0"
 ]
+unsloth = [
+    "unsloth ~=2025.1.8", 
+]

@@ -58,7 +58,7 @@ model = "model"
 p = Pipeline()\
     .with_workers(5)\
     .with_parquet_dataset("web_articles", "../../datasets/articles.pq")\
-    .with_openai_llm("bielik", url, api_key, model)\
+    .with_llm_api("bielik", url, api_key, model)\
     .with_template("persona", persona_template)\
     .with_template("output", """{"persona": {{persona|jstr}} }""")\
     .iter_range(10000)\

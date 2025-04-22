@@ -1,6 +1,5 @@
 use crate::{
     common::ResultExt,
-    steps::{PrintStep, PyStep, PyValidator, StepType},
 };
 use arrow::{array::RecordBatch, ffi_stream::ArrowArrayStreamReader, pyarrow::PyArrowType};
 use console::{style, Emoji};
@@ -9,6 +8,7 @@ use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use log::debug;
 use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use serde_json::de;
+use tweaktune_core::llms::UnslothLLM;
 use std::{cmp::min, env, fmt::Write, sync::atomic::AtomicBool};
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
@@ -21,8 +21,7 @@ use tweaktune_core::{
     llms::{LLMType, OpenAILLM},
     steps::{
         CsvWriterStep, DataSamplerStep, JsonGenerationStep, JsonlWriterStep, Step as StepCore,
-        StepContext, StepStatus, TextGenerationStep,
-    },
+        StepContext, StepStatus, TextGenerationStep, PrintStep, PyStep, PyValidator, StepType},
     templates::Templates,
 };
 use anyhow::Result;
@@ -152,7 +151,7 @@ impl PipelineBuilder {
         );
     }
 
-    pub fn with_openai_llm(
+    pub fn with_llm_api(
         &mut self,
         name: String,
         base_url: String,
@@ -160,14 +159,26 @@ impl PipelineBuilder {
         model: String,
         max_tokens: u32,
     ) {
-        debug!("Added OpenAI LLM: {}", &name);
+        debug!("Added LLM API: {}", &name);
         self.llms.add(
             name.clone(),
             LLMType::OpenAI(OpenAILLM::new(name, base_url, api_key, model, max_tokens)),
         );
     }
 
-    pub fn with_openai_embeddings(
+    pub fn with_llm_unsloth(
+        &mut self,
+        name: String,
+        py_func: PyObject
+    ) {
+        debug!("Added LLM UNSLOTH: {}", &name);
+        self.llms.add(
+            name.clone(),
+            LLMType::Unsloth(UnslothLLM::new(name, py_func)),
+        );
+    }
+
+    pub fn with_embeddings_api(
         &mut self,
         name: String,
         base_url: String,

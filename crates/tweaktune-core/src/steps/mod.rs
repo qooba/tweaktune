@@ -1,14 +1,15 @@
 use crate::{
     common::{extract_json, OptionToResult, ResultExt},
     datasets::{Dataset, DatasetType},
-    embeddings,
-    llms::{self, LLM},
+    embeddings::{self, EmbeddingsType},
+    llms::{self, LLMType, LLM},
     templates::Templates,
 };
 use anyhow::Result;
 use arrow::{array::RecordBatch, json, row};
 use log::{debug, error, info};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReader;
+use pyo3::prelude::*;
 use rand::seq::SliceRandom;
 use reqwest::header::CONTENT_DISPOSITION;
 use serde::{Deserialize, Serialize};
@@ -74,6 +75,160 @@ pub trait Step {
     ) -> impl std::future::Future<Output = Result<StepContext>>;
 }
 
+pub enum StepType {
+    Py(PyStep),
+    PyValidator(PyValidator),
+    TextGeneration(TextGenerationStep),
+    JsonGeneration(JsonGenerationStep),
+    JsonWriter(JsonlWriterStep),
+    CsvWriter(CsvWriterStep),
+    Print(PrintStep),
+    DataSampler(DataSamplerStep),
+}
+
+pub struct PyStep {
+    pub name: String,
+    pub py_func: PyObject,
+}
+
+impl PyStep {
+    pub fn new(name: String, py_func: PyObject) -> Self {
+        Self { name, py_func }
+    }
+}
+
+impl Step for PyStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, LLMType>,
+        _embeddings: &HashMap<String, EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let json = serde_json::to_string(context)?;
+
+        let result: PyResult<String> = Python::with_gil(|py| {
+            let result: String = self
+                .py_func
+                .call_method1(py, "process", (json,))?
+                .extract(py)?;
+            Ok(result)
+        });
+
+        match result {
+            Ok(result) => {
+                let result: StepContext = serde_json::from_str(&result)?;
+                Ok(result)
+            }
+            Err(e) => {
+                debug!("{:?}", e);
+                let mut context = context.clone();
+                context.set_status(StepStatus::Failed);
+                Ok(context)
+            }
+        }
+    }
+}
+
+pub struct PyValidator {
+    pub name: String,
+    pub py_func: PyObject,
+}
+
+impl PyValidator {
+    pub fn new(name: String, py_func: PyObject) -> Self {
+        Self { name, py_func }
+    }
+}
+
+impl Step for PyValidator {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, LLMType>,
+        _embeddings: &HashMap<String, EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let json = serde_json::to_string(context)?;
+
+        let result: PyResult<bool> = Python::with_gil(|py| {
+            let result: bool = self
+                .py_func
+                .call_method1(py, "process", (json,))?
+                .extract(py)?;
+            Ok(result)
+        });
+
+        let result = result.map_tt_err("VALIDATOR MUST RETURN BOOL")?;
+        let mut context = context.clone();
+        if !result {
+            context.set_status(StepStatus::Failed);
+        }
+
+        Ok(context)
+    }
+}
+
+pub struct PrintStep {
+    pub name: String,
+    pub template: Option<String>,
+    pub columns: Option<Vec<String>>,
+}
+
+impl PrintStep {
+    pub fn new(name: String, template: Option<String>, columns: Option<Vec<String>>) -> Self {
+        Self {
+            name,
+            template,
+            columns,
+        }
+    }
+}
+
+impl Step for PrintStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut row = if let Some(template) = self.template.clone() {
+            templates.render(template.clone(), context.data.clone())?
+        } else if let Some(columns) = self.columns.clone() {
+            let mut row = String::new();
+            for (i, column) in columns.iter().enumerate() {
+                if let Some(value) = context.data.get(column) {
+                    if i > 0 {
+                        row.push_str(" | ");
+                    }
+                    row.push_str(&value.to_string());
+                }
+            }
+
+            row
+        } else {
+            context.data.to_string()
+        };
+
+        row.push('\n');
+
+        Python::with_gil(|py| {
+            let sys = py.import("sys").unwrap();
+            let stdout = sys.getattr("stdout").unwrap();
+            let write = stdout.getattr("write").unwrap();
+            write.call1((row,)).unwrap();
+        });
+
+        // println!("{}", row);
+
+        Ok(context.clone())
+    }
+}
+
 pub struct TextGenerationStep {
     pub name: String,
     pub template: String,
@@ -117,14 +272,23 @@ impl TextGenerationStep {
         };
 
         let llm = llms.get(&self.llm).expect("LLM");
-        let llms::LLMType::OpenAI(llm) = llm;
-        let result = match llm.call(template).await {
-            Ok(response) => Some(response.choices[0].message.content.clone()),
-            Err(e) => {
-                debug!(target: "generate", "Failed to generate text: {}", e);
-                None
-            }
+        let result = match llm {
+            llms::LLMType::OpenAI(llm) => match llm.call(template).await {
+                Ok(response) => Some(response.choices[0].message.content.clone()),
+                Err(e) => {
+                    debug!(target: "generate", "Failed to generate text: {}", e);
+                    None
+                }
+            },
+            llms::LLMType::Unsloth(llm) => match llm.call(template).await {
+                Ok(response) => Some(response.choices[0].message.content.clone()),
+                Err(e) => {
+                    debug!(target: "generate", "Failed to generate text: {}", e);
+                    None
+                }
+            },
         };
+
         Ok(result)
     }
 }
