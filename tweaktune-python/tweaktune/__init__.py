@@ -108,8 +108,8 @@ class UnslothWrapper:
     def process(self, messages: dict):
         inputs = self.tokenizer.apply_chat_template(messages, tokenize = True, add_generation_prompt = True, return_tensors = "pt").to("cuda")
         output_ids = self.model.generate(input_ids = inputs, max_new_tokens = 1024, use_cache = True)
-        output_text = self.tokenizer.decode(output_ids[0], skip_special_tokens=False)
-        
+        input_size = inputs[0].shape[0]
+        output_text = self.tokenizer.decode(output_ids[0][input_size:], skip_special_tokens=False)
         return output_text
     
 class PyStepValidatorWrapper:
