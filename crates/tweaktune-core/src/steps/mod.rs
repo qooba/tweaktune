@@ -6,16 +6,15 @@ use crate::{
     templates::Templates,
 };
 use anyhow::Result;
-use arrow::{array::RecordBatch, json, row};
-use log::{debug, error, info};
-use parquet::arrow::arrow_reader::ParquetRecordBatchReader;
+use arrow::array::RecordBatch;
+use log::debug;
 use pyo3::prelude::*;
 use rand::seq::SliceRandom;
-use reqwest::header::CONTENT_DISPOSITION;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::io::{BufReader, Write};
+use std::io::Write;
 use std::{collections::HashMap, fs::File};
+use text_splitter::{Characters, TextSplitter};
 
 pub type StepContextData = serde_json::Value;
 
@@ -84,6 +83,7 @@ pub enum StepType {
     CsvWriter(CsvWriterStep),
     Print(PrintStep),
     DataSampler(DataSamplerStep),
+    Chunk(ChunkStep),
 }
 
 pub struct PyStep {
@@ -568,6 +568,55 @@ impl Step for DataSamplerStep {
         };
 
         context.set(&self.output, json_rows);
+        Ok(context)
+    }
+}
+
+pub struct ChunkStep {
+    pub name: String,
+    pub capacity: (usize, usize),
+    pub input: String,
+    pub output: String,
+    pub text_splitter: TextSplitter<Characters>,
+}
+
+impl ChunkStep {
+    pub fn new(name: String, capacity: (usize, usize), input: String, output: String) -> Self {
+        let range = capacity.0..capacity.1;
+        let text_splitter = TextSplitter::new(range);
+
+        Self {
+            name,
+            capacity,
+            input,
+            output,
+            text_splitter,
+        }
+    }
+}
+
+impl Step for ChunkStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+        let text = context
+            .get(&self.input)
+            .ok_or_else(|| anyhow::anyhow!("Input not found"))?;
+        let chunks: Vec<serde_json::Value> = self
+            .text_splitter
+            .chunks(&text.to_string())
+            .collect::<Vec<&str>>()
+            .iter()
+            .map(|s| serde_json::from_str(s).unwrap())
+            .collect();
+
+        context.set(&self.output, chunks);
         Ok(context)
     }
 }

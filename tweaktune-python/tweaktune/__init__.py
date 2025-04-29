@@ -398,6 +398,11 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
+    def chunk(self, capacity: Tuple[int, int], input: str, output: str, name: str = "CHUNK"):
+        self.builder.add_chunk_step(self.__name(name), capacity, input, output)
+        self.step_index += 1
+        return self
+    
     def read(self, dataset: str, output: str, name: str = "SAMPLE"):
         self.builder.add_data_read_step(self.__name(name), dataset, output)
         self.step_index += 1

@@ -10,6 +10,7 @@ use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use serde_json::de;
 use tweaktune_core::datasets::PolarsDataset;
 use tweaktune_core::llms::UnslothLLM;
+use tweaktune_core::steps::ChunkStep;
 use std::{cmp::min, env, fmt::Write, sync::atomic::AtomicBool};
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
@@ -343,6 +344,23 @@ impl PipelineBuilder {
             &self.datasets.resources,
         )));
     }
+
+    pub fn add_chunk_step(
+        &mut self,
+        name: String,
+        capacity: (usize, usize),
+        input: String,
+        output: String,
+    ) {
+        debug!("Added data chunking step");
+        self.steps.push(StepType::Chunk(ChunkStep::new(
+            name,
+            capacity,
+            input,
+            output,
+        )));
+    }
+
 
 
     pub fn compile(&self) {
@@ -724,6 +742,18 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) -> 
                     )
                     .await?;
             }
+            StepType::Chunk(chunk_step) => {
+                context = chunk_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
+
         }
     }
 

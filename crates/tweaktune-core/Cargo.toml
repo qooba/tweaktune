@@ -28,6 +28,7 @@ serde = { workspace = true }
 serde_arrow = { workspace = true, features = ["arrow-54"]}
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
+text-splitter = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
