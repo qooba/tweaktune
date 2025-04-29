@@ -8,6 +8,7 @@ use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use log::debug;
 use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use serde_json::de;
+use tweaktune_core::datasets::PolarsDataset;
 use tweaktune_core::llms::UnslothLLM;
 use std::{cmp::min, env, fmt::Write, sync::atomic::AtomicBool};
 use std::{collections::HashMap, sync::Arc};
@@ -88,6 +89,14 @@ impl PipelineBuilder {
         self.datasets.add(
             name.clone(),
             DatasetType::Jsonl(JsonlDataset::new(name, path)),
+        );
+    }
+
+    pub fn with_polars_dataset(&mut self, name: String, path: String, sql: String) {
+        debug!("Added POLARS dataset: {}", &name);
+        self.datasets.add(
+            name.clone(),
+            DatasetType::Polars(PolarsDataset::new(name, path, sql)),
         );
     }
 
@@ -447,6 +456,26 @@ impl PipelineBuilder {
                             .await;
                         }
                         DatasetType::JsonList(dataset) => {
+                            let json_items = dataset.read_all_json().unwrap();
+                            stream::iter(json_items.iter().map(
+                                |json_row|{ 
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, json_row).await.unwrap();
+                                        bar.inc(1);
+                                }},
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                        }
+                        DatasetType::Polars(dataset) => {
                             let json_items = dataset.read_all_json().unwrap();
                             stream::iter(json_items.iter().map(
                                 |json_row|{ 

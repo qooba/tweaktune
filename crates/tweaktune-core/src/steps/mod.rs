@@ -521,6 +521,7 @@ impl DataSamplerStep {
     ) -> Self {
         let dataset_type = datasets.get(&dataset).ok_or_err(&dataset).unwrap();
         let json_batches = match dataset_type {
+            DatasetType::Polars(polars_dataset) => polars_dataset.read_all_json().unwrap(),
             DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all_json().unwrap(),
             DatasetType::Json(json_dataset) => json_dataset.read_all_json().unwrap(),
             DatasetType::JsonList(json_list_dataset) => json_list_dataset.read_all_json().unwrap(),

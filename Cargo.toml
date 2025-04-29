@@ -81,7 +81,7 @@ opendal = { version="0.51", features=["services-fs"] }
 openidconnect = { version="3.5", features=["reqwest"] }
 parquet = { version = "54.1.0", features = ["arrow"] }
 pyo3 = { version = "0.23.4", features = ["extension-module", "abi3", "abi3-py38", "anyhow", "auto-initialize"] }
-#polars = "0.39.2"
+polars = { version ="0.46.0", features = ["lazy", "sql", "csv", "json", "parquet", "serde"] }
 #polars-arrow = "0.39.2"
 rand = "0.8.5"
 regex = "1"

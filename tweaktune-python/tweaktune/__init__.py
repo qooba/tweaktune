@@ -197,7 +197,12 @@ class Pipeline:
         """Adds a mixed dataset to the pipeline."""
         self.builder.with_mixed_dataset(name, datasets)
         return self
-    
+
+    def with_polars_dataset(self, name: str, path: str, sql: str):
+        """Adds a polars dataset to the pipeline."""
+        self.builder.with_polars_dataset(name, path, sql)
+        return self
+
     def with_parquet_dataset(self, name: str, path: str):
         """Adds a parquet dataset to the pipeline."""
         self.builder.with_parquet_dataset(name, path)
