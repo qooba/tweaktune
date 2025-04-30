@@ -1,6 +1,5 @@
-use crate::{
-    common::ResultExt,
-};
+use crate::common::ResultExt;
+use anyhow::Result;
 use arrow::{array::RecordBatch, ffi_stream::ArrowArrayStreamReader, pyarrow::PyArrowType};
 use console::{style, Emoji};
 use futures::stream::{self, StreamExt};
@@ -8,25 +7,26 @@ use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use log::debug;
 use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use serde_json::de;
-use tweaktune_core::datasets::PolarsDataset;
-use tweaktune_core::llms::UnslothLLM;
-use tweaktune_core::steps::{ChunkStep, RenderStep};
 use std::{cmp::min, env, fmt::Write, sync::atomic::AtomicBool};
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
+use tweaktune_core::datasets::PolarsDataset;
+use tweaktune_core::llms::UnslothLLM;
+use tweaktune_core::steps::{ChunkStep, RenderStep};
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{
-        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonDataset, JsonListDataset, JsonlDataset, MixedDataset, OpenApiDataset, ParquetDataset
+        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonDataset,
+        JsonListDataset, JsonlDataset, MixedDataset, OpenApiDataset, ParquetDataset,
     },
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
     steps::{
-        CsvWriterStep, DataSamplerStep, JsonGenerationStep, JsonlWriterStep, Step as StepCore,
-        StepContext, StepStatus, TextGenerationStep, PrintStep, PyStep, PyValidator, StepType},
+        CsvWriterStep, DataSamplerStep, JsonGenerationStep, JsonlWriterStep, PrintStep, PyStep,
+        PyValidator, Step as StepCore, StepContext, StepStatus, StepType, TextGenerationStep,
+    },
     templates::Templates,
 };
-use anyhow::Result;
 
 #[pyclass]
 pub struct PipelineBuilder {
@@ -72,16 +72,16 @@ impl PipelineBuilder {
     pub fn with_openapi_dataset(&mut self, name: String, path_or_url: String) {
         debug!("Added OPEN_API dataset: {}", &name);
         self.datasets.add(
-             name.clone(),
-             DatasetType::OpenApi(OpenApiDataset::new(name, path_or_url)),
+            name.clone(),
+            DatasetType::OpenApi(OpenApiDataset::new(name, path_or_url)),
         );
     }
 
     pub fn with_json_list_dataset(&mut self, name: String, json_list: Vec<String>) {
         debug!("Added JSON_LIST dataset: {}", &name);
         self.datasets.add(
-             name.clone(),
-             DatasetType::JsonList(JsonListDataset::new(name, json_list)),
+            name.clone(),
+            DatasetType::JsonList(JsonListDataset::new(name, json_list)),
         );
     }
 
@@ -176,11 +176,7 @@ impl PipelineBuilder {
         );
     }
 
-    pub fn with_llm_unsloth(
-        &mut self,
-        name: String,
-        py_func: PyObject
-    ) {
+    pub fn with_llm_unsloth(&mut self, name: String, py_func: PyObject) {
         debug!("Added LLM UNSLOTH: {}", &name);
         self.llms.add(
             name.clone(),
@@ -326,16 +322,8 @@ impl PipelineBuilder {
         )));
     }
 
-    pub fn add_data_read_step(
-        &mut self,
-        name: String,
-        dataset: String,
-        output: String,
-    ) {
-        debug!(
-            "Added data read on dataset: {}",
-            &dataset
-        );
+    pub fn add_data_read_step(&mut self, name: String, dataset: String, output: String) {
+        debug!("Added data read on dataset: {}", &dataset);
         self.steps.push(StepType::DataSampler(DataSamplerStep::new(
             name,
             dataset,
@@ -354,25 +342,14 @@ impl PipelineBuilder {
     ) {
         debug!("Added data chunking step");
         self.steps.push(StepType::Chunk(ChunkStep::new(
-            name,
-            capacity,
-            input,
-            output,
+            name, capacity, input, output,
         )));
     }
 
-    pub fn add_render_step(
-        &mut self,
-        name: String,
-        template: String,
-        output: String,
-    ) {
+    pub fn add_render_step(&mut self, name: String, template: String, output: String) {
         debug!("Added render step");
-        self.steps.push(StepType::Render(RenderStep::new(
-            name,
-            template,
-            output,
-        )));
+        self.steps
+            .push(StepType::Render(RenderStep::new(name, template, output)));
     }
 
     pub fn compile(&self) {
@@ -389,9 +366,7 @@ impl PipelineBuilder {
             _ => log::LevelFilter::Info,
         };
 
-        env_logger::builder()
-            .filter(target, level)
-            .init();
+        env_logger::builder().filter(target, level).init();
     }
 
     pub fn run(&self) -> PyResult<()> {
@@ -407,7 +382,6 @@ impl PipelineBuilder {
                 debug!("Error setting Ctrl-C handler: {}", e);
             }
         }
-        
 
         let result = Runtime::new()?.block_on(async {
             match &self.iter_by {
@@ -448,7 +422,7 @@ impl PipelineBuilder {
                     match dataset {
                         DatasetType::Jsonl(dataset) => {
                             stream::iter(dataset.create_json_stream().unwrap().map(
-                                |json_row|{ 
+                                |json_row|{
                                     let bar = &bar;
                                     if !running.load(std::sync::atomic::Ordering::SeqCst) {
                                         bar.finish_with_message("Interrupted");
@@ -468,7 +442,7 @@ impl PipelineBuilder {
                         DatasetType::Json(dataset) => {
                             let json_items = dataset.read_all_json().unwrap();
                             stream::iter(json_items.iter().map(
-                                |json_row|{ 
+                                |json_row|{
                                     let bar = &bar;
                                     if !running.load(std::sync::atomic::Ordering::SeqCst) {
                                         bar.finish_with_message("Interrupted");
@@ -488,7 +462,7 @@ impl PipelineBuilder {
                         DatasetType::JsonList(dataset) => {
                             let json_items = dataset.read_all_json().unwrap();
                             stream::iter(json_items.iter().map(
-                                |json_row|{ 
+                                |json_row|{
                                     let bar = &bar;
                                     if !running.load(std::sync::atomic::Ordering::SeqCst) {
                                         bar.finish_with_message("Interrupted");
@@ -508,7 +482,7 @@ impl PipelineBuilder {
                         DatasetType::Polars(dataset) => {
                             let json_items = dataset.read_all_json().unwrap();
                             stream::iter(json_items.iter().map(
-                                |json_row|{ 
+                                |json_row|{
                                     let bar = &bar;
                                     if !running.load(std::sync::atomic::Ordering::SeqCst) {
                                         bar.finish_with_message("Interrupted");
@@ -528,7 +502,7 @@ impl PipelineBuilder {
                         DatasetType::OpenApi(dataset) => {
                             let json_items = dataset.read_all_json().unwrap();
                             stream::iter(json_items.iter().map(
-                                |json_row|{ 
+                                |json_row|{
                                     let bar = &bar;
                                     if !running.load(std::sync::atomic::Ordering::SeqCst) {
                                         bar.finish_with_message("Interrupted");
@@ -548,7 +522,7 @@ impl PipelineBuilder {
                         DatasetType::Mixed(dataset) => {
                             let json_items = dataset.read_all_json(&self.datasets.resources).unwrap();
                             stream::iter(json_items.iter().map(
-                                |json_row|{ 
+                                |json_row|{
                                     let bar = &bar;
                                     if !running.load(std::sync::atomic::Ordering::SeqCst) {
                                         bar.finish_with_message("Interrupted");
@@ -574,7 +548,6 @@ impl PipelineBuilder {
                                         bar.finish_with_message("Interrupted");
                                         std::process::exit(1);
                                     }
-                                    
                                     async move {
                                         bar.inc_length(1);
                                         let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(&record_batch.unwrap()).unwrap();
@@ -776,7 +749,6 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) -> 
                     )
                     .await?;
             }
-
         }
     }
 
