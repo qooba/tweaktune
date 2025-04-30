@@ -49,7 +49,7 @@ jobs:
         run: pip install maturin
 
       - name: Build Python package with maturin
-        workdir: ./tweaktune-python
+        working-directory:  ./tweaktune-python
         run: maturin build --release --out dist
 
       - name: Install built package
