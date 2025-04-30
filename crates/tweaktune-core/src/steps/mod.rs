@@ -84,6 +84,7 @@ pub enum StepType {
     Print(PrintStep),
     DataSampler(DataSamplerStep),
     Chunk(ChunkStep),
+    Render(RenderStep),
 }
 
 pub struct PyStep {
@@ -167,6 +168,38 @@ impl Step for PyValidator {
             context.set_status(StepStatus::Failed);
         }
 
+        Ok(context)
+    }
+}
+
+pub struct RenderStep {
+    pub name: String,
+    pub template: String,
+    pub output: String,
+}
+
+impl RenderStep {
+    pub fn new(name: String, template: String, output: String) -> Self {
+        Self {
+            name,
+            template,
+            output,
+        }
+    }
+}
+
+impl Step for RenderStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+        let rendered = templates.render(self.template.clone(), context.data.clone())?;
+        context.set(&self.output, rendered);
         Ok(context)
     }
 }

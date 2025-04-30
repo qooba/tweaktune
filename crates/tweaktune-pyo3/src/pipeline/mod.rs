@@ -10,7 +10,7 @@ use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use serde_json::de;
 use tweaktune_core::datasets::PolarsDataset;
 use tweaktune_core::llms::UnslothLLM;
-use tweaktune_core::steps::ChunkStep;
+use tweaktune_core::steps::{ChunkStep, RenderStep};
 use std::{cmp::min, env, fmt::Write, sync::atomic::AtomicBool};
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
@@ -361,7 +361,19 @@ impl PipelineBuilder {
         )));
     }
 
-
+    pub fn add_render_step(
+        &mut self,
+        name: String,
+        template: String,
+        output: String,
+    ) {
+        debug!("Added render step");
+        self.steps.push(StepType::Render(RenderStep::new(
+            name,
+            template,
+            output,
+        )));
+    }
 
     pub fn compile(&self) {
         self.templates.compile().unwrap();
@@ -744,6 +756,17 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) -> 
             }
             StepType::Chunk(chunk_step) => {
                 context = chunk_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
+            StepType::Render(render_step) => {
+                context = render_step
                     .process(
                         &pipeline.datasets.resources,
                         &pipeline.templates,

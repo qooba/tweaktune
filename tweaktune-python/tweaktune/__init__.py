@@ -397,7 +397,12 @@ class PipelineRunner:
         self.builder.add_data_sampler_step(self.__name(name), dataset, size, output)
         self.step_index += 1
         return self
-    
+
+    def render(self, template: str, output: str, name: str = "RENDER"):
+        self.builder.add_render_step(self.__name(name), template, output)
+        self.step_index += 1
+        return self
+
     def chunk(self, capacity: Tuple[int, int], input: str, output: str, name: str = "CHUNK"):
         self.builder.add_chunk_step(self.__name(name), capacity, input, output)
         self.step_index += 1
