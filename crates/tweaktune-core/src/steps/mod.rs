@@ -9,7 +9,7 @@ use anyhow::Result;
 use arrow::array::RecordBatch;
 use log::debug;
 use pyo3::prelude::*;
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::io::Write;
