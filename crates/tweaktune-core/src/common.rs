@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
 use log::debug;
 use once_cell::sync::OnceCell;
-use rand::distributions::Alphanumeric;
+use rand::distr::Alphanumeric;
 use rand::{Rng, RngCore};
 use regex::Regex;
 use serde::de::DeserializeOwned;
