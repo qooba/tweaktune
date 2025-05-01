@@ -1,18 +1,17 @@
-name: Build Rust PyO3 Package and Run Python Tests
+name: Build and Publish Python Package
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags:
+      - 'v*.*.*'
 
 jobs:
-  build-and-test:
+  build-and-publish:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Cache Rust dependencies
         uses: actions/cache@v3
@@ -36,15 +35,6 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Check Rust formatting
-        run: cargo fmt --all -- --check
-
-      - name: Run Clippy linter
-        run: cargo clippy --no-default-features
-
-      - name: Run cargo check
-        run: cargo check --no-default-features
-
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -55,12 +45,13 @@ jobs:
         run: |
           uv venv ../.venv
           source ../.venv/bin/activate
-          uv pip install maturin pytest
-          maturin develop --release --uv
+          uv pip install maturin twine
+          maturin build --release --compatibility manylinux2014  --skip-auditwheel
 
-      - name: Run Python tests
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           source .venv/bin/activate
-          pytest
-
-
+	        twine upload  --repository pypi ./target/wheels/*
