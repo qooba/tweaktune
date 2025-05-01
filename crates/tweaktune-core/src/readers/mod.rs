@@ -1,7 +1,6 @@
 use anyhow::Result;
+use opendal::services::Fs;
 use opendal::Operator;
-use opendal::{services::Fs, Reader};
-use std::fs::read;
 use std::path::Path;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio_util::io::StreamReader;

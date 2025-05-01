@@ -415,7 +415,7 @@ impl Dataset for MixedDataset {
 #[derive(Clone, Debug)]
 pub struct OpenApiDataset {
     _name: String,
-    path_or_url: String,
+    _path_or_url: String,
     open_api_spec: OpenApiSpec,
 }
 
@@ -428,15 +428,15 @@ impl OpenApiDataset {
 
         Self {
             _name: name,
-            path_or_url,
+            _path_or_url: path_or_url,
             open_api_spec: config,
         }
     }
 
     fn build_function_from_path_item(
         &self,
-        path: &str,
-        method: &str,
+        _path: &str,
+        _method: &str,
         item: &OpenApiPathItem,
     ) -> Value {
         let mut parameters = HashMap::new();

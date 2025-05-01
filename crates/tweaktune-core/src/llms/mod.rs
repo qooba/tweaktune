@@ -2,9 +2,8 @@ use anyhow::Result;
 use log::debug;
 use pyo3::prelude::*;
 use reqwest::Client;
-use serde::{de, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::OnceLock};
-use tokio;
 
 static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
 

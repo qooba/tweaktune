@@ -589,7 +589,7 @@ impl Step for DataSamplerStep {
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         let json_rows: Vec<serde_json::Value> = if let Some(size) = self.size {
             self.json_batches

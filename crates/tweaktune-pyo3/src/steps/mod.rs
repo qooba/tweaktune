@@ -6,7 +6,6 @@ use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use arrow::pyarrow::PyArrowType;
 use arrow::record_batch::RecordBatch;
-use log::debug;
 use minijinja::Environment;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -14,15 +13,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tweaktune_core::common::ResultExt;
-use tweaktune_core::datasets::DatasetType;
-use tweaktune_core::embeddings::{self, EmbeddingsType};
-use tweaktune_core::llms::{self, LLMType, OpenAILLM, LLM};
-use tweaktune_core::steps::{
-    CsvWriterStep, DataSamplerStep, JsonGenerationStep, JsonlWriterStep, Step, StepContext,
-    StepStatus, TextGenerationStep,
-};
-use tweaktune_core::templates::Templates;
+use tweaktune_core::llms::{OpenAILLM, LLM};
 
 #[pyclass]
 #[derive(Debug)]
@@ -211,7 +202,7 @@ impl StepTest {
             .as_any()
             .downcast_ref::<StringArray>()
             .unwrap();
-        let data = array.values().to_vec();
+        let _data = array.values().to_vec();
         Ok("".to_string())
     }
 
