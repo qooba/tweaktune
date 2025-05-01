@@ -51,16 +51,16 @@ jobs:
           version: "latest"
 
       - name: Set up uv environment
-        run: |
-          uv venv .venv
-          source .venv/bin/activate
-          uv pip install maturin pytest
-
-      - name: Build Python package with maturin and run tests
         working-directory:  ./tweaktune-python
         run: |
+          uv venv ../.venv
           source ../.venv/bin/activate
+          uv pip install maturin pytest
           maturin develop --release --uv
+
+      - name: Run Python tests
+        run: |
+          source .venv/bin/activate
           pytest
 
 
