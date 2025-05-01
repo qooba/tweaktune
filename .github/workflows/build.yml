@@ -52,11 +52,8 @@ jobs:
         working-directory:  ./tweaktune-python
         run: maturin build --release --out ../dist
 
-      - name: Install built package
-        run: |
-          pip install dist/*.whl
-
       - name: Run Python tests
         run: |
+          pip install dist/*.whl
           pip install pytest
           pytest
