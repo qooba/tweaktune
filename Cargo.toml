@@ -31,8 +31,8 @@ actix-session = { version = "0.10.1", features = ["cookie-session"] }
 actix-telepathy = "0.6.1"
 actix-web = { version = "4", features = ["rustls"]  }
 anyhow = { version = "1.0.98", features = ["backtrace"] }
-arrow = { version = "54.1.0" , features=["json", "pyarrow", "csv"]}
-arrow-array = "51.0"
+arrow = { version = "55.0.0" , features=["json", "pyarrow", "csv"]}
+arrow-array = "55.0"
 async-stream = "0.3.3"
 async-trait = "0.1.88"
 base64 = "0.22.1"
@@ -79,8 +79,8 @@ num-traits = "0.2.15"
 once_cell = "1.21.3"
 opendal = { version="0.53.1", features=["services-fs"] }
 openidconnect = { version="4.0.0", features=["reqwest"] }
-parquet = { version = "54.1.0", features = ["arrow"] }
-pyo3 = { version = "0.23.4", features = ["extension-module", "abi3", "abi3-py38", "anyhow", "auto-initialize"] }
+parquet = { version = "55.0.0", features = ["arrow"] }
+pyo3 = { version = "0.24.2", features = ["extension-module", "abi3", "abi3-py38", "anyhow", "auto-initialize"] }
 polars = { version ="0.46.0", features = ["lazy", "sql", "csv", "json", "parquet", "serde"] }
 #polars-arrow = "0.39.2"
 rand = "0.9.1"
@@ -92,7 +92,7 @@ schemars = "0.8.21"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 serde_yaml = "0.9"
-serde_arrow = { version="0.13.3" }
+serde_arrow = { version="0.13.3", features=["arrow-55"] }
 tar = "0.4"
 toml = "0.8.19"
 # tauri = { version = "1", features = ["shell-open", "http-all"] }
