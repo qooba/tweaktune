@@ -3,6 +3,7 @@ use log::debug;
 use pyo3::prelude::*;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::{collections::HashMap, sync::OnceLock};
 
 static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
@@ -11,11 +12,13 @@ pub trait LLM {
     fn chat_completion(
         &self,
         messages: Vec<ChatMessage>,
+        json_schema: Option<String>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>>;
 
     fn call(
         &self,
         prompt: String,
+        json_schema: Option<String>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>>;
 }
 
@@ -54,7 +57,11 @@ impl UnslothLLM {
 }
 
 impl LLM for UnslothLLM {
-    async fn chat_completion(&self, messages: Vec<ChatMessage>) -> Result<ChatCompletionResponse> {
+    async fn chat_completion(
+        &self,
+        messages: Vec<ChatMessage>,
+        _json_schema: Option<String>,
+    ) -> Result<ChatCompletionResponse> {
         let messages: Vec<HashMap<String, String>> = messages
             .into_iter()
             .map(|msg| {
@@ -80,11 +87,15 @@ impl LLM for UnslothLLM {
     fn call(
         &self,
         prompt: String,
+        json_schema: Option<String>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>> {
-        self.chat_completion(vec![ChatMessage {
-            role: "user".to_string(),
-            content: prompt,
-        }])
+        self.chat_completion(
+            vec![ChatMessage {
+                role: "user".to_string(),
+                content: prompt,
+            }],
+            json_schema,
+        )
     }
 }
 
@@ -117,14 +128,28 @@ impl OpenAILLM {
 }
 
 impl LLM for OpenAILLM {
-    async fn chat_completion(&self, messages: Vec<ChatMessage>) -> Result<ChatCompletionResponse> {
+    async fn chat_completion(
+        &self,
+        messages: Vec<ChatMessage>,
+        json_schema: Option<String>,
+    ) -> Result<ChatCompletionResponse> {
         let url = format!("{}/v1/chat/completions", self.base_url);
         let request = ChatCompletionRequest {
             model: self.model.clone(),
             messages,
             max_tokens: self.max_tokens,
             stream: None,
+            seed: None,
+            temperature: None,
+            top_p: None,
+            response_format: if json_schema.is_some() {
+                Some(json!({"type": "json_schema", "json_schema": json_schema
+                .map(|schema| serde_json::from_str::<serde_json::Value>(&schema).unwrap_or_default()) }))
+            } else {
+                None
+            },
         };
+
         let response = HTTP_CLIENT
             .get()
             .expect("HTTP client not initialized")
@@ -141,11 +166,15 @@ impl LLM for OpenAILLM {
     fn call(
         &self,
         prompt: String,
+        json_schema: Option<String>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>> {
-        self.chat_completion(vec![ChatMessage {
-            role: "user".to_string(),
-            content: prompt,
-        }])
+        self.chat_completion(
+            vec![ChatMessage {
+                role: "user".to_string(),
+                content: prompt,
+            }],
+            json_schema,
+        )
     }
 }
 
@@ -155,6 +184,10 @@ pub struct ChatCompletionRequest {
     pub messages: Vec<ChatMessage>,
     pub max_tokens: u32,
     pub stream: Option<bool>,
+    pub seed: Option<u32>,
+    pub temperature: Option<f32>,
+    pub top_p: Option<f32>,
+    pub response_format: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -387,10 +387,23 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def generate_json(self, template: str, llm: str, output: str, json_path: str = None, system_template: str = None, name: str = "GENERATE-JSON"):
-        self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template)
+    def generate_json(self, template: str, llm: str, output: str, json_path: str = None, system_template: str = None, response_format: BaseModel = None,  name: str = "GENERATE-JSON"):
+        schema = None
+        if response_format:
+            schema = {
+                "name": response_format.__class__.__name__,
+                "schema": response_format.model_json_schema(),
+                "strict": True
+            }
+            schema["schema"]["additionalProperties"] = False
+            schema = json.dumps(schema)
+
+        self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template, schema)
         self.step_index += 1
         return self
+    
+    def generate_structured(self, template: str, llm: str, output: str, response_format: BaseModel, system_template: str = None,  name: str = "GENERATE-JSON"):
+        return self.generate_json(template, llm, output, json_path=None, system_template=system_template, response_format=response_format, name=name)
     
     def sample(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
         self.builder.add_data_sampler_step(self.__name(name), dataset, size, output)

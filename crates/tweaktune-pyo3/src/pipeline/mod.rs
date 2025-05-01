@@ -243,7 +243,8 @@ impl PipelineBuilder {
             )));
     }
 
-    #[pyo3(signature = (name, template, llm, output, json_path=None, system_template=None))]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (name, template, llm, output, json_path=None, system_template=None, json_schema=None))]
     pub fn add_json_generation_step(
         &mut self,
         name: String,
@@ -252,6 +253,7 @@ impl PipelineBuilder {
         output: String,
         json_path: Option<String>,
         system_template: Option<String>,
+        json_schema: Option<String>,
     ) {
         debug!(
             "Added JSON generation step with template: {}, llm: {}",
@@ -265,6 +267,7 @@ impl PipelineBuilder {
                 output,
                 json_path,
                 system_template,
+                json_schema,
             )));
     }
 

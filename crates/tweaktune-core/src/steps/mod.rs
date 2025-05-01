@@ -294,6 +294,7 @@ impl TextGenerationStep {
         llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        json_schema: Option<String>,
     ) -> Result<Option<String>> {
         let template = templates.render(self.template.clone(), context.data.clone());
         let template = match template {
@@ -306,14 +307,14 @@ impl TextGenerationStep {
 
         let llm = llms.get(&self.llm).expect("LLM");
         let result = match llm {
-            llms::LLMType::OpenAI(llm) => match llm.call(template).await {
+            llms::LLMType::OpenAI(llm) => match llm.call(template, json_schema).await {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
                     debug!(target: "generate", "Failed to generate text: {}", e);
                     None
                 }
             },
-            llms::LLMType::Unsloth(llm) => match llm.call(template).await {
+            llms::LLMType::Unsloth(llm) => match llm.call(template, json_schema).await {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
                     debug!(target: "generate", "Failed to generate text: {}", e);
@@ -337,7 +338,7 @@ impl Step for TextGenerationStep {
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let result = self
-            .generate(_datasets, templates, llms, _embeddings, &context)
+            .generate(_datasets, templates, llms, _embeddings, &context, None)
             .await?;
 
         match result {
@@ -357,6 +358,7 @@ pub struct JsonGenerationStep {
     pub generation_step: TextGenerationStep,
     pub output: String,
     pub json_path: Option<String>,
+    pub json_schema: Option<String>,
 }
 
 impl JsonGenerationStep {
@@ -367,6 +369,7 @@ impl JsonGenerationStep {
         output: String,
         json_path: Option<String>,
         system_template: Option<String>,
+        json_schema: Option<String>,
     ) -> Self {
         Self {
             generation_step: TextGenerationStep::new(
@@ -379,6 +382,7 @@ impl JsonGenerationStep {
             output,
             name,
             json_path,
+            json_schema,
         }
     }
 }
@@ -395,7 +399,14 @@ impl Step for JsonGenerationStep {
         let mut context = context.clone();
         let result = self
             .generation_step
-            .generate(_datasets, templates, llms, _embeddings, &context)
+            .generate(
+                _datasets,
+                templates,
+                llms,
+                _embeddings,
+                &context,
+                self.json_schema.clone(),
+            )
             .await?;
 
         match result {
