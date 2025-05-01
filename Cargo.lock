@@ -4060,7 +4060,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "uuid",
 ]
 
@@ -4089,7 +4089,7 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "text-splitter",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tokio-util",
  "tweaktune-abstractions",
