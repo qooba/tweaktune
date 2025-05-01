@@ -45,14 +45,22 @@ jobs:
       - name: Run cargo check
         run: cargo check --no-default-features
 
-      - name: Install maturin
-        run: pip install maturin
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Set up uv environment
+        run: |
+          uv venv .venv
+          source .venv/bin/activate
+          uv pip install maturin pytest
 
       - name: Build Python package with maturin and run tests
         working-directory:  ./tweaktune-python
         run: |
+          source ../.venv/bin/activate
           maturin develop --release --uv
-          pip install pytest
           pytest
 
 
