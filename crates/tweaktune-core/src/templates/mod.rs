@@ -1,11 +1,10 @@
 use crate::common::{OptionToResult, ResultExt};
-use crate::steps::{StepContext, StepContextData};
+use crate::steps::StepContextData;
 use anyhow::{bail, Result};
 use log::debug;
 use minijinja::Environment;
+use rand::rng;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
-use serde::de;
 use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
 
@@ -39,7 +38,7 @@ impl Templates {
             match serde_json::from_str::<Vec<serde_json::Value>>(&value) {
                 Ok(arr) => {
                     let mut arr = arr;
-                    arr.shuffle(&mut thread_rng());
+                    arr.shuffle(&mut rng());
                     serde_json::to_string(&arr).unwrap()
                 }
                 Err(_) => {

@@ -3,6 +3,8 @@ MAKE_HELP_LEFT_COLUMN_WIDTH:=14
 help: ## This help.
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-$(MAKE_HELP_LEFT_COLUMN_WIDTH)s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 
+clippy: ## Test musl
+	cargo clippy --release --no-default-features
 
 pyo3-develop: ## Test musl
 	cd ./tweaktune-python && \

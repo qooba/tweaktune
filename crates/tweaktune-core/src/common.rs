@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
-use log::debug;
 use once_cell::sync::OnceCell;
 use rand::distr::Alphanumeric;
 use rand::{Rng, RngCore};
@@ -62,7 +61,7 @@ pub trait ResultExt<T, E> {
 
 impl<T, E: std::fmt::Debug> ResultExt<T, E> for Result<T, E> {
     fn map_tt_err(self, message: &str) -> Result<T> {
-        self.map_err(|e| anyhow!("🐔 {:?}", message))
+        self.map_err(|_e| anyhow!("🐔 {:?}", message))
     }
 
     fn map_anyhow_err(self) -> Result<T> {
@@ -84,12 +83,12 @@ impl<T, E: std::fmt::Debug> ResultExt<T, E> for Result<T, E> {
 
 pub fn random_base64(num_bytes: usize) -> String {
     let mut buffer = vec![0u8; num_bytes];
-    rand::thread_rng().fill_bytes(&mut buffer);
+    rand::rng().fill_bytes(&mut buffer);
     general_purpose::STANDARD.encode(&buffer)
 }
 
 pub fn generate_token(length: usize) -> String {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     (0..length)
         .map(|_| rng.sample(Alphanumeric) as char)
         .collect()

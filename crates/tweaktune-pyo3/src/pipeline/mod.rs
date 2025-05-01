@@ -1,13 +1,11 @@
 use crate::common::ResultExt;
 use anyhow::Result;
-use arrow::{array::RecordBatch, ffi_stream::ArrowArrayStreamReader, pyarrow::PyArrowType};
-use console::{style, Emoji};
+use arrow::{ffi_stream::ArrowArrayStreamReader, pyarrow::PyArrowType};
 use futures::stream::{self, StreamExt};
-use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use log::debug;
 use pyo3::{pyclass, pymethods, PyObject, PyResult};
-use serde_json::de;
-use std::{cmp::min, env, fmt::Write, sync::atomic::AtomicBool};
+use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
 use tweaktune_core::datasets::PolarsDataset;
