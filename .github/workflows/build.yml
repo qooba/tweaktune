@@ -50,15 +50,13 @@ jobs:
 
       - name: Build Python package with maturin
         working-directory:  ./tweaktune-python
-        run: maturin build --release --out dist
+        run: maturin build --release --out ../dist
 
       - name: Install built package
-        working-directory:  ./tweaktune-python
         run: |
           pip install dist/*.whl
 
       - name: Run Python tests
-        working-directory:  ./tweaktune-python
         run: |
           pip install pytest
           pytest
