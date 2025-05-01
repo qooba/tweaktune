@@ -104,7 +104,7 @@ thiserror = "1.0.64"
 tokenizers = { version = "0.20.0", features = [
     "unstable_wasm",
 ], default-features = false }
-tokio = { version = "1.40.0", features = ["full"]}
+tokio = { version = "1.44.2", features = ["full"]}
 tokio-util = "0.7.13"
 tweaktune-abstractions = { path = "crates/tweaktune-abstractions" }
 tweaktune-core = { path = "crates/tweaktune-core" }
