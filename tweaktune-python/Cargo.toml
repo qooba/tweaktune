@@ -26,3 +26,9 @@ tweaktune-abstractions= { workspace = true }
 tweaktune-core= { workspace = true}
 tweaktune-pyo3= { workspace = true}
 # pyo3-async = { version = "0.3.2" }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "debuginfo"

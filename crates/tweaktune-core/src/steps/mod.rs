@@ -1,20 +1,20 @@
 use crate::{
     common::{extract_json, OptionToResult, ResultExt},
     datasets::{Dataset, DatasetType},
-    embeddings,
-    llms::{self, LLM},
+    embeddings::{self, EmbeddingsType},
+    llms::{self, LLMType, LLM},
     templates::Templates,
 };
 use anyhow::Result;
-use arrow::{array::RecordBatch, json, row};
-use log::{debug, error, info};
-use parquet::arrow::arrow_reader::ParquetRecordBatchReader;
+use arrow::array::RecordBatch;
+use log::debug;
+use pyo3::prelude::*;
 use rand::seq::SliceRandom;
-use reqwest::header::CONTENT_DISPOSITION;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::io::{BufReader, Write};
+use std::io::Write;
 use std::{collections::HashMap, fs::File};
+use text_splitter::{Characters, TextSplitter};
 
 pub type StepContextData = serde_json::Value;
 
@@ -74,6 +74,194 @@ pub trait Step {
     ) -> impl std::future::Future<Output = Result<StepContext>>;
 }
 
+pub enum StepType {
+    Py(PyStep),
+    PyValidator(PyValidator),
+    TextGeneration(TextGenerationStep),
+    JsonGeneration(JsonGenerationStep),
+    JsonWriter(JsonlWriterStep),
+    CsvWriter(CsvWriterStep),
+    Print(PrintStep),
+    DataSampler(DataSamplerStep),
+    Chunk(ChunkStep),
+    Render(RenderStep),
+}
+
+pub struct PyStep {
+    pub name: String,
+    pub py_func: PyObject,
+}
+
+impl PyStep {
+    pub fn new(name: String, py_func: PyObject) -> Self {
+        Self { name, py_func }
+    }
+}
+
+impl Step for PyStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, LLMType>,
+        _embeddings: &HashMap<String, EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let json = serde_json::to_string(context)?;
+
+        let result: PyResult<String> = Python::with_gil(|py| {
+            let result: String = self
+                .py_func
+                .call_method1(py, "process", (json,))?
+                .extract(py)?;
+            Ok(result)
+        });
+
+        match result {
+            Ok(result) => {
+                let result: StepContext = serde_json::from_str(&result)?;
+                Ok(result)
+            }
+            Err(e) => {
+                debug!("{:?}", e);
+                let mut context = context.clone();
+                context.set_status(StepStatus::Failed);
+                Ok(context)
+            }
+        }
+    }
+}
+
+pub struct PyValidator {
+    pub name: String,
+    pub py_func: PyObject,
+}
+
+impl PyValidator {
+    pub fn new(name: String, py_func: PyObject) -> Self {
+        Self { name, py_func }
+    }
+}
+
+impl Step for PyValidator {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, LLMType>,
+        _embeddings: &HashMap<String, EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let json = serde_json::to_string(context)?;
+
+        let result: PyResult<bool> = Python::with_gil(|py| {
+            let result: bool = self
+                .py_func
+                .call_method1(py, "process", (json,))?
+                .extract(py)?;
+            Ok(result)
+        });
+
+        let result = result.map_tt_err("VALIDATOR MUST RETURN BOOL")?;
+        let mut context = context.clone();
+        if !result {
+            context.set_status(StepStatus::Failed);
+        }
+
+        Ok(context)
+    }
+}
+
+pub struct RenderStep {
+    pub name: String,
+    pub template: String,
+    pub output: String,
+}
+
+impl RenderStep {
+    pub fn new(name: String, template: String, output: String) -> Self {
+        Self {
+            name,
+            template,
+            output,
+        }
+    }
+}
+
+impl Step for RenderStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+        let rendered = templates.render(self.template.clone(), context.data.clone())?;
+        context.set(&self.output, rendered);
+        Ok(context)
+    }
+}
+
+pub struct PrintStep {
+    pub name: String,
+    pub template: Option<String>,
+    pub columns: Option<Vec<String>>,
+}
+
+impl PrintStep {
+    pub fn new(name: String, template: Option<String>, columns: Option<Vec<String>>) -> Self {
+        Self {
+            name,
+            template,
+            columns,
+        }
+    }
+}
+
+impl Step for PrintStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut row = if let Some(template) = self.template.clone() {
+            templates.render(template.clone(), context.data.clone())?
+        } else if let Some(columns) = self.columns.clone() {
+            let mut row = String::new();
+            for (i, column) in columns.iter().enumerate() {
+                if let Some(value) = context.data.get(column) {
+                    if i > 0 {
+                        row.push_str(" | ");
+                    }
+                    row.push_str(&value.to_string());
+                }
+            }
+
+            row
+        } else {
+            context.data.to_string()
+        };
+
+        row.push('\n');
+
+        Python::with_gil(|py| {
+            let sys = py.import("sys").unwrap();
+            let stdout = sys.getattr("stdout").unwrap();
+            let write = stdout.getattr("write").unwrap();
+            write.call1((row,)).unwrap();
+        });
+
+        // println!("{}", row);
+
+        Ok(context.clone())
+    }
+}
+
 pub struct TextGenerationStep {
     pub name: String,
     pub template: String,
@@ -117,14 +305,23 @@ impl TextGenerationStep {
         };
 
         let llm = llms.get(&self.llm).expect("LLM");
-        let llms::LLMType::OpenAI(llm) = llm;
-        let result = match llm.call(template).await {
-            Ok(response) => Some(response.choices[0].message.content.clone()),
-            Err(e) => {
-                debug!(target: "generate", "Failed to generate text: {}", e);
-                None
-            }
+        let result = match llm {
+            llms::LLMType::OpenAI(llm) => match llm.call(template).await {
+                Ok(response) => Some(response.choices[0].message.content.clone()),
+                Err(e) => {
+                    debug!(target: "generate", "Failed to generate text: {}", e);
+                    None
+                }
+            },
+            llms::LLMType::Unsloth(llm) => match llm.call(template).await {
+                Ok(response) => Some(response.choices[0].message.content.clone()),
+                Err(e) => {
+                    debug!(target: "generate", "Failed to generate text: {}", e);
+                    None
+                }
+            },
         };
+
         Ok(result)
     }
 }
@@ -357,6 +554,7 @@ impl DataSamplerStep {
     ) -> Self {
         let dataset_type = datasets.get(&dataset).ok_or_err(&dataset).unwrap();
         let json_batches = match dataset_type {
+            DatasetType::Polars(polars_dataset) => polars_dataset.read_all_json().unwrap(),
             DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all_json().unwrap(),
             DatasetType::Json(json_dataset) => json_dataset.read_all_json().unwrap(),
             DatasetType::JsonList(json_list_dataset) => json_list_dataset.read_all_json().unwrap(),
@@ -403,6 +601,55 @@ impl Step for DataSamplerStep {
         };
 
         context.set(&self.output, json_rows);
+        Ok(context)
+    }
+}
+
+pub struct ChunkStep {
+    pub name: String,
+    pub capacity: (usize, usize),
+    pub input: String,
+    pub output: String,
+    pub text_splitter: TextSplitter<Characters>,
+}
+
+impl ChunkStep {
+    pub fn new(name: String, capacity: (usize, usize), input: String, output: String) -> Self {
+        let range = capacity.0..capacity.1;
+        let text_splitter = TextSplitter::new(range);
+
+        Self {
+            name,
+            capacity,
+            input,
+            output,
+            text_splitter,
+        }
+    }
+}
+
+impl Step for ChunkStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+        let text = context
+            .get(&self.input)
+            .ok_or_else(|| anyhow::anyhow!("Input not found"))?;
+        let chunks: Vec<serde_json::Value> = self
+            .text_splitter
+            .chunks(&text.to_string())
+            .collect::<Vec<&str>>()
+            .iter()
+            .map(|s| serde_json::from_str(s).unwrap())
+            .collect();
+
+        context.set(&self.output, chunks);
         Ok(context)
     }
 }

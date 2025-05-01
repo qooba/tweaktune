@@ -1,11 +1,13 @@
 use crate::config::read_config;
-use crate::steps::{flat_map_to_json, map_to_json};
+use crate::steps::flat_map_to_json;
 use anyhow::Result;
 use arrow::csv::reader::{infer_schema_from_files, ReaderBuilder as CsvReaderBuilder};
 use arrow::datatypes::SchemaRef;
 use arrow::json::reader::{infer_json_schema, ReaderBuilder as JsonReaderBuilder};
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
+use polars::lazy::frame::IntoLazy;
+use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -31,6 +33,61 @@ pub enum DatasetType {
     Arrow(ArrowDataset),
     Mixed(MixedDataset),
     OpenApi(OpenApiDataset),
+    Polars(PolarsDataset),
+}
+
+#[derive(Clone)]
+pub struct PolarsDataset {
+    name: String,
+    path: String,
+    sql: String,
+}
+
+impl PolarsDataset {
+    pub fn new(name: String, path: String, sql: String) -> Self {
+        Self { name, path, sql }
+    }
+
+    pub fn read_all_json(&self) -> Result<Vec<Value>> {
+        let df = if self.path.ends_with(".json") {
+            LazyJsonLineReader::new(&self.path).finish()?
+        } else if self.path.ends_with(".csv") {
+            LazyCsvReader::new(&self.path).finish()?
+        } else if self.path.ends_with(".parquet") || self.path.ends_with(".pq") {
+            let args = ScanArgsParquet::default();
+            LazyFrame::scan_parquet(&self.path, args)?
+        } else {
+            return Err(anyhow::anyhow!(
+                "Unsupported file extension for PolarsDataset"
+            ));
+        };
+
+        let lf = df.lazy();
+        let mut ctx = polars::sql::SQLContext::new();
+        ctx.register(&self.name, lf);
+
+        let result = ctx.execute(&self.sql)?;
+        let result_df = result.collect()?;
+        let columns = result_df.get_column_names();
+        let mut json_rows = Vec::new();
+
+        for idx in 0..result_df.height() {
+            let row = result_df.get_row(idx)?;
+            let mut obj = serde_json::Map::new();
+            for (col, val) in columns.iter().zip(row.0.iter()) {
+                obj.insert(col.to_string(), anyvalue_to_json(val));
+            }
+            json_rows.push(Value::Object(obj));
+        }
+
+        Ok(json_rows)
+    }
+}
+
+impl Dataset for PolarsDataset {
+    fn read_all(&self, _batch_size: Option<usize>) -> Result<Vec<RecordBatch>> {
+        unimplemented!()
+    }
 }
 
 #[derive(Clone)]
@@ -643,6 +700,33 @@ struct OpenApiSchema {
 struct OpenApiProperty {
     description: String,
     type_: String,
+}
+
+fn anyvalue_to_json(val: &AnyValue) -> Value {
+    match val {
+        AnyValue::Null => Value::Null,
+        AnyValue::Boolean(b) => Value::Bool(*b),
+        AnyValue::Int64(i) => Value::from(*i),
+        AnyValue::UInt64(u) => Value::from(*u),
+        AnyValue::Float64(f) => Value::from(*f),
+        AnyValue::String(s) => Value::from(*s),
+        AnyValue::Int8(i) => Value::from(*i),
+        AnyValue::Int16(i) => Value::from(*i),
+        AnyValue::Int32(i) => Value::from(*i),
+        AnyValue::UInt8(u) => Value::from(*u),
+        AnyValue::UInt16(u) => Value::from(*u),
+        AnyValue::UInt32(u) => Value::from(*u),
+        AnyValue::Float32(f) => Value::from(*f),
+        AnyValue::Date(d) => Value::from(*d),
+        AnyValue::Datetime(dt, _, _) => Value::from(*dt),
+        AnyValue::Time(t) => Value::from(*t),
+        AnyValue::Duration(d, _) => Value::from(*d),
+        AnyValue::Decimal(val, scale) => {
+            let factor = 10f64.powi(*scale as i32);
+            Value::from(*val as f64 / factor)
+        }
+        _ => Value::String(val.to_string()),
+    }
 }
 
 #[cfg(test)]
