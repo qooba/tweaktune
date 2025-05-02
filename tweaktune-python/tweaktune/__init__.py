@@ -6,6 +6,15 @@ from pydantic import BaseModel, Field, create_model
 from pydantic.fields import FieldInfo
 import inspect
 
+class JudgeRatings(BaseModel):
+    """
+    Judge ratings for the generated text.
+    """
+    accuracy: float = Field(description="Accuracy values (0-3): factual correctness of the text")
+    relevance: float = Field(description="Relevance values (0-2): relevance of the text to the prompt")
+    clarity: float = Field(description="Clarity values (0-2): clarity of the language used in the text")
+    usefulness: float = Field(description="Usefulness values (0-3): usefulness of the text to the user")    
+
 def package_installation_hint(package_name: str):
     OKGREEN = '\033[92m'
     ENDC = '\033[0m'
@@ -247,9 +256,9 @@ class Pipeline:
         
         return self
     
-    def with_llm_api(self, name: str, base_url: str, api_key: str, model: str, max_tokens: int = 2048):
+    def with_llm_api(self, name: str, base_url: str, api_key: str, model: str, max_tokens: int = 2048, temperature: float = 0.7):
         """Adds an OpenAI LLM to the pipeline."""
-        self.builder.with_llm_api(name, base_url, api_key, model, max_tokens)
+        self.builder.with_llm_api(name, base_url, api_key, model, max_tokens, temperature)
         return self
     
     def with_llm_unsloth(self, name: str, 

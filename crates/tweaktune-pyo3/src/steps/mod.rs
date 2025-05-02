@@ -57,6 +57,7 @@ impl StepTest {
             "test_api_key".to_string(),
             "speakleash/Bielik-11B-v2.3-Instruct".to_string(),
             250,
+            0.7,
         );
 
         let t: Result<String> = Runtime::new().unwrap().block_on(async {

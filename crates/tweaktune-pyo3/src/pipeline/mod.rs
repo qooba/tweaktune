@@ -166,11 +166,19 @@ impl PipelineBuilder {
         api_key: String,
         model: String,
         max_tokens: u32,
+        temperature: f32,
     ) {
         debug!("Added LLM API: {}", &name);
         self.llms.add(
             name.clone(),
-            LLMType::OpenAI(OpenAILLM::new(name, base_url, api_key, model, max_tokens)),
+            LLMType::OpenAI(OpenAILLM::new(
+                name,
+                base_url,
+                api_key,
+                model,
+                max_tokens,
+                temperature,
+            )),
         );
     }
 

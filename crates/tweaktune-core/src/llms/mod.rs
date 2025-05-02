@@ -106,6 +106,7 @@ pub struct OpenAILLM {
     pub api_key: String,
     pub model: String,
     pub max_tokens: u32,
+    pub temperature: f32,
 }
 
 impl OpenAILLM {
@@ -115,6 +116,7 @@ impl OpenAILLM {
         api_key: String,
         model: String,
         max_tokens: u32,
+        temperature: f32,
     ) -> Self {
         HTTP_CLIENT.get_or_init(Client::new);
         Self {
@@ -123,6 +125,7 @@ impl OpenAILLM {
             api_key,
             model,
             max_tokens,
+            temperature,
         }
     }
 }
@@ -140,7 +143,7 @@ impl LLM for OpenAILLM {
             max_tokens: self.max_tokens,
             stream: None,
             seed: None,
-            temperature: None,
+            temperature: Some(self.temperature),
             top_p: None,
             response_format: if json_schema.is_some() {
                 Some(json!({"type": "json_schema", "json_schema": json_schema
