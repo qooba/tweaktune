@@ -4127,6 +4127,8 @@ dependencies = [
  "opendal",
  "parquet",
  "polars",
+ "polars-plan",
+ "polars-utils",
  "pyo3",
  "rand 0.9.1",
  "regex",

@@ -9,6 +9,8 @@ use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
 use polars::lazy::frame::IntoLazy;
 use polars::prelude::*;
+use polars_plan::plans::ScanSources;
+use polars_utils::mmap::MemSlice;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -50,13 +52,19 @@ impl PolarsDataset {
     }
 
     pub fn read_all_json(&self) -> Result<Vec<Value>> {
+        let op_reader = read_file_with_opendal(&self.path)?;
+        let mut reader = op_reader.inner;
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        let sources = ScanSources::Buffers(Arc::new([MemSlice::from_vec(buf)]));
+
         let df = if self.path.ends_with(".json") {
-            LazyJsonLineReader::new(&self.path).finish()?
+            LazyJsonLineReader::new_with_sources(sources).finish()?
         } else if self.path.ends_with(".csv") {
-            LazyCsvReader::new(&self.path).finish()?
+            LazyCsvReader::new_with_sources(sources).finish()?
         } else if self.path.ends_with(".parquet") || self.path.ends_with(".pq") {
             let args = ScanArgsParquet::default();
-            LazyFrame::scan_parquet(&self.path, args)?
+            LazyFrame::scan_parquet_sources(sources, args)?
         } else {
             return Err(anyhow::anyhow!(
                 "Unsupported file extension for PolarsDataset"

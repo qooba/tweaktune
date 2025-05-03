@@ -23,6 +23,8 @@ opendal = { workspace = true }
 parquet = { workspace = true }
 pyo3 = { workspace = true}
 polars = { workspace = true}
+polars-plan = { workspace = true}
+polars-utils = { workspace = true}
 rand = { workspace = true }
 regex = { workspace = true }
 reqwest = { workspace = true }
