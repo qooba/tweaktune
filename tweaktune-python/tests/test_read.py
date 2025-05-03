@@ -38,6 +38,9 @@ def test_mixed(request, output_dir, data_dir):
 
 csv_testdata = [
     ("functions_micro1.csv", ",", True,"""name,description\nfunction1,This is function 1.\nfunction2,This is function 2."""),
+    ("functions_micro2.csv", ",", False,"""function1,This is function 1.\nfunction2,This is function 2."""),
+    ("functions_micro3.csv", ";", True,"""name;description\nfunction1;This is function 1.\nfunction2;This is function 2."""),
+    ("functions_micro4.csv", ";", False,"""function1;This is function 1.\nfunction2;This is function 2."""),
 ]
 @pytest.mark.parametrize("file_name,delimeter,has_header,data", csv_testdata)
 def test_csv1_read(request, output_dir, data_dir, file_name, delimeter, has_header, data):
