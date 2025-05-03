@@ -1,7 +1,8 @@
 use crate::config::read_config;
+use crate::readers::read_file_with_opendal;
 use crate::steps::flat_map_to_json;
 use anyhow::Result;
-use arrow::csv::reader::{infer_schema_from_files, ReaderBuilder as CsvReaderBuilder};
+use arrow::csv::reader::{infer_schema_from_files, Format, ReaderBuilder as CsvReaderBuilder};
 use arrow::datatypes::SchemaRef;
 use arrow::json::reader::{infer_json_schema, ReaderBuilder as JsonReaderBuilder};
 use arrow::record_batch::RecordBatch;
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, Write};
+use std::io::{BufReader, Cursor, Write};
 use std::sync::Arc;
 
 pub trait Dataset {
@@ -104,13 +105,13 @@ impl JsonlDataset {
     pub fn create_stream(
         &self,
         batch_size: Option<usize>,
-    ) -> Result<arrow::json::reader::Reader<BufReader<File>>> {
-        let file_for_infer = File::open(&self.path)?;
-        let buf_reader = std::io::BufReader::new(file_for_infer);
+    ) -> Result<arrow::json::reader::Reader<opendal::StdReader>> {
+        //let file_for_infer = File::open(&self.path)?;
+        //let buf_reader = std::io::BufReader::new(file_for_infer);
+        let buf_reader = read_file_with_opendal(&self.path)?;
         let (inferred_schema, _) = infer_json_schema(buf_reader, None)?;
 
-        let file = File::open(&self.path)?;
-        let buf_reader = std::io::BufReader::new(file);
+        let buf_reader = read_file_with_opendal(&self.path)?;
         let mut reader = JsonReaderBuilder::new(Arc::new(inferred_schema));
         if let Some(size) = batch_size {
             reader = reader.with_batch_size(size);
@@ -185,12 +186,15 @@ impl CsvDataset {
     pub fn create_stream(
         &self,
         batch_size: Option<usize>,
-    ) -> Result<arrow::csv::reader::BufReader<BufReader<BufReader<File>>>> {
-        let inferred_schema =
-            infer_schema_from_files(&[self.path.clone()], self.delimiter, None, self.has_header)?;
+    ) -> Result<arrow::csv::reader::BufReader<BufReader<opendal::StdReader>>> {
+        let format = Format::default()
+            .with_delimiter(self.delimiter)
+            .with_header(self.has_header);
 
-        let file = File::open(&self.path)?;
-        let buf_reader = std::io::BufReader::new(file);
+        let buf_reader = read_file_with_opendal(&self.path)?;
+        let inferred_schema = format.infer_schema(buf_reader, None)?.0;
+
+        let buf_reader = read_file_with_opendal(&self.path)?;
         let mut reader = CsvReaderBuilder::new(Arc::new(inferred_schema));
         if let Some(size) = batch_size {
             reader = reader.with_batch_size(size);
@@ -226,6 +230,7 @@ impl ParquetDataset {
 
     pub fn create_stream(&self, batch_size: Option<usize>) -> Result<ParquetRecordBatchReader> {
         let file = File::open(&self.path)?;
+
         let mut builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
         if let Some(size) = batch_size {
             builder = builder.with_batch_size(size);
@@ -300,8 +305,7 @@ impl JsonDataset {
     }
 
     pub fn read_all_json(&self) -> Result<Vec<Value>> {
-        let file = File::open(&self.path)?;
-        let buf_reader = BufReader::new(file);
+        let buf_reader = read_file_with_opendal(&self.path)?;
         let values: Vec<Value> = serde_json::from_reader(buf_reader)?;
         Ok(values)
     }
