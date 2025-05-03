@@ -22,7 +22,6 @@ dependencies = [
 repository = "https://github.com/qooba/tweaktune"
 
 [project.optional-dependencies]
-polars = []
 db = [ "connectox ~=0.4.3" ]
 arrow = [
     "datasets ~=3.2.0", 
@@ -31,6 +30,3 @@ arrow = [
 unsloth = [
     "unsloth ~=2025.1.8", 
 ]
-
-[tool.maturin]
-features = []

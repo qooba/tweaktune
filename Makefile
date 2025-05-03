@@ -17,8 +17,7 @@ pyo3-build: ## Test musl
 	rm ./target/wheels/* || true && \
 	cp README.md ./tweaktune-python/README.md && \
 	cd ./tweaktune-python && \
-    maturin build --release --features polars --compatibility manylinux2014  --skip-auditwheel
-    #maturin build --release --compatibility manylinux2014  --skip-auditwheel && \
+    maturin build --release --compatibility manylinux2014  --skip-auditwheel
 
 
 pyo3-publish: ## Test musl
