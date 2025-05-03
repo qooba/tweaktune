@@ -464,9 +464,6 @@ impl OpenApiDataset {
     pub fn new(name: String, path_or_url: String) -> Self {
         let config = read_config::<OpenApiSpec>(&path_or_url, None).unwrap();
 
-        // let definitions: Vec<serde_json::Value> =
-        // serde_json::from_value(config["definitions"].clone()).unwrap();
-
         Self {
             _name: name,
             _path_or_url: path_or_url,
