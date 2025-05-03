@@ -6,7 +6,23 @@ use std::path::Path;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio_util::io::StreamReader;
 
-pub fn read_file_with_opendal(path: &str) -> Result<StdReader> {
+const PREFETCH_FOOTER_SIZE: usize = 512 * 1024;
+
+pub struct OpReader {
+    pub inner: StdReader,
+    pub content_length: u64,
+}
+
+impl OpReader {
+    pub fn new(reader: StdReader, content_length: u64) -> Self {
+        Self {
+            inner: reader,
+            content_length,
+        }
+    }
+}
+
+pub fn read_file_with_opendal(path: &str) -> Result<OpReader> {
     let p = Path::new(path);
     let dir = p.parent().unwrap().to_str().unwrap();
     let file_name = p.file_name().unwrap().to_str().unwrap();
@@ -15,8 +31,12 @@ pub fn read_file_with_opendal(path: &str) -> Result<StdReader> {
     let operator: Operator = Operator::new(builder)?.finish();
 
     let op = operator.blocking();
-    let r = op.reader(file_name)?.into_std_read(..)?;
-    Ok(r)
+    let content_length = op.stat(file_name)?.content_length();
+    let reader = op.reader(file_name)?.into_std_read(..)?;
+    Ok(OpReader {
+        inner: reader,
+        content_length,
+    })
 }
 
 pub struct JsonlReader {

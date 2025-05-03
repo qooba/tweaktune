@@ -6,6 +6,7 @@ from tweaktune import Pipeline
 from enum import Enum
 import tempfile
 import shutil
+import polars as pl
 
 
 def test_mixed(request, output_dir, data_dir):
@@ -66,3 +67,30 @@ def test_csv1_read(request, output_dir, data_dir, file_name, delimeter, has_head
     if has_header:
         assert "name" in item["functions"]
         assert "description" in item["functions"]
+
+
+def test_parquet(request, output_dir, data_dir):
+    """Test the basic functionality of the pipeline."""
+
+    number = 5
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    Pipeline()\
+        .with_workers(1)\
+        .with_parquet_dataset("functions",f"./tweaktune-python/tests/example.parquet")\
+        .with_template("output", """{"functions": {{functions|jstr}} }""")\
+    .iter_dataset("functions")\
+        .write_jsonl(path=output_file, template="output")\
+    .run()
+
+    lines = open(output_file, "r").readlines()
+    item = json.loads(lines[0])
+    assert "functions" in item
+
+#def test_prepare_example_parquet(request, output_dir):
+#    """Prepare an example parquet file using polars."""
+#    df = pl.DataFrame({
+#        "name": ["function1", "function2"],
+#        "description": ["This is function 1.", "This is function 2."]
+#    })
+#    df.write_parquet("./example.parquet")
