@@ -6,18 +6,16 @@ use std::path::Path;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio_util::io::StreamReader;
 
-const PREFETCH_FOOTER_SIZE: usize = 512 * 1024;
-
 pub struct OpReader {
     pub inner: StdReader,
-    pub content_length: u64,
+    // pub content_length: u64,
 }
 
 impl OpReader {
-    pub fn new(reader: StdReader, content_length: u64) -> Self {
+    pub fn new(reader: StdReader) -> Self {
         Self {
             inner: reader,
-            content_length,
+            // content_length,
         }
     }
 }
@@ -31,11 +29,11 @@ pub fn read_file_with_opendal(path: &str) -> Result<OpReader> {
     let operator: Operator = Operator::new(builder)?.finish();
 
     let op = operator.blocking();
-    let content_length = op.stat(file_name)?.content_length();
+    // let content_length = op.stat(file_name)?.content_length();
     let reader = op.reader(file_name)?.into_std_read(..)?;
     Ok(OpReader {
         inner: reader,
-        content_length,
+        // content_length,
     })
 }
 
