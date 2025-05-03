@@ -106,8 +106,6 @@ impl JsonlDataset {
         &self,
         batch_size: Option<usize>,
     ) -> Result<arrow::json::reader::Reader<opendal::StdReader>> {
-        //let file_for_infer = File::open(&self.path)?;
-        //let buf_reader = std::io::BufReader::new(file_for_infer);
         let buf_reader = read_file_with_opendal(&self.path)?;
         let (inferred_schema, _) = infer_json_schema(buf_reader, None)?;
 
@@ -123,8 +121,7 @@ impl JsonlDataset {
     }
 
     pub fn create_json_stream(&self) -> Result<impl Iterator<Item = Result<Value>>> {
-        let file = File::open(&self.path)?;
-        let buf_reader = BufReader::new(file);
+        let buf_reader = read_file_with_opendal(&self.path)?;
         let stream = serde_json::Deserializer::from_reader(buf_reader).into_iter::<Value>();
         Ok(stream.map(|value| value.map_err(anyhow::Error::from)))
     }

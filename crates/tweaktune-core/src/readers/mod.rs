@@ -9,12 +9,13 @@ use tokio_util::io::StreamReader;
 pub fn read_file_with_opendal(path: &str) -> Result<StdReader> {
     let p = Path::new(path);
     let dir = p.parent().unwrap().to_str().unwrap();
+    let file_name = p.file_name().unwrap().to_str().unwrap();
 
     let builder = Fs::default().root(dir);
     let operator: Operator = Operator::new(builder)?.finish();
 
     let op = operator.blocking();
-    let r = op.reader(path)?.into_std_read(..)?;
+    let r = op.reader(file_name)?.into_std_read(..)?;
     Ok(r)
 }
 
