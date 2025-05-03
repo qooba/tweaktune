@@ -7,9 +7,13 @@ use arrow::datatypes::SchemaRef;
 use arrow::json::reader::{infer_json_schema, ReaderBuilder as JsonReaderBuilder};
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
+#[cfg(feature = "polars")]
 use polars::lazy::frame::IntoLazy;
+#[cfg(feature = "polars")]
 use polars::prelude::*;
+#[cfg(feature = "polars")]
 use polars_plan::plans::ScanSources;
+#[cfg(feature = "polars")]
 use polars_utils::mmap::MemSlice;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -40,6 +44,7 @@ pub enum DatasetType {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct PolarsDataset {
     name: String,
     path: String,
@@ -51,6 +56,12 @@ impl PolarsDataset {
         Self { name, path, sql }
     }
 
+    #[cfg(not(feature = "polars"))]
+    pub fn read_all_json(&self) -> Result<Vec<Value>> {
+        unimplemented!("This function requires the 'polars' feature to be enabled.");
+    }
+
+    #[cfg(feature = "polars")]
     pub fn read_all_json(&self) -> Result<Vec<Value>> {
         let op_reader = read_file_with_opendal(&self.path)?;
         let mut reader = op_reader.inner;
@@ -740,6 +751,7 @@ struct OpenApiProperty {
     type_: String,
 }
 
+#[cfg(feature = "polars")]
 fn anyvalue_to_json(val: &AnyValue) -> Value {
     match val {
         AnyValue::Null => Value::Null,

@@ -220,7 +220,34 @@ class Pipeline:
         """Adds a csv dataset to the pipeline."""
         self.builder.with_csv_dataset(name, path, delimiter, has_header)
         return self
-    
+
+    def with_db_dataset(self, name: str, conn: str, query: str):
+        """Adds a database dataset to the pipeline.
+        The database connection string should be in the format:
+        "postgresql://user:password@host:port/database"
+        The query should be a valid SQL query.
+        The supported databases are:
+        https://sfu-db.github.io/connector-x/databases.html
+        """
+        try:
+            import connectorx as cx
+            table  = cx.read_sql(conn, query, return_type="arrow")
+            self.builder.with_arrow_dataset(name, table.to_reader())
+            return self
+        except ModuleNotFoundError:
+            package_installation_hint("connectorx")
+            raise
+
+    def with_hf_dataset(self, name: str, path: str, split = None):
+        try:
+            from datasets import load_dataset
+            dataset = load_dataset(path, split=split)
+            self.builder.with_arrow_dataset(name, dataset.data.to_reader())
+            return self
+        except ModuleNotFoundError:
+            package_installation_hint("datasets")
+            raise
+
     def with_arrow_dataset(self, name: str, dataset):
         """Adds an arrow dataset to the pipeline."""
         try:

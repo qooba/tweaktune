@@ -26,6 +26,7 @@ pub fn read_file_with_opendal(path: &str) -> Result<OpReader> {
     let file_name = p.file_name().unwrap().to_str().unwrap();
 
     let builder = Fs::default().root(dir);
+
     let operator: Operator = Operator::new(builder)?.finish();
 
     let op = operator.blocking();
