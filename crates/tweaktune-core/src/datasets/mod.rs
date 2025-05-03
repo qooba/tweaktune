@@ -201,6 +201,34 @@ impl CsvDataset {
 
         Ok(reader)
     }
+
+    pub fn create_json_stream(&self) -> Result<impl Iterator<Item = Result<Value>>> {
+        let buf_reader = read_file_with_opendal(&self.path)?;
+        let mut rdr = csv::ReaderBuilder::new()
+            .delimiter(self.delimiter)
+            .has_headers(self.has_header)
+            .from_reader(buf_reader);
+
+        let headers = rdr.headers()?.clone();
+        let iter = rdr.into_records().map(move |result| {
+            let record = result?;
+            let mut map = serde_json::Map::new();
+            for (header, field) in headers.iter().zip(record.iter()) {
+                map.insert(header.to_string(), Value::String(field.to_string()));
+            }
+            Ok(Value::Object(map))
+        });
+        Ok(iter)
+    }
+
+    pub fn read_all_json(&self) -> Result<Vec<Value>> {
+        let stream = self.create_json_stream()?;
+        let mut records = Vec::new();
+        for record in stream {
+            records.push(record?);
+        }
+        Ok(records)
+    }
 }
 
 impl Dataset for CsvDataset {

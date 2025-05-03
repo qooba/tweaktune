@@ -4118,6 +4118,7 @@ dependencies = [
  "arrow",
  "async-trait",
  "base64",
+ "csv",
  "hf-hub",
  "log",
  "minijinja",

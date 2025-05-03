@@ -591,8 +591,8 @@ impl PipelineBuilder {
                             .await;
                         }
                         DatasetType::Csv(dataset) => {
-                            stream::iter(dataset.create_stream(Some(1)).unwrap().map(
-                                |record_batch| {
+                            stream::iter(dataset.create_json_stream().unwrap().map(
+                                |json_row|{
                                     let bar = &bar;
                                     if !running.load(std::sync::atomic::Ordering::SeqCst) {
                                         bar.finish_with_message("Interrupted");
@@ -601,9 +601,7 @@ impl PipelineBuilder {
 
                                     async move {
                                         bar.inc_length(1);
-                                        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(&record_batch.unwrap()).unwrap();
-                                        let json_row = json_rows.first().unwrap();
-                                        map_record_batches(self, name, json_row).await.unwrap();
+                                        map_record_batches(self, name, &json_row.unwrap()).await.unwrap();
                                         bar.inc(1);
                                 }},
                             ))
