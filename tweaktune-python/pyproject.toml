@@ -29,7 +29,7 @@ dev = [
     "isort ~=6.0.1",
     "mypy ~=1.5.0",
     "flake8 ~=7.2.0",
-    "ruff ~=0.0.305",
+    "ruff ~=0.11.8",
     "pydocstyle ~=6.3.0",
     "polars ~=1.29.0",
 ]
