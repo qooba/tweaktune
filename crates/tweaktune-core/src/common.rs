@@ -350,7 +350,7 @@ pub fn create_rows_stream(df: &DataFrame) -> Result<impl Iterator<Item = Result<
     }))
 }
 
-fn anyvalue_to_json(val: &AnyValue) -> Value {
+pub fn anyvalue_to_json(val: &AnyValue) -> Value {
     match val {
         AnyValue::Null => Value::Null,
         AnyValue::Boolean(b) => Value::Bool(*b),

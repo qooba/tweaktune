@@ -485,7 +485,7 @@ impl PipelineBuilder {
                         }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
 
                         DatasetType::Mixed(dataset) => {
-                            stream::iter(dataset.stream()?.map(|json_row|{
+                            stream::iter(dataset.stream_mix(&self.datasets.resources)?.map(|json_row|{
                                 let bar= &bar;
                                 process_progress_bar(bar, &running);
                                 async move {
