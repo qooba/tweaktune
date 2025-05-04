@@ -1,5 +1,5 @@
 use anyhow::Result;
-use opendal::services::{AzblobConfig, FsConfig, GcsConfig, HttpConfig, S3Config};
+use opendal::services::{AzblobConfig, Fs, FsConfig, GcsConfig, HttpConfig, S3Config};
 use opendal::Operator;
 use opendal::StdReader;
 use serde::Deserialize;
@@ -30,20 +30,27 @@ pub enum OpConfig {
     Http(HttpConfig),
 }
 
-pub fn build_reader(path: &str) -> Result<OpReader> {
+pub fn build_reader(path: &str, op_config: Option<String>) -> Result<OpReader> {
     let p = Path::new(path);
     let dir = p.parent().unwrap().to_str().unwrap();
     let file_name = p.file_name().unwrap().to_str().unwrap();
-
     // let builder = Fs::default().root(dir);
-    let json_config = format!("{{\"type\":\"Fs\", \"root\": \"{}\"}}", dir);
-    let op_config: OpConfig = serde_json::from_str(&json_config)?;
+    // let json_config = format!("{{\"type\":\"Fs\", \"root\": \"{}\"}}", dir);
     let operator = match op_config {
-        OpConfig::Fs(config) => Operator::from_config(config)?.finish(),
-        OpConfig::S3(config) => Operator::from_config(config)?.finish(),
-        OpConfig::Gcs(config) => Operator::from_config(config)?.finish(),
-        OpConfig::Azblob(config) => Operator::from_config(config)?.finish(),
-        OpConfig::Http(config) => Operator::from_config(config)?.finish(),
+        Some(config) => {
+            let op_config: OpConfig = serde_json::from_str(&config)?;
+            match op_config {
+                OpConfig::Fs(config) => Operator::from_config(config)?.finish(),
+                OpConfig::S3(config) => Operator::from_config(config)?.finish(),
+                OpConfig::Gcs(config) => Operator::from_config(config)?.finish(),
+                OpConfig::Azblob(config) => Operator::from_config(config)?.finish(),
+                OpConfig::Http(config) => Operator::from_config(config)?.finish(),
+            }
+        }
+        None => {
+            let builder = Fs::default().root(dir);
+            Operator::new(builder)?.finish()
+        }
     };
 
     let op = operator.blocking();

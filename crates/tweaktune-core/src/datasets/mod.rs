@@ -43,7 +43,7 @@ pub struct JsonlDataset {
 
 impl JsonlDataset {
     pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
-        let op_reader = build_reader(&path)?;
+        let op_reader = build_reader(&path, None)?;
         let mut reader = op_reader.inner;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
@@ -86,7 +86,7 @@ pub struct ParquetDataset {
 
 impl ParquetDataset {
     pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
-        let op_reader = build_reader(&path)?;
+        let op_reader = build_reader(&path, None)?;
         let mut reader = op_reader.inner;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
@@ -130,7 +130,7 @@ impl CsvDataset {
         has_header: bool,
         sql: Option<String>,
     ) -> Result<Self> {
-        let op_reader = build_reader(&path)?;
+        let op_reader = build_reader(&path, None)?;
         let mut reader = op_reader.inner;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
@@ -171,7 +171,7 @@ pub struct PolarsDataset {
 
 impl PolarsDataset {
     pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
-        let op_reader = build_reader(&path)?;
+        let op_reader = build_reader(&path, None)?;
         let mut reader = op_reader.inner;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
@@ -253,7 +253,7 @@ pub struct JsonDataset {
 
 impl JsonDataset {
     pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
-        let mut op_reader = build_reader(&path)?;
+        let mut op_reader = build_reader(&path, None)?;
         let mut buf = String::new();
         op_reader.inner.read_to_string(&mut buf)?;
         let cursor = std::io::Cursor::new(buf.as_bytes());
