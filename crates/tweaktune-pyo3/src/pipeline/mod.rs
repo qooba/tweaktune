@@ -8,7 +8,8 @@ use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
 use tweaktune_core::datasets::{
-    CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, ParquetDataset, PolarsDataset,
+    CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
+    PolarsDataset,
 };
 use tweaktune_core::llms::UnslothLLM;
 use tweaktune_core::steps::{ChunkStep, RenderStep};
@@ -107,11 +108,12 @@ impl PipelineBuilder {
 
     pub fn with_mixed_dataset(&mut self, name: String, datasets: Vec<String>) {
         debug!("Added MIXED dataset: {}", &name);
-        todo!()
-        // self.datasets.add(
-        //     name.clone(),
-        //     DatasetType::Mixed(MixedDataset::new(name, datasets)),
-        // );
+        self.datasets.add(
+            name.clone(),
+            DatasetType::Mixed(
+                MixedDataset::new(name, datasets, &self.datasets.resources).unwrap(),
+            ),
+        );
     }
 
     pub fn with_parquet_dataset(&mut self, name: String, path: String) {

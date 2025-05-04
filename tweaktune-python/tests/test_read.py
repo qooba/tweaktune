@@ -9,32 +9,32 @@ import shutil
 import polars as pl
 
 
-#def test_mixed(request, output_dir, data_dir):
-#    """Test the basic functionality of the pipeline."""
-#
-#    with open(f"{data_dir}/functions_micro.json", "w") as f:
-#        f.write("""[{"name": "function1", "description": "This is function 1."}, {"name": "function2", "description": "This is function 2."}]""")
-#    with open(f"{data_dir}/personas_micro.jsonl", "w") as f:   
-#        f.write("""{"name": "persona1", "description": "This is persona 1."}\n{"name": "persona2", "description": "This is persona 2."}""")
-#
-#    number = 5
-#    output_file = f"{output_dir}/{request.node.name}.jsonl"
-#
-#    Pipeline()\
-#        .with_workers(1)\
-#        .with_json_dataset("functions",f"{data_dir}/functions_micro.json")\
-#        .with_jsonl_dataset("personas",f"{data_dir}/personas_micro.jsonl")\
-#        .with_mixed_dataset("mixed",["functions", "personas"])\
-#        .with_template("output", """{"mixed": {{mixed|jstr}} }""")\
-#    .iter_dataset("mixed")\
-#        .write_jsonl(path=output_file, template="output")\
-#        .run()
-#
-#    lines = open(output_file, "r").readlines()
-#    item = json.loads(lines[0])
-#    assert "mixed" in item
-#    assert "functions" in item["mixed"]
-#    assert "personas" in item["mixed"]
+def test_mixed(request, output_dir, data_dir):
+    """Test the basic functionality of the pipeline."""
+
+    with open(f"{data_dir}/functions_micro.json", "w") as f:
+        f.write("""[{"name": "function1", "description": "This is function 1."}, {"name": "function2", "description": "This is function 2."}]""")
+    with open(f"{data_dir}/personas_micro.jsonl", "w") as f:   
+        f.write("""{"name": "persona1", "description": "This is persona 1."}\n{"name": "persona2", "description": "This is persona 2."}""")
+
+    number = 5
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    Pipeline()\
+        .with_workers(1)\
+        .with_json_dataset("functions",f"{data_dir}/functions_micro.json")\
+        .with_jsonl_dataset("personas",f"{data_dir}/personas_micro.jsonl")\
+        .with_mixed_dataset("mixed",["functions", "personas"])\
+        .with_template("output", """{"mixed": {{mixed|jstr}} }""")\
+    .iter_dataset("mixed")\
+        .write_jsonl(path=output_file, template="output")\
+        .run()
+
+    lines = open(output_file, "r").readlines()
+    item = json.loads(lines[0])
+    assert "mixed" in item
+    assert "functions" in item["mixed"]
+    assert "personas" in item["mixed"]
 
 
 csv_testdata = [
@@ -103,7 +103,6 @@ def test_db(request, output_dir, data_dir):
 
     lines = open(output_file, "r").readlines()
     item = json.loads(lines[0])
-    print("LINES DB", lines)
     assert "functions" in item
 
 
