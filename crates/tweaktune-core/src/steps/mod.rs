@@ -6,10 +6,9 @@ use crate::{
     templates::Templates,
 };
 use anyhow::Result;
-use arrow::array::RecordBatch;
 use log::debug;
 use pyo3::prelude::*;
-use rand::{seq::IndexedRandom, thread_rng, RngCore};
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::io::Write;
@@ -532,27 +531,27 @@ pub struct DataSamplerStep {
     pub output: String,
 }
 
-pub fn map_to_json(record_batches: &[RecordBatch]) -> Vec<Vec<serde_json::Value>> {
-    let json_rows = record_batches
-        .iter()
-        .map(|record_batch| {
-            let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
-            jv
-        })
-        .collect();
-    json_rows
-}
+// pub fn map_to_json(record_batches: &[RecordBatch]) -> Vec<Vec<serde_json::Value>> {
+//     let json_rows = record_batches
+//         .iter()
+//         .map(|record_batch| {
+//             let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
+//             jv
+//         })
+//         .collect();
+//     json_rows
+// }
 
-pub fn flat_map_to_json(record_batches: &[RecordBatch]) -> Vec<serde_json::Value> {
-    let json_rows = record_batches
-        .iter()
-        .flat_map(|record_batch| {
-            let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
-            jv
-        })
-        .collect();
-    json_rows
-}
+// pub fn flat_map_to_json(record_batches: &[RecordBatch]) -> Vec<serde_json::Value> {
+//     let json_rows = record_batches
+//         .iter()
+//         .flat_map(|record_batch| {
+//             let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
+//             jv
+//         })
+//         .collect();
+//     json_rows
+// }
 
 impl DataSamplerStep {
     pub fn new(name: String, dataset: String, size: Option<usize>, output: String) -> Self {

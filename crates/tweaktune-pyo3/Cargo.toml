@@ -13,7 +13,6 @@ license.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-arrow = { workspace = true }
 console = { workspace = true }
 ctrlc = { workspace = true }
 env_logger = { workspace = true }

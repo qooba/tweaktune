@@ -2,7 +2,6 @@ use crate::common::create_rows_stream;
 use crate::config::read_config;
 use crate::readers::read_file_with_opendal;
 use anyhow::Result;
-use arrow::record_batch::RecordBatch;
 use polars::prelude::*;
 use polars_plan::plans::ScanSources;
 use polars_utils::mmap::MemSlice;
@@ -17,10 +16,6 @@ pub trait Dataset {
     fn stream(&self) -> Result<impl Iterator<Item = Result<Value>> + '_> {
         create_rows_stream(self.df())
     }
-}
-
-pub trait Writer {
-    fn write(&self, record_batch: RecordBatch) -> Result<()>;
 }
 
 #[derive(Clone)]

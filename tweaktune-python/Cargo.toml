@@ -17,7 +17,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 anyhow = { workspace = true }
-arrow = { workspace = true }
 env_logger = { workspace = true }
 minijinja = { workspace = true}
 pyo3 = { workspace = true }
