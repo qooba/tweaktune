@@ -26,11 +26,104 @@ pub trait Writer {
 #[derive(Clone)]
 pub enum DatasetType {
     Json(JsonDataset),
+    Jsonl(JsonlDataset),
     JsonList(JsonListDataset),
     OpenApi(OpenApiDataset),
     Polars(PolarsDataset),
     Ipc(IpcDataset),
     Csv(CsvDataset),
+    Parquet(ParquetDataset),
+}
+
+#[derive(Clone)]
+#[allow(dead_code)]
+pub struct JsonlDataset {
+    name: String,
+    path: String,
+    sql: Option<String>,
+    df: DataFrame,
+}
+
+impl JsonlDataset {
+    pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
+        let op_reader = read_file_with_opendal(&path)?;
+        let mut reader = op_reader.inner;
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        let sources = ScanSources::Buffers(Arc::new([MemSlice::from_vec(buf)]));
+
+        let df = LazyJsonLineReader::new_with_sources(sources).finish()?;
+
+        let df = if let Some(s) = sql.clone() {
+            let mut ctx = polars::sql::SQLContext::new();
+            ctx.register(&name, df);
+            ctx.execute(&s)?
+        } else {
+            df
+        };
+
+        let df = df.collect()?;
+
+        Ok(Self {
+            name,
+            path,
+            sql,
+            df,
+        })
+    }
+}
+
+impl Dataset for JsonlDataset {
+    fn df(&self) -> &DataFrame {
+        &self.df
+    }
+}
+
+#[derive(Clone)]
+#[allow(dead_code)]
+pub struct ParquetDataset {
+    name: String,
+    path: String,
+    sql: Option<String>,
+    df: DataFrame,
+}
+
+impl ParquetDataset {
+    pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
+        // let op_reader = read_file_with_opendal(&path)?;
+        // let mut reader = op_reader.inner;
+        // let mut buf = Vec::new();
+        // reader.read_to_end(&mut buf)?;
+        // let sources = ScanSources::Buffers(Arc::new([MemSlice::from_vec(buf)]));
+
+        // let args = ScanArgsParquet::default();
+        // let df = LazyFrame::scan_parquet_sources(sources, args)?;
+        let args = ScanArgsParquet::default();
+        let df = LazyFrame::scan_parquet(&path, args)?;
+
+        let df = if let Some(s) = sql.clone() {
+            let mut ctx = polars::sql::SQLContext::new();
+            ctx.register(&name, df);
+            ctx.execute(&s)?
+        } else {
+            df
+        };
+
+        let df = df.collect()?;
+
+        Ok(Self {
+            name,
+            path,
+            sql,
+            df,
+        })
+    }
+}
+
+impl Dataset for ParquetDataset {
+    fn df(&self) -> &DataFrame {
+        &self.df
+    }
 }
 
 #[derive(Clone)]
@@ -40,7 +133,13 @@ pub struct CsvDataset {
 }
 
 impl CsvDataset {
-    pub fn new(name: String, path: String, delimiter: u8, has_header: bool) -> Result<Self> {
+    pub fn new(
+        name: String,
+        path: String,
+        delimiter: u8,
+        has_header: bool,
+        sql: Option<String>,
+    ) -> Result<Self> {
         let op_reader = read_file_with_opendal(&path)?;
         let mut reader = op_reader.inner;
         let mut buf = Vec::new();
@@ -50,6 +149,14 @@ impl CsvDataset {
             .with_separator(delimiter)
             .with_has_header(has_header)
             .finish()?;
+
+        let df = if let Some(s) = sql.clone() {
+            let mut ctx = polars::sql::SQLContext::new();
+            ctx.register(&name, df);
+            ctx.execute(&s)?
+        } else {
+            df
+        };
 
         let df = df.collect()?;
 
@@ -127,7 +234,7 @@ pub struct IpcDataset {
 impl IpcDataset {
     pub fn new(name: String, ipc_data: &[u8]) -> Self {
         let cursor = Cursor::new(ipc_data);
-        let df = IpcReader::new(cursor).finish().unwrap();
+        let df = IpcStreamReader::new(cursor).finish().unwrap();
         Self { _name: name, df }
     }
 }

@@ -7,7 +7,9 @@ use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
-use tweaktune_core::datasets::{CsvDataset, Dataset as DatasetTrait, IpcDataset, PolarsDataset};
+use tweaktune_core::datasets::{
+    CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, ParquetDataset, PolarsDataset,
+};
 use tweaktune_core::llms::UnslothLLM;
 use tweaktune_core::steps::{ChunkStep, RenderStep};
 use tweaktune_core::{
@@ -83,7 +85,7 @@ impl PipelineBuilder {
         debug!("Added JSONL dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Polars(PolarsDataset::new(name, path, None).unwrap()),
+            DatasetType::Jsonl(JsonlDataset::new(name, path, None).unwrap()),
         );
     }
 
@@ -116,7 +118,7 @@ impl PipelineBuilder {
         debug!("Added Parquet dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Polars(PolarsDataset::new(name, path, None).unwrap()),
+            DatasetType::Parquet(ParquetDataset::new(name, path, None).unwrap()),
         );
     }
 
@@ -140,7 +142,7 @@ impl PipelineBuilder {
         self.datasets.add(
             name.clone(),
             DatasetType::Csv(
-                CsvDataset::new(name, path, delimiter.as_bytes()[0], has_header).unwrap(),
+                CsvDataset::new(name, path, delimiter.as_bytes()[0], has_header, None).unwrap(),
             ),
         );
     }
@@ -410,6 +412,44 @@ impl PipelineBuilder {
 
                     let dataset = self.datasets.get(name).ok_or_err(name)?;
                     match dataset {
+                       DatasetType::Jsonl(dataset) => {
+                            stream::iter(dataset.stream()?.map(
+                                |json_row|{
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, &json_row.unwrap()).await.unwrap();
+                                        bar.inc(1);
+                                }},
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                        }
+                       DatasetType::Parquet(dataset) => {
+                            stream::iter(dataset.stream()?.map(
+                                |json_row|{
+                                    let bar = &bar;
+                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                                        bar.finish_with_message("Interrupted");
+                                        std::process::exit(1);
+                                    }
+
+                                    async move {
+                                        bar.inc_length(1);
+                                        map_record_batches(self, name, &json_row.unwrap()).await.unwrap();
+                                        bar.inc(1);
+                                }},
+                            ))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                        }
                        DatasetType::Json(dataset) => {
                             stream::iter(dataset.stream()?.map(
                                 |json_row|{

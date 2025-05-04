@@ -587,6 +587,8 @@ impl Step for DataSamplerStep {
             DatasetType::OpenApi(openapi_dataset) => openapi_dataset.df(),
             DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
             DatasetType::Csv(csv_dataset) => csv_dataset.df(),
+            DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
+            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
         };
 
         let df = df
