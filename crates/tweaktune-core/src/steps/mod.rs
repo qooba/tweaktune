@@ -588,6 +588,7 @@ impl Step for DataSamplerStep {
             DatasetType::Csv(csv_dataset) => csv_dataset.df(),
             DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
             DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
+            DatasetType::Mixed(mixed_dataset) => todo!(),
         };
 
         let df = df

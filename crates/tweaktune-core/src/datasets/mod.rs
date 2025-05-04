@@ -28,6 +28,7 @@ pub enum DatasetType {
     Ipc(IpcDataset),
     Csv(CsvDataset),
     Parquet(ParquetDataset),
+    Mixed(MixedDataset),
 }
 
 #[derive(Clone)]
@@ -280,70 +281,66 @@ impl Dataset for JsonListDataset {
     }
 }
 
-/*
 #[derive(Clone)]
 pub struct MixedDataset {
     _name: String,
     datasets: Vec<String>,
-    df: DataFrame,
+    indexes: Vec<Vec<usize>>,
 }
 
 impl MixedDataset {
-    pub fn new(name: String, datasets: Vec<String>) -> Result<Self> {
-        Ok(Self {
-            _name: name,
-            datasets,
-        })
-    }
-
-    pub fn read_all_json(&self, datasets: &HashMap<String, DatasetType>) -> Result<Vec<Value>> {
-        let values: Vec<&DataFrame> = self
-            .datasets
+    pub fn new(
+        name: String,
+        selected_datasets: Vec<String>,
+        datasets: &HashMap<String, DatasetType>,
+    ) -> Result<Self> {
+        let values: Vec<&DataFrame> = selected_datasets
             .iter()
             .map(|dataset| {
                 let dataset = datasets.get(dataset).unwrap();
                 match dataset {
                     DatasetType::Json(json_dataset) => json_dataset.df(),
                     DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
-                    DatasetType::OpenApi(open_api_dataset) => todo!(),
+                    DatasetType::OpenApi(open_api_dataset) => open_api_dataset.df(),
                     DatasetType::Polars(polars_dataset) => polars_dataset.df(),
+                    DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
+                    DatasetType::Csv(csv_dataset) => csv_dataset.df(),
+                    DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
+                    DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
                     _ => unimplemented!(),
                 }
             })
             .collect();
 
-        let mut cartesian_product = vec![HashMap::new()];
-
-        for (i, dataset_values) in values.iter().enumerate() {
-            let dataset_name = &self.datasets[i];
+        // Prepare cartesian product of all indexes of selected datasets
+        let mut index_product: Vec<Vec<usize>> = vec![vec![]];
+        for df in &values {
+            let len = df.height();
             let mut new_product = Vec::new();
-
-            for record in dataset_values {
-                for existing_combination in &cartesian_product {
-                    let mut new_combination = existing_combination.clone();
-                    new_combination.insert(dataset_name.clone(), record.clone());
-                    new_product.push(new_combination);
+            for prefix in &index_product {
+                for idx in 0..len {
+                    let mut new_prefix = prefix.clone();
+                    new_prefix.push(idx);
+                    new_product.push(new_prefix);
                 }
             }
-
-            cartesian_product = new_product;
+            index_product = new_product;
         }
+        // index_product now contains all combinations of row indices for the selected datasets
 
-        let result: Vec<Value> = cartesian_product
-            .into_iter()
-            .map(|combination| serde_json::to_value(combination).unwrap())
-            .collect();
-
-        Ok(result)
+        Ok(Self {
+            _name: name,
+            datasets: selected_datasets,
+            indexes: index_product,
+        })
     }
 }
 
 impl Dataset for MixedDataset {
     fn df(&self) -> &DataFrame {
-        &self.df
+        unimplemented!()
     }
 }
-*/
 
 #[derive(Clone, Debug)]
 pub struct OpenApiDataset {
