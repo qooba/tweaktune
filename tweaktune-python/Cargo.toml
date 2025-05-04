@@ -17,14 +17,13 @@ crate-type = ["cdylib"]
 
 [dependencies]
 anyhow = { workspace = true }
-arrow = { workspace = true }
 env_logger = { workspace = true }
 minijinja = { workspace = true}
 pyo3 = { workspace = true }
 tokio = { workspace = true }
-tweaktune-abstractions= { workspace = true }
-tweaktune-core= { workspace = true}
-tweaktune-pyo3= { workspace = true}
+tweaktune-abstractions = { workspace = true }
+tweaktune-core = { workspace = true}
+tweaktune-pyo3 = { workspace = true}
 # pyo3-async = { version = "0.3.2" }
 
 [profile.release]

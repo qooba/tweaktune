@@ -22,9 +22,21 @@ dependencies = [
 repository = "https://github.com/qooba/tweaktune"
 
 [project.optional-dependencies]
+dev = [
+    "pytest ~=8.3.5",
+    "pytest-cov ~=6.1.1",
+    "black ~=25.1.0",
+    "isort ~=6.0.1",
+    "mypy ~=1.5.0",
+    "flake8 ~=7.2.0",
+    "ruff ~=0.11.8",
+    "pydocstyle ~=6.3.0",
+    "polars ~=1.29.0",
+]
+db = [ "connectorx ~=0.4.3" ]
 arrow = [
     "datasets ~=3.2.0", 
-    "pyarrow ~=19.0.0"
+    "pyarrow ~=20.0.0"
 ]
 unsloth = [
     "unsloth ~=2025.1.8", 

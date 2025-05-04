@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
 use once_cell::sync::OnceCell;
+use polars::frame::DataFrame;
+use polars::prelude::AnyValue;
 use rand::distr::Alphanumeric;
 use rand::{Rng, RngCore};
 use regex::Regex;
@@ -317,6 +319,62 @@ pub fn extract_json(text: &str) -> Result<Value> {
         },
     };
     Ok(value)
+}
+
+pub fn df_to_values(df: &DataFrame) -> Result<Vec<Value>> {
+    let columns = df.get_column_names();
+    let mut json_rows = Vec::new();
+
+    for idx in 0..df.height() {
+        let row = df.get_row(idx)?;
+        let mut obj = serde_json::Map::new();
+        for (col, val) in columns.iter().zip(row.0.iter()) {
+            obj.insert(col.to_string(), anyvalue_to_json(val));
+        }
+        json_rows.push(Value::Object(obj));
+    }
+
+    Ok(json_rows)
+}
+
+pub fn create_rows_stream(df: &DataFrame) -> Result<impl Iterator<Item = Result<Value>> + '_> {
+    let columns = df.get_column_names();
+    let height = df.height();
+    Ok((0..height).map(move |idx| {
+        let row = df.get_row(idx).unwrap();
+        let mut obj = serde_json::Map::new();
+        for (col, val) in columns.iter().zip(row.0.iter()) {
+            obj.insert(col.to_string(), anyvalue_to_json(val));
+        }
+        Ok(Value::Object(obj))
+    }))
+}
+
+pub fn anyvalue_to_json(val: &AnyValue) -> Value {
+    match val {
+        AnyValue::Null => Value::Null,
+        AnyValue::Boolean(b) => Value::Bool(*b),
+        AnyValue::Int64(i) => Value::from(*i),
+        AnyValue::UInt64(u) => Value::from(*u),
+        AnyValue::Float64(f) => Value::from(*f),
+        AnyValue::String(s) => Value::from(*s),
+        AnyValue::Int8(i) => Value::from(*i),
+        AnyValue::Int16(i) => Value::from(*i),
+        AnyValue::Int32(i) => Value::from(*i),
+        AnyValue::UInt8(u) => Value::from(*u),
+        AnyValue::UInt16(u) => Value::from(*u),
+        AnyValue::UInt32(u) => Value::from(*u),
+        AnyValue::Float32(f) => Value::from(*f),
+        AnyValue::Date(d) => Value::from(*d),
+        AnyValue::Datetime(dt, _, _) => Value::from(*dt),
+        AnyValue::Time(t) => Value::from(*t),
+        AnyValue::Duration(d, _) => Value::from(*d),
+        AnyValue::Decimal(val, scale) => {
+            let factor = 10f64.powi(*scale as i32);
+            Value::from(*val as f64 / factor)
+        }
+        _ => Value::String(val.to_string()),
+    }
 }
 
 #[cfg(test)]

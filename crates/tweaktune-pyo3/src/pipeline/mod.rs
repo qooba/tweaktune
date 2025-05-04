@@ -1,6 +1,5 @@
 use crate::common::ResultExt;
 use anyhow::Result;
-use arrow::{ffi_stream::ArrowArrayStreamReader, pyarrow::PyArrowType};
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::debug;
@@ -8,15 +7,15 @@ use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
-use tweaktune_core::datasets::PolarsDataset;
+use tweaktune_core::datasets::{
+    CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
+    PolarsDataset,
+};
 use tweaktune_core::llms::UnslothLLM;
 use tweaktune_core::steps::{ChunkStep, RenderStep};
 use tweaktune_core::{
     common::OptionToResult,
-    datasets::{
-        ArrowDataset, CsvDataset, Dataset as DatasetCore, DatasetType, JsonDataset,
-        JsonListDataset, JsonlDataset, MixedDataset, OpenApiDataset, ParquetDataset,
-    },
+    datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{LLMType, OpenAILLM},
     steps::{
@@ -71,7 +70,7 @@ impl PipelineBuilder {
         debug!("Added OPEN_API dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::OpenApi(OpenApiDataset::new(name, path_or_url)),
+            DatasetType::OpenApi(OpenApiDataset::new(name, path_or_url).unwrap()),
         );
     }
 
@@ -79,7 +78,7 @@ impl PipelineBuilder {
         debug!("Added JSON_LIST dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::JsonList(JsonListDataset::new(name, json_list)),
+            DatasetType::JsonList(JsonListDataset::new(name, json_list).unwrap()),
         );
     }
 
@@ -87,7 +86,7 @@ impl PipelineBuilder {
         debug!("Added JSONL dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Jsonl(JsonlDataset::new(name, path)),
+            DatasetType::Jsonl(JsonlDataset::new(name, path, None).unwrap()),
         );
     }
 
@@ -95,7 +94,7 @@ impl PipelineBuilder {
         debug!("Added POLARS dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Polars(PolarsDataset::new(name, path, sql)),
+            DatasetType::Polars(PolarsDataset::new(name, path, Some(sql)).unwrap()),
         );
     }
 
@@ -103,7 +102,7 @@ impl PipelineBuilder {
         debug!("Added JSON dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Json(JsonDataset::new(name, path)),
+            DatasetType::Json(JsonDataset::new(name, path).unwrap()),
         );
     }
 
@@ -111,7 +110,9 @@ impl PipelineBuilder {
         debug!("Added MIXED dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Mixed(MixedDataset::new(name, datasets)),
+            DatasetType::Mixed(
+                MixedDataset::new(name, datasets, &self.datasets.resources).unwrap(),
+            ),
         );
     }
 
@@ -119,24 +120,16 @@ impl PipelineBuilder {
         debug!("Added Parquet dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Parquet(ParquetDataset::new(name, path)),
+            DatasetType::Parquet(ParquetDataset::new(name, path, None).unwrap()),
         );
     }
 
-    pub fn with_arrow_dataset(
-        &mut self,
-        name: String,
-        mut reader: PyArrowType<ArrowArrayStreamReader>,
-    ) {
-        debug!("Added Arrow dataset: {}", &name);
-        let mut batches = Vec::new();
-        for batch in reader.0.by_ref() {
-            batches.push(batch.unwrap());
-        }
+    pub fn with_ipc_dataset(&mut self, name: String, ipc_data: &[u8]) {
+        debug!("Added Ipc dataset: {}", &name);
 
         self.datasets.add(
             name.clone(),
-            DatasetType::Arrow(ArrowDataset::new(name, batches)),
+            DatasetType::Ipc(IpcDataset::new(name, ipc_data)),
         );
     }
 
@@ -150,12 +143,9 @@ impl PipelineBuilder {
         debug!("Added CSV dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Csv(CsvDataset::new(
-                name,
-                path,
-                delimiter.as_bytes()[0],
-                has_header,
-            )),
+            DatasetType::Csv(
+                CsvDataset::new(name, path, delimiter.as_bytes()[0], has_header, None).unwrap(),
+            ),
         );
     }
 
@@ -166,11 +156,19 @@ impl PipelineBuilder {
         api_key: String,
         model: String,
         max_tokens: u32,
+        temperature: f32,
     ) {
         debug!("Added LLM API: {}", &name);
         self.llms.add(
             name.clone(),
-            LLMType::OpenAI(OpenAILLM::new(name, base_url, api_key, model, max_tokens)),
+            LLMType::OpenAI(OpenAILLM::new(
+                name,
+                base_url,
+                api_key,
+                model,
+                max_tokens,
+                temperature,
+            )),
         );
     }
 
@@ -243,7 +241,8 @@ impl PipelineBuilder {
             )));
     }
 
-    #[pyo3(signature = (name, template, llm, output, json_path=None, system_template=None))]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (name, template, llm, output, json_path=None, system_template=None, json_schema=None))]
     pub fn add_json_generation_step(
         &mut self,
         name: String,
@@ -252,6 +251,7 @@ impl PipelineBuilder {
         output: String,
         json_path: Option<String>,
         system_template: Option<String>,
+        json_schema: Option<String>,
     ) {
         debug!(
             "Added JSON generation step with template: {}, llm: {}",
@@ -265,6 +265,7 @@ impl PipelineBuilder {
                 output,
                 json_path,
                 system_template,
+                json_schema,
             )));
     }
 
@@ -316,18 +317,13 @@ impl PipelineBuilder {
             dataset,
             Some(size),
             output,
-            &self.datasets.resources,
         )));
     }
 
     pub fn add_data_read_step(&mut self, name: String, dataset: String, output: String) {
         debug!("Added data read on dataset: {}", &dataset);
         self.steps.push(StepType::DataSampler(DataSamplerStep::new(
-            name,
-            dataset,
-            None,
-            output,
-            &self.datasets.resources,
+            name, dataset, None, output,
         )));
     }
 
@@ -419,187 +415,86 @@ impl PipelineBuilder {
                     let dataset = self.datasets.get(name).ok_or_err(name)?;
                     match dataset {
                         DatasetType::Jsonl(dataset) => {
-                            stream::iter(dataset.create_json_stream().unwrap().map(
-                                |json_row|{
-                                    let bar = &bar;
-                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
-                                        bar.finish_with_message("Interrupted");
-                                        std::process::exit(1);
-                                    }
+                            stream::iter(dataset.stream()?.map(|json_row|{
+                                let bar= &bar;
+                                process_progress_bar(bar, &running);
+                                async move {
+                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    bar.inc(1);
+                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
 
-                                    async move {
-                                        bar.inc_length(1);
-                                        map_record_batches(self, name, &json_row.unwrap()).await.unwrap();
-                                        bar.inc(1);
-                                }},
-                            ))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                        }
                         DatasetType::Json(dataset) => {
-                            let json_items = dataset.read_all_json().unwrap();
-                            stream::iter(json_items.iter().map(
-                                |json_row|{
-                                    let bar = &bar;
-                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
-                                        bar.finish_with_message("Interrupted");
-                                        std::process::exit(1);
-                                    }
+                            stream::iter(dataset.stream()?.map(|json_row|{
+                                let bar= &bar;
+                                process_progress_bar(bar, &running);
+                                async move {
+                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    bar.inc(1);
+                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
 
-                                    async move {
-                                        bar.inc_length(1);
-                                        map_record_batches(self, name, json_row).await.unwrap();
-                                        bar.inc(1);
-                                }},
-                            ))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                        }
                         DatasetType::JsonList(dataset) => {
-                            let json_items = dataset.read_all_json().unwrap();
-                            stream::iter(json_items.iter().map(
-                                |json_row|{
-                                    let bar = &bar;
-                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
-                                        bar.finish_with_message("Interrupted");
-                                        std::process::exit(1);
-                                    }
+                            stream::iter(dataset.stream()?.map(|json_row|{
+                                let bar= &bar;
+                                process_progress_bar(bar, &running);
+                                async move {
+                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    bar.inc(1);
+                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
 
-                                    async move {
-                                        bar.inc_length(1);
-                                        map_record_batches(self, name, json_row).await.unwrap();
-                                        bar.inc(1);
-                                }},
-                            ))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                        }
-                        DatasetType::Polars(dataset) => {
-                            let json_items = dataset.read_all_json().unwrap();
-                            stream::iter(json_items.iter().map(
-                                |json_row|{
-                                    let bar = &bar;
-                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
-                                        bar.finish_with_message("Interrupted");
-                                        std::process::exit(1);
-                                    }
-
-                                    async move {
-                                        bar.inc_length(1);
-                                        map_record_batches(self, name, json_row).await.unwrap();
-                                        bar.inc(1);
-                                }},
-                            ))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                        }
                         DatasetType::OpenApi(dataset) => {
-                            let json_items = dataset.read_all_json().unwrap();
-                            stream::iter(json_items.iter().map(
-                                |json_row|{
-                                    let bar = &bar;
-                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
-                                        bar.finish_with_message("Interrupted");
-                                        std::process::exit(1);
-                                    }
+                            stream::iter(dataset.stream()?.map(|json_row|{
+                                let bar= &bar;
+                                process_progress_bar(bar, &running);
+                                async move {
+                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    bar.inc(1);
+                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
 
-                                    async move {
-                                        bar.inc_length(1);
-                                        map_record_batches(self, name, json_row).await.unwrap();
-                                        bar.inc(1);
-                                }},
-                            ))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                        }
-                        DatasetType::Mixed(dataset) => {
-                            let json_items = dataset.read_all_json(&self.datasets.resources).unwrap();
-                            stream::iter(json_items.iter().map(
-                                |json_row|{
-                                    let bar = &bar;
-                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
-                                        bar.finish_with_message("Interrupted");
-                                        std::process::exit(1);
-                                    }
+                        DatasetType::Polars(dataset) => {
+                            stream::iter(dataset.stream()?.map(|json_row|{
+                                let bar= &bar;
+                                process_progress_bar(bar, &running);
+                                async move {
+                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    bar.inc(1);
+                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
 
-                                    async move {
-                                        bar.inc_length(1);
-                                        map_record_batches(self, name, json_row).await.unwrap();
-                                        bar.inc(1);
-                                }},
-                            ))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                        }
+                        DatasetType::Ipc(dataset) => {
+                            stream::iter(dataset.stream()?.map(|json_row|{
+                                let bar= &bar;
+                                process_progress_bar(bar, &running);
+                                async move {
+                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    bar.inc(1);
+                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
+
+                        DatasetType::Csv(dataset) => {
+                            stream::iter(dataset.stream()?.map(|json_row|{
+                                let bar= &bar;
+                                process_progress_bar(bar, &running);
+                                async move {
+                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    bar.inc(1);
+                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
 
                         DatasetType::Parquet(dataset) => {
-                            stream::iter(dataset.create_stream(Some(1)).unwrap().map(
-                                |record_batch|{
-                                    let bar = &bar;
-                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
-                                        bar.finish_with_message("Interrupted");
-                                        std::process::exit(1);
-                                    }
-                                    async move {
-                                        bar.inc_length(1);
-                                        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(&record_batch.unwrap()).unwrap();
-                                        let json_row = json_rows.first().unwrap();
-                                        map_record_batches(self, name, json_row).await.unwrap();
-                                        bar.inc(1);
-                                }},
-                            ))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                        }
-                        DatasetType::Arrow(dataset) => {
-                            stream::iter(dataset.read_all(Some(1)).unwrap().iter().map(
-                                |record_batch| {
-                                    let bar = &bar;
-                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
-                                        bar.finish_with_message("Interrupted");
-                                        std::process::exit(1);
-                                    }
+                            stream::iter(dataset.stream()?.map(|json_row|{
+                                let bar= &bar;
+                                process_progress_bar(bar, &running);
+                                async move {
+                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    bar.inc(1);
+                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
 
-                                    async move {
-                                        bar.inc_length(1);
-                                        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
-                                        let json_row = json_rows.first().unwrap();
-                                        map_record_batches(self, name, json_row).await.unwrap();
-                                        bar.inc(1);
-                                }},
-                            ))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                        }
-                        DatasetType::Csv(dataset) => {
-                            stream::iter(dataset.create_stream(Some(1)).unwrap().map(
-                                |record_batch| {
-                                    let bar = &bar;
-                                    if !running.load(std::sync::atomic::Ordering::SeqCst) {
-                                        bar.finish_with_message("Interrupted");
-                                        std::process::exit(1);
-                                    }
+                        DatasetType::Mixed(dataset) => {
+                            stream::iter(dataset.stream_mix(&self.datasets.resources)?.map(|json_row|{
+                                let bar= &bar;
+                                process_progress_bar(bar, &running);
+                                async move {
+                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    bar.inc(1);
+                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;}
 
-                                    async move {
-                                        bar.inc_length(1);
-                                        let json_rows: Vec<serde_json::Value> = serde_arrow::from_record_batch(&record_batch.unwrap()).unwrap();
-                                        let json_row = json_rows.first().unwrap();
-                                        map_record_batches(self, name, json_row).await.unwrap();
-                                        bar.inc(1);
-                                }},
-                            ))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                        }
                     }
                 }
             }
@@ -609,6 +504,14 @@ impl PipelineBuilder {
 
         result.map_pyerr()
     }
+}
+
+fn process_progress_bar(bar: &ProgressBar, running: &Arc<AtomicBool>) {
+    if !running.load(std::sync::atomic::Ordering::SeqCst) {
+        bar.finish_with_message("Interrupted");
+        std::process::exit(1);
+    }
+    bar.inc_length(1);
 }
 
 async fn map_record_batches(

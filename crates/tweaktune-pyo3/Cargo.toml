@@ -13,7 +13,6 @@ license.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-arrow = { workspace = true }
 console = { workspace = true }
 ctrlc = { workspace = true }
 env_logger = { workspace = true }
@@ -23,6 +22,7 @@ log = { workspace = true}
 minijinja = { workspace = true}
 tweaktune-abstractions= { workspace = true}
 tweaktune-core= { workspace = true }
+polars = { workspace = true}
 pyo3 = { workspace = true}
 serde_arrow = { workspace = true, features = ["arrow-54"]}
 serde_json = { workspace = true }

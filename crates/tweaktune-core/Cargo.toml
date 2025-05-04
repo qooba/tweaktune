@@ -10,17 +10,19 @@ license.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-arrow = { workspace = true }
 async-trait = { workspace = true }
 base64 = { workspace = true }
+bytes = { workspace = true }
+csv = { workspace = true }
 hf-hub = { workspace = true }
 log = { workspace = true}
 minijinja = { workspace = true}
 once_cell = { workspace = true }
 opendal = { workspace = true }
-parquet = { workspace = true }
 pyo3 = { workspace = true}
-polars = { workspace = true}
+polars = { workspace = true }
+polars-plan = { workspace = true }
+polars-utils = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 reqwest = { workspace = true }

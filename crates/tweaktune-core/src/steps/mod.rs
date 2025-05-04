@@ -1,15 +1,14 @@
 use crate::{
-    common::{extract_json, OptionToResult, ResultExt},
+    common::{df_to_values, extract_json, OptionToResult, ResultExt},
     datasets::{Dataset, DatasetType},
     embeddings::{self, EmbeddingsType},
     llms::{self, LLMType, LLM},
     templates::Templates,
 };
 use anyhow::Result;
-use arrow::array::RecordBatch;
 use log::debug;
 use pyo3::prelude::*;
-use rand::seq::IndexedRandom;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::io::Write;
@@ -294,6 +293,7 @@ impl TextGenerationStep {
         llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        json_schema: Option<String>,
     ) -> Result<Option<String>> {
         let template = templates.render(self.template.clone(), context.data.clone());
         let template = match template {
@@ -306,14 +306,14 @@ impl TextGenerationStep {
 
         let llm = llms.get(&self.llm).expect("LLM");
         let result = match llm {
-            llms::LLMType::OpenAI(llm) => match llm.call(template).await {
+            llms::LLMType::OpenAI(llm) => match llm.call(template, json_schema).await {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
                     debug!(target: "generate", "Failed to generate text: {}", e);
                     None
                 }
             },
-            llms::LLMType::Unsloth(llm) => match llm.call(template).await {
+            llms::LLMType::Unsloth(llm) => match llm.call(template, json_schema).await {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
                     debug!(target: "generate", "Failed to generate text: {}", e);
@@ -337,7 +337,7 @@ impl Step for TextGenerationStep {
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let result = self
-            .generate(_datasets, templates, llms, _embeddings, &context)
+            .generate(_datasets, templates, llms, _embeddings, &context, None)
             .await?;
 
         match result {
@@ -357,6 +357,7 @@ pub struct JsonGenerationStep {
     pub generation_step: TextGenerationStep,
     pub output: String,
     pub json_path: Option<String>,
+    pub json_schema: Option<String>,
 }
 
 impl JsonGenerationStep {
@@ -367,6 +368,7 @@ impl JsonGenerationStep {
         output: String,
         json_path: Option<String>,
         system_template: Option<String>,
+        json_schema: Option<String>,
     ) -> Self {
         Self {
             generation_step: TextGenerationStep::new(
@@ -379,6 +381,7 @@ impl JsonGenerationStep {
             output,
             name,
             json_path,
+            json_schema,
         }
     }
 }
@@ -395,7 +398,14 @@ impl Step for JsonGenerationStep {
         let mut context = context.clone();
         let result = self
             .generation_step
-            .generate(_datasets, templates, llms, _embeddings, &context)
+            .generate(
+                _datasets,
+                templates,
+                llms,
+                _embeddings,
+                &context,
+                self.json_schema.clone(),
+            )
             .await?;
 
         match result {
@@ -519,62 +529,37 @@ pub struct DataSamplerStep {
     pub dataset: String,
     pub size: Option<usize>,
     pub output: String,
-    json_batches: Vec<serde_json::Value>,
 }
 
-pub fn map_to_json(record_batches: &[RecordBatch]) -> Vec<Vec<serde_json::Value>> {
-    let json_rows = record_batches
-        .iter()
-        .map(|record_batch| {
-            let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
-            jv
-        })
-        .collect();
-    json_rows
-}
+// pub fn map_to_json(record_batches: &[RecordBatch]) -> Vec<Vec<serde_json::Value>> {
+//     let json_rows = record_batches
+//         .iter()
+//         .map(|record_batch| {
+//             let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
+//             jv
+//         })
+//         .collect();
+//     json_rows
+// }
 
-pub fn flat_map_to_json(record_batches: &[RecordBatch]) -> Vec<serde_json::Value> {
-    let json_rows = record_batches
-        .iter()
-        .flat_map(|record_batch| {
-            let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
-            jv
-        })
-        .collect();
-    json_rows
-}
+// pub fn flat_map_to_json(record_batches: &[RecordBatch]) -> Vec<serde_json::Value> {
+//     let json_rows = record_batches
+//         .iter()
+//         .flat_map(|record_batch| {
+//             let jv: Vec<serde_json::Value> = serde_arrow::from_record_batch(record_batch).unwrap();
+//             jv
+//         })
+//         .collect();
+//     json_rows
+// }
 
 impl DataSamplerStep {
-    pub fn new(
-        name: String,
-        dataset: String,
-        size: Option<usize>,
-        output: String,
-        datasets: &HashMap<String, DatasetType>,
-    ) -> Self {
-        let dataset_type = datasets.get(&dataset).ok_or_err(&dataset).unwrap();
-        let json_batches = match dataset_type {
-            DatasetType::Polars(polars_dataset) => polars_dataset.read_all_json().unwrap(),
-            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all_json().unwrap(),
-            DatasetType::Json(json_dataset) => json_dataset.read_all_json().unwrap(),
-            DatasetType::JsonList(json_list_dataset) => json_list_dataset.read_all_json().unwrap(),
-            DatasetType::OpenApi(openapi_dataset) => openapi_dataset.read_all_json().unwrap(),
-            DatasetType::Mixed(mixed_dataset) => mixed_dataset.read_all_json(datasets).unwrap(),
-            DatasetType::Csv(csv_dataset) => flat_map_to_json(&csv_dataset.read_all(None).unwrap()),
-            DatasetType::Parquet(parquet_dataset) => {
-                flat_map_to_json(&parquet_dataset.read_all(None).unwrap())
-            }
-            DatasetType::Arrow(arrow_dataset) => {
-                flat_map_to_json(&arrow_dataset.read_all(None).unwrap())
-            }
-        };
-
+    pub fn new(name: String, dataset: String, size: Option<usize>, output: String) -> Self {
         Self {
             name,
             dataset,
             size,
             output,
-            json_batches,
         }
     }
 }
@@ -582,22 +567,44 @@ impl DataSamplerStep {
 impl Step for DataSamplerStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
+        datasets: &HashMap<String, DatasetType>,
         _templates: &Templates,
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
-        let mut rng = rand::rng();
 
-        let json_rows: Vec<serde_json::Value> = if let Some(size) = self.size {
-            self.json_batches
-                .choose_multiple(&mut rng, size)
-                .cloned()
-                .collect()
+        let dataset_type = datasets
+            .get(&self.dataset)
+            .ok_or_err(&self.dataset)
+            .unwrap();
+
+        let json_rows = if let DatasetType::Mixed(mixed_dataset) = dataset_type {
+            mixed_dataset.sample(self.size.unwrap(), datasets)?
         } else {
-            self.json_batches.clone()
+            let df = match dataset_type {
+                DatasetType::Polars(polars_dataset) => polars_dataset.df(),
+                DatasetType::Json(json_dataset) => json_dataset.df(),
+                DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
+                DatasetType::OpenApi(openapi_dataset) => openapi_dataset.df(),
+                DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
+                DatasetType::Csv(csv_dataset) => csv_dataset.df(),
+                DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
+                DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
+                DatasetType::Mixed(_mixed_dataset) => unreachable!(),
+            };
+
+            let df = df
+                .sample_n_literal(
+                    self.size.unwrap_or(df.size()),
+                    false,
+                    false,
+                    Some(rand::rng().next_u64()),
+                )
+                .unwrap();
+
+            df_to_values(&df)?
         };
 
         context.set(&self.output, json_rows);
