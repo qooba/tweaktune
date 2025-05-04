@@ -77,17 +77,40 @@ def test_read_parquet(request, output_dir, data_dir, parquet_file):
 
     Pipeline()\
         .with_workers(1)\
-        .with_parquet_dataset("functions",parquet_file)\
-        .with_template("output", """{"functions": {{functions|jstr}} }""")\
-    .iter_dataset("functions")\
+        .with_parquet_dataset("items",parquet_file)\
+        .with_template("output", """{"items": {{items|jstr}} }""")\
+    .iter_dataset("items")\
         .write_jsonl(path=output_file, template="output")\
     .run()
 
     lines = open(output_file, "r").readlines()
     item = json.loads(lines[0])
-    assert "functions" in item
-    assert "name" in item["functions"]
-    assert "description" in item["functions"]
+    assert "items" in item
+    assert "name" in item["items"]
+    assert "description" in item["items"]
+    assert len(lines) == 10
+
+def test_read_parquet_sql(request, output_dir, data_dir, parquet_file):
+    """Test the basic functionality of the pipeline."""
+
+    number = 5
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    Pipeline()\
+        .with_workers(1)\
+        .with_parquet_dataset("items", parquet_file, "select * from items where price > 1.0")\
+        .with_template("output", """{"items": {{items|jstr}} }""")\
+    .iter_dataset("items")\
+        .write_jsonl(path=output_file, template="output")\
+    .run()
+
+    lines = open(output_file, "r").readlines()
+    item = json.loads(lines[0])
+    assert "items" in item
+    assert "name" in item["items"]
+    assert "description" in item["items"]
+    assert len(lines) == 6
+
 
 def test_read_db(request, output_dir, data_dir, sqlite_database):
     """Test the basic functionality of the pipeline."""
