@@ -51,7 +51,6 @@ impl JsonlDataset {
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
         let sources = ScanSources::Buffers(Arc::new([MemSlice::from_vec(buf)]));
-
         let df = LazyJsonLineReader::new_with_sources(sources).finish()?;
 
         let df = if let Some(s) = sql.clone() {
@@ -90,26 +89,20 @@ pub struct ParquetDataset {
 
 impl ParquetDataset {
     pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
-        // let op_reader = read_file_with_opendal(&path)?;
-        // let mut reader = op_reader.inner;
-        // let mut buf = Vec::new();
-        // reader.read_to_end(&mut buf)?;
-        // let sources = ScanSources::Buffers(Arc::new([MemSlice::from_vec(buf)]));
-
-        // let args = ScanArgsParquet::default();
-        // let df = LazyFrame::scan_parquet_sources(sources, args)?;
-        let args = ScanArgsParquet::default();
-        let df = LazyFrame::scan_parquet(&path, args)?;
+        let op_reader = read_file_with_opendal(&path)?;
+        let mut reader = op_reader.inner;
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        let cursor = Cursor::new(buf);
+        let df = ParquetReader::new(cursor).finish()?;
 
         let df = if let Some(s) = sql.clone() {
             let mut ctx = polars::sql::SQLContext::new();
-            ctx.register(&name, df);
-            ctx.execute(&s)?
+            ctx.register(&name, df.lazy());
+            ctx.execute(&s)?.collect()?
         } else {
             df
         };
-
-        let df = df.collect()?;
 
         Ok(Self {
             name,
@@ -185,15 +178,17 @@ impl PolarsDataset {
         let mut reader = op_reader.inner;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
-        let sources = ScanSources::Buffers(Arc::new([MemSlice::from_vec(buf)]));
 
-        let df = if path.ends_with(".jsonl") {
+        let df = if path.ends_with(".jsonl") || path.ends_with(".ndjson") {
+            let sources = ScanSources::Buffers(Arc::new([MemSlice::from_vec(buf)]));
             LazyJsonLineReader::new_with_sources(sources).finish()?
         } else if path.ends_with(".csv") {
+            let sources = ScanSources::Buffers(Arc::new([MemSlice::from_vec(buf)]));
             LazyCsvReader::new_with_sources(sources).finish().unwrap()
         } else if path.ends_with(".parquet") || path.ends_with(".pq") {
-            let args = ScanArgsParquet::default();
-            LazyFrame::scan_parquet_sources(sources, args)?
+            let cursor = Cursor::new(buf);
+            let df = ParquetReader::new(cursor).finish()?;
+            df.lazy()
         } else {
             return Err(anyhow::anyhow!(
                 "Unsupported file extension for PolarsDataset"
