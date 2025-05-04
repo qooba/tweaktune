@@ -9,7 +9,7 @@ import shutil
 import polars as pl
 
 
-def test_mixed(request, output_dir, data_dir):
+def test_read_mixed(request, output_dir, data_dir):
     """Test the basic functionality of the pipeline."""
 
     with open(f"{data_dir}/functions_micro.json", "w") as f:
@@ -44,7 +44,7 @@ csv_testdata = [
     ("functions_micro4.csv", ";", False,"""function1;This is function 1.\nfunction2;This is function 2."""),
 ]
 @pytest.mark.parametrize("file_name,delimeter,has_header,data", csv_testdata)
-def test_csv1_read(request, output_dir, data_dir, file_name, delimeter, has_header, data):
+def test_read_csv(request, output_dir, data_dir, file_name, delimeter, has_header, data):
     """Test the basic functionality of the pipeline."""
 
     with open(f"{data_dir}/{file_name}", "w") as f:
@@ -69,7 +69,7 @@ def test_csv1_read(request, output_dir, data_dir, file_name, delimeter, has_head
         assert "description" in item["functions"]
 
 
-def test_parquet(request, output_dir, data_dir):
+def test_read_parquet(request, output_dir, data_dir, parquet_file):
     """Test the basic functionality of the pipeline."""
 
     number = 5
@@ -77,7 +77,7 @@ def test_parquet(request, output_dir, data_dir):
 
     Pipeline()\
         .with_workers(1)\
-        .with_parquet_dataset("functions","./tweaktune-python/tests/example.parquet")\
+        .with_parquet_dataset("functions",parquet_file)\
         .with_template("output", """{"functions": {{functions|jstr}} }""")\
     .iter_dataset("functions")\
         .write_jsonl(path=output_file, template="output")\
@@ -87,7 +87,7 @@ def test_parquet(request, output_dir, data_dir):
     item = json.loads(lines[0])
     assert "functions" in item
 
-def test_db(request, output_dir, data_dir):
+def test_read_db(request, output_dir, data_dir, sqlite_database):
     """Test the basic functionality of the pipeline."""
 
     number = 5
@@ -95,7 +95,7 @@ def test_db(request, output_dir, data_dir):
 
     Pipeline()\
         .with_workers(1)\
-        .with_db_dataset("functions","sqlite://tweaktune-python/tests/test.db", "select * from `functions`")\
+        .with_db_dataset("functions",f"sqlite://{sqlite_database}", "select * from `functions`")\
         .with_template("output", """{"functions": {{functions|jstr}} }""")\
     .iter_dataset("functions")\
         .write_jsonl(path=output_file, template="output")\
@@ -127,39 +127,3 @@ def test_arrow(request, output_dir, data_dir, arrow_dataset):
 
 
 
-#def test_prepare_example_parquet(request, output_dir):
-#    """Prepare an example parquet file using polars."""
-#    df = pl.DataFrame({
-#        "name": ["function1", "function2"],
-#        "description": ["This is function 1.", "This is function 2."]
-#    })
-#    df.write_parquet("./example.parquet")
-
-#def test_create_sqllite_database():
-#    """Create a SQLite database and a table with some data."""
-#    import sqlite3
-#    import os
-#
-#    # Create a temporary SQLite database
-#    db_file = "test.db"
-#    conn = sqlite3.connect(db_file)
-#    cursor = conn.cursor()
-#
-#    # Create a table
-#    cursor.execute('''
-#        CREATE TABLE functions (
-#            id INTEGER PRIMARY KEY,
-#            name TEXT,
-#            description TEXT
-#        )
-#    ''')
-#
-#    # Insert some data
-#    cursor.execute("INSERT INTO functions (name, description) VALUES ('function1', 'This is function 1.')")
-#    cursor.execute("INSERT INTO functions (name, description) VALUES ('function2', 'This is function 2.')")
-#
-#    # Commit and close the connection
-#    conn.commit()
-#    conn.close()
-#
-#    return db_file

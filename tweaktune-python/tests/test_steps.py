@@ -9,7 +9,7 @@ import shutil
 import polars as pl
 import os
 
-def test_sample(request, output_dir, data_dir, arrow_dataset):
+def test_step_sample(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 

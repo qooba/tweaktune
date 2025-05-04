@@ -52,4 +52,57 @@ def arrow_builder():
     return arrow_dataset.to_arrow().to_reader()
 
 
+@pytest.fixture(scope="session")
+def sqlite_database():
+    """Create a SQLite database and a table with some data."""
+    import sqlite3
+    import os
+
+
+    output_db_dir = tempfile.mkdtemp()
+    # Create a temporary SQLite database
+    db_file = f"{output_db_dir}/test.db"
+
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    # Create a table
+    cursor.execute('''
+        CREATE TABLE functions (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            description TEXT
+        )
+    ''')
+
+    # Insert some data
+    cursor.execute("INSERT INTO functions (name, description) VALUES ('function1', 'This is function 1.')")
+    cursor.execute("INSERT INTO functions (name, description) VALUES ('function2', 'This is function 2.')")
+
+    # Commit and close the connection
+    conn.commit()
+    conn.close()
+
+    yield db_file
+
+    shutil.rmtree(output_db_dir)
+
+
+@pytest.fixture(scope="session")
+def parquet_file():
+    """Prepare an example parquet file using polars."""
+
+
+    output_pq_dir = tempfile.mkdtemp()
+    pq_file = f"{output_pq_dir}/example.parquet"
+
+
+    df = pl.DataFrame({
+        "name": ["function1", "function2"],
+        "description": ["This is function 1.", "This is function 2."]
+    })
+    df.write_parquet(pq_file)
+
+    yield pq_file
+    shutil.rmtree(output_pq_dir)
 
