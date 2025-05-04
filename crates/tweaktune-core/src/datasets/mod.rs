@@ -1,15 +1,8 @@
 use crate::common::create_rows_stream;
 use crate::config::read_config;
 use crate::readers::read_file_with_opendal;
-use crate::steps::flat_map_to_json;
 use anyhow::Result;
-use arrow::csv::reader::{Format, ReaderBuilder as CsvReaderBuilder};
-use arrow::datatypes::SchemaRef;
-use arrow::json;
-use arrow::json::reader::{infer_json_schema, ReaderBuilder as JsonReaderBuilder};
 use arrow::record_batch::RecordBatch;
-use bytes::buf;
-use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
 use polars::prelude::*;
 use polars_plan::plans::ScanSources;
 use polars_utils::mmap::MemSlice;
@@ -43,9 +36,6 @@ pub enum DatasetType {
 #[derive(Clone)]
 pub struct CsvDataset {
     _name: String,
-    path: String,
-    delimiter: u8,
-    has_header: bool,
     df: DataFrame,
 }
 
@@ -63,13 +53,7 @@ impl CsvDataset {
 
         let df = df.collect()?;
 
-        Ok(Self {
-            _name: name,
-            path,
-            delimiter,
-            has_header,
-            df,
-        })
+        Ok(Self { _name: name, df })
     }
 }
 
@@ -157,7 +141,6 @@ impl Dataset for IpcDataset {
 #[derive(Clone)]
 pub struct JsonDataset {
     _name: String,
-    path: String,
     df: DataFrame,
 }
 
@@ -169,11 +152,7 @@ impl JsonDataset {
         let cursor = std::io::Cursor::new(buf.as_bytes());
         let df: DataFrame = JsonReader::new(cursor).finish()?;
 
-        Ok(Self {
-            _name: name,
-            path,
-            df,
-        })
+        Ok(Self { _name: name, df })
     }
 }
 
@@ -273,7 +252,7 @@ impl Dataset for MixedDataset {
 pub struct OpenApiDataset {
     _name: String,
     _path_or_url: String,
-    open_api_spec: OpenApiSpec,
+    _open_api_spec: OpenApiSpec,
     df: DataFrame,
 }
 
@@ -288,7 +267,7 @@ impl OpenApiDataset {
         Ok(Self {
             _name: name,
             _path_or_url: path_or_url,
-            open_api_spec: config,
+            _open_api_spec: config,
             df,
         })
     }
@@ -427,25 +406,25 @@ fn openapi_read_all_json(open_api_spec: &OpenApiSpec) -> Result<Vec<Value>> {
     for (path, path_item) in &open_api_spec.paths {
         if let Some(get_item) = &path_item.get {
             let function =
-                openapi_build_function_from_path_item(&path, "get", get_item, open_api_spec);
+                openapi_build_function_from_path_item(path, "get", get_item, open_api_spec);
             functions.push(function);
         }
 
         if let Some(post_item) = &path_item.post {
             let function =
-                openapi_build_function_from_path_item(&path, "post", post_item, open_api_spec);
+                openapi_build_function_from_path_item(path, "post", post_item, open_api_spec);
             functions.push(function);
         }
 
         if let Some(put_item) = &path_item.put {
             let function =
-                openapi_build_function_from_path_item(&path, "put", put_item, open_api_spec);
+                openapi_build_function_from_path_item(path, "put", put_item, open_api_spec);
             functions.push(function);
         }
 
         if let Some(delete_item) = &path_item.delete {
             let function =
-                openapi_build_function_from_path_item(&path, "delete", delete_item, open_api_spec);
+                openapi_build_function_from_path_item(path, "delete", delete_item, open_api_spec);
             functions.push(function);
         }
     }
@@ -569,15 +548,13 @@ struct OpenApiProperty {
 mod tests {
     use crate::datasets::OpenApiDataset;
     use anyhow::Result;
-    use arrow::json::reader::ReaderBuilder as ArrowJsonReaderBuilder;
-    use serde_arrow::from_record_batch;
     // use serde_json;
 
     #[test]
     fn it_works() -> Result<()> {
         //let url = "https://petstore3.swagger.io/api/v3/openapi.json";
         let url = "http://localhost:8085/openapi.json";
-        let spec = OpenApiDataset::new("test".to_string(), url.to_string());
+        let _spec = OpenApiDataset::new("test".to_string(), url.to_string());
 
         // println!(
         //     "spec: {:?}",
