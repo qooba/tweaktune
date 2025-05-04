@@ -579,28 +579,33 @@ impl Step for DataSamplerStep {
             .get(&self.dataset)
             .ok_or_err(&self.dataset)
             .unwrap();
-        let df = match dataset_type {
-            DatasetType::Polars(polars_dataset) => polars_dataset.df(),
-            DatasetType::Json(json_dataset) => json_dataset.df(),
-            DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
-            DatasetType::OpenApi(openapi_dataset) => openapi_dataset.df(),
-            DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
-            DatasetType::Csv(csv_dataset) => csv_dataset.df(),
-            DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
-            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
-            DatasetType::Mixed(mixed_dataset) => todo!(),
+
+        let json_rows = if let DatasetType::Mixed(mixed_dataset) = dataset_type {
+            mixed_dataset.sample(self.size.unwrap(), datasets)?
+        } else {
+            let df = match dataset_type {
+                DatasetType::Polars(polars_dataset) => polars_dataset.df(),
+                DatasetType::Json(json_dataset) => json_dataset.df(),
+                DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
+                DatasetType::OpenApi(openapi_dataset) => openapi_dataset.df(),
+                DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
+                DatasetType::Csv(csv_dataset) => csv_dataset.df(),
+                DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
+                DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
+                DatasetType::Mixed(_mixed_dataset) => unreachable!(),
+            };
+
+            let df = df
+                .sample_n_literal(
+                    self.size.unwrap_or(df.size()),
+                    false,
+                    false,
+                    Some(rand::rng().next_u64()),
+                )
+                .unwrap();
+
+            df_to_values(&df)?
         };
-
-        let df = df
-            .sample_n_literal(
-                self.size.unwrap_or(df.size()),
-                false,
-                false,
-                Some(rand::rng().next_u64()),
-            )
-            .unwrap();
-
-        let json_rows = df_to_values(&df)?;
 
         context.set(&self.output, json_rows);
         Ok(context)

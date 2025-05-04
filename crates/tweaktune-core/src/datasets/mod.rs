@@ -5,6 +5,7 @@ use anyhow::Result;
 use polars::prelude::*;
 use polars_plan::plans::ScanSources;
 use polars_utils::mmap::MemSlice;
+use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -333,6 +334,60 @@ impl MixedDataset {
             selected_datasets,
             indexes: index_product,
         })
+    }
+
+    pub fn sample(
+        &self,
+        size: usize,
+        datasets: &HashMap<String, DatasetType>,
+    ) -> Result<Vec<Value>> {
+        let total = self.indexes.len();
+        if size > total {
+            return Err(anyhow::anyhow!(
+                "Sample size exceeds total number of combinations"
+            ));
+        }
+        let samples = self
+            .indexes
+            .choose_multiple(&mut rand::rng(), size)
+            .cloned()
+            .collect::<Vec<_>>();
+        let num = samples.len();
+
+        let v: Vec<Value> = (0..num)
+            .map(move |idx| {
+                let index = self.indexes[idx].clone();
+
+                let mut mix_obj = serde_json::Map::new();
+                for (i, ix) in index.iter().enumerate() {
+                    let dataset_name = &self.selected_datasets[i];
+                    let dataset = datasets.get(dataset_name).unwrap();
+                    let df = match dataset {
+                        DatasetType::Json(json_dataset) => json_dataset.df(),
+                        DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
+                        DatasetType::OpenApi(open_api_dataset) => open_api_dataset.df(),
+                        DatasetType::Polars(polars_dataset) => polars_dataset.df(),
+                        DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
+                        DatasetType::Csv(csv_dataset) => csv_dataset.df(),
+                        DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
+                        DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
+                        DatasetType::Mixed(_mixed_dataset) => unimplemented!(),
+                    };
+
+                    let row = df.get_row(*ix).unwrap();
+                    let mut obj = serde_json::Map::new();
+                    let columns = df.get_column_names();
+                    for (col, val) in columns.iter().zip(row.0.iter()) {
+                        obj.insert(col.to_string(), anyvalue_to_json(val));
+                    }
+
+                    mix_obj.insert(dataset_name.clone(), Value::Object(obj));
+                }
+                Value::Object(mix_obj)
+            })
+            .collect();
+
+        Ok(v)
     }
 
     pub fn stream_mix<'a>(
@@ -680,6 +735,8 @@ struct OpenApiProperty {
 mod tests {
     use crate::datasets::OpenApiDataset;
     use anyhow::Result;
+    use rand::seq::SliceRandom;
+    use rand::thread_rng;
     // use serde_json;
 
     #[test]
