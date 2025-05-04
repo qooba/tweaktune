@@ -105,20 +105,14 @@ def test_db(request, output_dir, data_dir):
     item = json.loads(lines[0])
     assert "functions" in item
 
-def test_arrow(request, output_dir, data_dir):
+def test_arrow(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
 
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    arrow_dataset = pl.DataFrame({
-        "name": ["function1", "function2"],
-        "description": ["This is function 1.", "This is function 2."]
-    })
-    r = arrow_dataset.to_arrow().to_reader();
-
     Pipeline()\
         .with_workers(1)\
-        .with_arrow_dataset("functions", r)\
+        .with_arrow_dataset("functions", arrow_dataset())\
         .with_template("output", """{"functions": {{functions|jstr}} }""")\
     .iter_dataset("functions")\
         .write_jsonl(path=output_file, template="output")\
@@ -127,7 +121,11 @@ def test_arrow(request, output_dir, data_dir):
     lines = open(output_file, "r").readlines()
     item = json.loads(lines[0])
     assert "functions" in item
-    assert len(lines) == 2
+    assert len(lines) == 10
+
+
+
+
 
 #def test_prepare_example_parquet(request, output_dir):
 #    """Prepare an example parquet file using polars."""
