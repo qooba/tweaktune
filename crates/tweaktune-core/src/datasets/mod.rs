@@ -224,10 +224,18 @@ pub struct IpcDataset {
 }
 
 impl IpcDataset {
-    pub fn new(name: String, ipc_data: &[u8]) -> Self {
+    pub fn new(name: String, ipc_data: &[u8], sql: Option<String>) -> Result<Self> {
         let cursor = Cursor::new(ipc_data);
         let df = IpcStreamReader::new(cursor).finish().unwrap();
-        Self { _name: name, df }
+
+        let df = if let Some(s) = sql.clone() {
+            let mut ctx = polars::sql::SQLContext::new();
+            ctx.register(&name, df.lazy());
+            ctx.execute(&s)?.collect()?
+        } else {
+            df
+        };
+        Ok(Self { _name: name, df })
     }
 }
 
@@ -244,12 +252,20 @@ pub struct JsonDataset {
 }
 
 impl JsonDataset {
-    pub fn new(name: String, path: String) -> Result<Self> {
+    pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
         let mut op_reader = read_file_with_opendal(&path)?;
         let mut buf = String::new();
         op_reader.inner.read_to_string(&mut buf)?;
         let cursor = std::io::Cursor::new(buf.as_bytes());
         let df: DataFrame = JsonReader::new(cursor).finish()?;
+
+        let df = if let Some(s) = sql.clone() {
+            let mut ctx = polars::sql::SQLContext::new();
+            ctx.register(&name, df.lazy());
+            ctx.execute(&s)?.collect()?
+        } else {
+            df
+        };
 
         Ok(Self { _name: name, df })
     }
@@ -268,10 +284,18 @@ pub struct JsonListDataset {
 }
 
 impl JsonListDataset {
-    pub fn new(name: String, json_list: Vec<String>) -> Result<Self> {
+    pub fn new(name: String, json_list: Vec<String>, sql: Option<String>) -> Result<Self> {
         let json_array = format!("[{}]", json_list.join(","));
         let cursor = std::io::Cursor::new(json_array.as_bytes());
         let df: DataFrame = JsonReader::new(cursor).finish()?;
+
+        let df = if let Some(s) = sql.clone() {
+            let mut ctx = polars::sql::SQLContext::new();
+            ctx.register(&name, df.lazy());
+            ctx.execute(&s)?.collect()?
+        } else {
+            df
+        };
         Ok(Self { _name: name, df })
     }
 }

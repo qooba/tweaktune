@@ -96,10 +96,20 @@ def parquet_file():
     output_pq_dir = tempfile.mkdtemp()
     pq_file = f"{output_pq_dir}/example.parquet"
 
-
+    # Create a DataFrame with 10 shop items
     df = pl.DataFrame({
-        "name": ["function1", "function2"],
-        "description": ["This is function 1.", "This is function 2."]
+        "name": [
+            "Apple", "Banana", "Carrot", "Doughnut", "Eggplant",
+            "Fish Fillet", "Grapes", "Honey", "Ice Cream", "Juice"
+        ],
+        "description": [
+            "Fresh red apple.", "Ripe yellow banana.", "Organic orange carrot.",
+            "Glazed sweet doughnut.", "Purple eggplant, firm.",
+            "Boneless white fish fillet.", "Seedless green grapes.",
+            "Pure natural honey.", "Vanilla flavored ice cream.", "Fresh orange juice."
+        ],
+        "price": [0.5, 0.3, 0.2, 1.0, 1.5, 3.0, 2.0, 4.5, 2.5, 1.2],
+        "size": ["medium", "large", "small", "medium", "large", "medium", "small", "small", "large", "medium"]
     })
     df.write_parquet(pq_file)
 
