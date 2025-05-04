@@ -3,7 +3,6 @@ use anyhow::Result;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::debug;
-use polars::sql;
 use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};

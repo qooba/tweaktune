@@ -75,7 +75,7 @@ mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs.git", rev="ddc63
 #mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs.git", rev="9dfbab1a1f3f260f130680f6c4f02f8656ea28ed" }
 num-traits = "0.2.15"
 once_cell = "1.21.3"
-opendal = { version="0.53.1", features=["services-fs", "services-s3"] }
+opendal = { version="0.53.1", features=["services-fs", "services-s3", "services-gcs", "services-azblob", "services-http"] }
 openidconnect = { version="4.0.0", features=["reqwest"] }
 pyo3 = { version = "0.24.2", features = ["extension-module", "abi3", "abi3-py38", "anyhow", "auto-initialize"] }
 polars = { version ="0.46.0", features = ["lazy", "sql", "csv", "json", "parquet", "serde", "ipc", "ipc_streaming"] }
