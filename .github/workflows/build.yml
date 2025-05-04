@@ -56,7 +56,7 @@ jobs:
           uv venv ../.venv
           source ../.venv/bin/activate
           uv pip install maturin pytest
-          maturin develop --release --uv
+          maturin develop --release --uv --extras "dev,db,arrow"
 
       - name: Run Python tests
         run: |
