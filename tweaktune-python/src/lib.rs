@@ -1,6 +1,5 @@
 use pyo3::prelude::*;
 use tweaktune_pyo3::{
-    datasets::{Arrow, Csv, Jsonl, Parquet},
     pipeline::{Dataset, Embeddings, IterBy, PipelineBuilder, Step, Template, LLM},
     steps::{Lang, StepConfigTest, StepTest},
 };
@@ -15,10 +14,6 @@ fn tweaktune(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // m.add_submodule(&steps_module)?;
     m.add_class::<StepTest>()?;
     m.add_class::<StepConfigTest>()?;
-    m.add_class::<Jsonl>()?;
-    m.add_class::<Parquet>()?;
-    m.add_class::<Csv>()?;
-    m.add_class::<Arrow>()?;
     m.add_class::<Lang>()?;
     m.add_class::<PipelineBuilder>()?;
     m.add_class::<IterBy>()?;

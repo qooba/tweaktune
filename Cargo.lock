@@ -4284,6 +4284,7 @@ dependencies = [
  "indicatif",
  "log",
  "minijinja",
+ "polars",
  "pyo3",
  "serde_arrow",
  "serde_json",

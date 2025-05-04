@@ -1,5 +1,5 @@
 use crate::{
-    common::{extract_json, OptionToResult, ResultExt},
+    common::{df_to_values, extract_json, OptionToResult, ResultExt},
     datasets::{Dataset, DatasetType},
     embeddings::{self, EmbeddingsType},
     llms::{self, LLMType, LLM},
@@ -9,7 +9,7 @@ use anyhow::Result;
 use arrow::array::RecordBatch;
 use log::debug;
 use pyo3::prelude::*;
-use rand::seq::IndexedRandom;
+use rand::{seq::IndexedRandom, thread_rng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::io::Write;
@@ -530,7 +530,6 @@ pub struct DataSamplerStep {
     pub dataset: String,
     pub size: Option<usize>,
     pub output: String,
-    json_batches: Vec<serde_json::Value>,
 }
 
 pub fn map_to_json(record_batches: &[RecordBatch]) -> Vec<Vec<serde_json::Value>> {
@@ -556,36 +555,12 @@ pub fn flat_map_to_json(record_batches: &[RecordBatch]) -> Vec<serde_json::Value
 }
 
 impl DataSamplerStep {
-    pub fn new(
-        name: String,
-        dataset: String,
-        size: Option<usize>,
-        output: String,
-        datasets: &HashMap<String, DatasetType>,
-    ) -> Self {
-        let dataset_type = datasets.get(&dataset).ok_or_err(&dataset).unwrap();
-        let json_batches = match dataset_type {
-            DatasetType::Polars(polars_dataset) => polars_dataset.read_all_json().unwrap(),
-            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.read_all_json().unwrap(),
-            DatasetType::Json(json_dataset) => json_dataset.read_all_json().unwrap(),
-            DatasetType::JsonList(json_list_dataset) => json_list_dataset.read_all_json().unwrap(),
-            DatasetType::OpenApi(openapi_dataset) => openapi_dataset.read_all_json().unwrap(),
-            DatasetType::Mixed(mixed_dataset) => mixed_dataset.read_all_json(datasets).unwrap(),
-            DatasetType::Csv(csv_dataset) => csv_dataset.read_all_json().unwrap(),
-            DatasetType::Parquet(parquet_dataset) => {
-                flat_map_to_json(&parquet_dataset.read_all(None).unwrap())
-            }
-            DatasetType::Arrow(arrow_dataset) => {
-                flat_map_to_json(&arrow_dataset.read_all(None).unwrap())
-            }
-        };
-
+    pub fn new(name: String, dataset: String, size: Option<usize>, output: String) -> Self {
         Self {
             name,
             dataset,
             size,
             output,
-            json_batches,
         }
     }
 }
@@ -593,23 +568,37 @@ impl DataSamplerStep {
 impl Step for DataSamplerStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
+        datasets: &HashMap<String, DatasetType>,
         _templates: &Templates,
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
-        let mut rng = rand::rng();
 
-        let json_rows: Vec<serde_json::Value> = if let Some(size) = self.size {
-            self.json_batches
-                .choose_multiple(&mut rng, size)
-                .cloned()
-                .collect()
-        } else {
-            self.json_batches.clone()
+        let dataset_type = datasets
+            .get(&self.dataset)
+            .ok_or_err(&self.dataset)
+            .unwrap();
+        let df = match dataset_type {
+            DatasetType::Polars(polars_dataset) => polars_dataset.df(),
+            DatasetType::Json(json_dataset) => json_dataset.df(),
+            DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
+            DatasetType::OpenApi(openapi_dataset) => openapi_dataset.df(),
+            DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
+            DatasetType::Csv(csv_dataset) => csv_dataset.df(),
         };
+
+        let df = df
+            .sample_n_literal(
+                self.size.unwrap_or(df.size()),
+                false,
+                false,
+                Some(rand::rng().next_u64()),
+            )
+            .unwrap();
+
+        let json_rows = df_to_values(&df)?;
 
         context.set(&self.output, json_rows);
         Ok(context)

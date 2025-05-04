@@ -1,10 +1,25 @@
 from enum import Enum
-from tweaktune.tweaktune import Step, Jsonl, Parquet, Csv, Arrow, Lang, PipelineBuilder, IterBy, Dataset, LLM, Embeddings, Template
+from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings
 import json
 from typing import List, overload, Optional, Union, Tuple
 from pydantic import BaseModel, Field, create_model
 from pydantic.fields import FieldInfo
 import inspect
+import io
+import pyarrow as pa
+import pyarrow.ipc as ipc
+
+def record_batches_to_ipc_bytes(reader: pa.RecordBatchReader) -> bytes:
+    """
+    Converts a RecordBatchReader to bytes using IPC format.
+    """
+    sink = io.BytesIO()
+    writer = ipc.new_stream(sink, reader.schema)
+    for batch in reader:
+        writer.write_batch(batch)
+    writer.close()
+    return sink.getvalue()
+
 
 class JudgeRatings(BaseModel):
     """
@@ -133,41 +148,6 @@ class Pipeline:
     def __init__(self):
         self.builder = PipelineBuilder()
 
-    def with_dataset(self, dataset: Dataset):
-        if dataset.__class__ == Dataset.Jsonl:
-            self.builder.with_jsonl_dataset(dataset.name, dataset.path)
-        elif dataset.__class__ == Dataset.Json:
-            self.builder.with_json_dataset(dataset.name, dataset.path)
-        elif dataset.__class__ == Dataset.Mixed:
-            self.builder.with_mixed_dataset(dataset.name, dataset.datasets)
-        elif dataset.__class__ == Dataset.Parquet:
-            self.builder.with_parquet_dataset(dataset.name, dataset.path)
-        elif dataset.__class__ == Dataset.Csv:
-            self.builder.with_csv_dataset(dataset.name, dataset.path, dataset.delimiter, dataset.has_header)
-        elif dataset.__class__ == Dataset.Arrow:
-            try:
-                from datasets.arrow_dataset import Dataset as ArrowDataset
-                from pyarrow.lib import RecordBatchReader
-
-                if type(dataset) is ArrowDataset:
-                    self.builder.with_arrow_dataset(dataset.name, dataset.data.to_reader())
-                elif type(dataset) is RecordBatchReader:
-                    self.builder.with_arrow_dataset(dataset.name, dataset)
-                else:
-                    raise ValueError("Invalid dataset type")
-
-                return self
-
-            except ModuleNotFoundError:
-                package_installation_hint("datasets")
-                package_installation_hint("pyarrow")
-                raise
-
-        else:
-            raise ValueError("Invalid dataset type")
-        
-        return self
-
     def with_openapi_dataset(self, name: str, path_or_url: str):
         """Adds an OpenAPI dataset to the pipeline."""
         self.builder.with_openapi_dataset(name, path_or_url)
@@ -232,7 +212,8 @@ class Pipeline:
         try:
             import connectorx as cx
             table  = cx.read_sql(conn, query, return_type="arrow")
-            self.builder.with_arrow_dataset(name, table.to_reader())
+            ipc_data = record_batches_to_ipc_bytes(table.to_reader())
+            self.builder.with_ipc_dataset(name, ipc_data)
             return self
         except ModuleNotFoundError:
             package_installation_hint("connectorx")
@@ -242,7 +223,8 @@ class Pipeline:
         try:
             from datasets import load_dataset
             dataset = load_dataset(path, split=split)
-            self.builder.with_arrow_dataset(name, dataset.data.to_reader())
+            ipc_data = record_batches_to_ipc_bytes(dataset.to_reader())
+            self.builder.with_icp_dataset(name, ipc_data)
             return self
         except ModuleNotFoundError:
             package_installation_hint("datasets")
@@ -253,11 +235,16 @@ class Pipeline:
         try:
             from datasets.arrow_dataset import Dataset as ArrowDataset
             from pyarrow.lib import RecordBatchReader
+            import pyarrow.ipc as ipc
+
+            sink = io.BytesIO()
 
             if type(dataset) is ArrowDataset:
-                self.builder.with_arrow_dataset(name, dataset.data.to_reader())
+                ipc_data = record_batches_to_ipc_bytes(dataset.data.to_reader())
+                self.builder.with_ipc_dataset(name, ipc_data)
             elif type(dataset) is RecordBatchReader:
-                self.builder.with_arrow_dataset(name, dataset)
+                ipc_data = record_batches_to_ipc_bytes(dataset)
+                self.builder.with_ipc_dataset(name, ipc_data)
             else:
                 raise ValueError("Invalid dataset type")
 
@@ -383,25 +370,6 @@ class PipelineRunner:
         self.builder = builder
         self.step_index = 0
 
-    def __then(self, step: Step):
-        if step.__class__ == Step.Py:
-            self.builder.add_py_step(step.name, PyStepWrapper(step.py_func))
-        elif step.__class__ == Step.TextGeneration:
-            self.builder.add_text_generation_step(step.name, step.template, step.llm, step.output, step.system_template)
-        elif step.__class__ == Step.JsonGeneration:
-            self.builder.add_json_generation_step(step.name, step.template, step.llm, step.output, step.json_path, step.system_template)
-        elif step.__class__ == Step.DataSampler:
-            self.builder.add_data_sampler_step(step.name, step.dataset, step.size)
-        elif step.__class__ == Step.Judge:
-            self.builder.add_judge_step(step.name, step.template, step.llm)
-        elif step.__class__ == Step.PyValidator:
-            self.builder.add_py_validator_step(step.name, PyStepValidatorWrapper(step.py_func))
-        else:
-            raise ValueError("Invalid Step type")
-        
-        self.step_index += 1
-        return self
-    
     def __name(self, name: str):
         return f"{name}--{self.step_index}"
 
