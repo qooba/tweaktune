@@ -156,29 +156,29 @@ class Pipeline:
     def with_tools_dataset(self, name: str, tools: List[callable]):
         """Converts a list of functions to json schema and adds them to the pipeline."""
         json_list = [function_to_json_schema(tool) for tool in tools]
-        self.builder.with_json_list_dataset(name, json_list)
+        self.builder.with_json_list_dataset(name, json_list, None)
         return self
     
     def with_pydantic_models_dataset(self, name: str, models: List[BaseModel]):
         """Converts a list of Pydantic models to json schema and adds them to the pipeline."""
         json_list = [pydantic_to_json_schema(model) for model in models]
-        self.builder.with_json_list_dataset(name, json_list)
+        self.builder.with_json_list_dataset(name, json_list, None)
         return self
     
-    def with_dicts_dataset(self, name: str, dicts: List[dict]):
+    def with_dicts_dataset(self, name: str, dicts: List[dict], sql: str = None):
         """Converts a list of dictionaries to json schema and adds them to the pipeline."""
         json_list = [json.dumps(d) for d in dicts]
-        self.builder.with_json_list_dataset(name, json_list)
+        self.builder.with_json_list_dataset(name, json_list, sql)
         return self
 
-    def with_jsonl_dataset(self, name: str, path: str):
+    def with_jsonl_dataset(self, name: str, path: str, sql: str = None):
         """Adds a jsonl dataset to the pipeline."""
-        self.builder.with_jsonl_dataset(name, path)
+        self.builder.with_jsonl_dataset(name, path, sql)
         return self
     
-    def with_json_dataset(self, name: str, path: str):
+    def with_json_dataset(self, name: str, path: str, sql: str = None):
         """Adds a json dataset to the pipeline."""
-        self.builder.with_json_dataset(name, path)
+        self.builder.with_json_dataset(name, path, sql)
         return self
 
     def with_mixed_dataset(self, name: str, datasets: List[str]):
@@ -191,14 +191,14 @@ class Pipeline:
         self.builder.with_polars_dataset(name, path, sql)
         return self
 
-    def with_parquet_dataset(self, name: str, path: str):
+    def with_parquet_dataset(self, name: str, path: str, sql: str = None):
         """Adds a parquet dataset to the pipeline."""
-        self.builder.with_parquet_dataset(name, path)
+        self.builder.with_parquet_dataset(name, path, sql)
         return self
     
-    def with_csv_dataset(self, name: str, path: str, delimiter: str, has_header: bool):
+    def with_csv_dataset(self, name: str, path: str, delimiter: str, has_header: bool, sql: str = None):
         """Adds a csv dataset to the pipeline."""
-        self.builder.with_csv_dataset(name, path, delimiter, has_header)
+        self.builder.with_csv_dataset(name, path, delimiter, has_header, sql)
         return self
 
     def with_db_dataset(self, name: str, conn: str, query: str):
@@ -219,18 +219,18 @@ class Pipeline:
             package_installation_hint("connectorx")
             raise
 
-    def with_hf_dataset(self, name: str, path: str, split = None):
+    def with_hf_dataset(self, name: str, path: str, split = None, sql: str = None):
         try:
             from datasets import load_dataset
             dataset = load_dataset(path, split=split)
             ipc_data = record_batches_to_ipc_bytes(dataset.to_reader())
-            self.builder.with_icp_dataset(name, ipc_data)
+            self.builder.with_icp_dataset(name, ipc_data, sql)
             return self
         except ModuleNotFoundError:
             package_installation_hint("datasets")
             raise
 
-    def with_arrow_dataset(self, name: str, dataset):
+    def with_arrow_dataset(self, name: str, dataset, sql: str = None):
         """Adds an arrow dataset to the pipeline."""
         try:
             from datasets.arrow_dataset import Dataset as ArrowDataset
@@ -241,10 +241,10 @@ class Pipeline:
 
             if type(dataset) is ArrowDataset:
                 ipc_data = record_batches_to_ipc_bytes(dataset.data.to_reader())
-                self.builder.with_ipc_dataset(name, ipc_data)
+                self.builder.with_ipc_dataset(name, ipc_data, sql)
             elif type(dataset) is RecordBatchReader:
                 ipc_data = record_batches_to_ipc_bytes(dataset)
-                self.builder.with_ipc_dataset(name, ipc_data)
+                self.builder.with_ipc_dataset(name, ipc_data, sql)
             else:
                 raise ValueError("Invalid dataset type")
 

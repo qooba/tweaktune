@@ -74,19 +74,26 @@ impl PipelineBuilder {
         );
     }
 
-    pub fn with_json_list_dataset(&mut self, name: String, json_list: Vec<String>) {
+    #[pyo3(signature = (name, json_list, sql=None))]
+    pub fn with_json_list_dataset(
+        &mut self,
+        name: String,
+        json_list: Vec<String>,
+        sql: Option<String>,
+    ) {
         debug!("Added JSON_LIST dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::JsonList(JsonListDataset::new(name, json_list).unwrap()),
+            DatasetType::JsonList(JsonListDataset::new(name, json_list, sql).unwrap()),
         );
     }
 
-    pub fn with_jsonl_dataset(&mut self, name: String, path: String) {
+    #[pyo3(signature = (name, path, sql=None))]
+    pub fn with_jsonl_dataset(&mut self, name: String, path: String, sql: Option<String>) {
         debug!("Added JSONL dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Jsonl(JsonlDataset::new(name, path, None).unwrap()),
+            DatasetType::Jsonl(JsonlDataset::new(name, path, sql).unwrap()),
         );
     }
 
@@ -98,11 +105,12 @@ impl PipelineBuilder {
         );
     }
 
-    pub fn with_json_dataset(&mut self, name: String, path: String) {
+    #[pyo3(signature = (name, path, sql=None))]
+    pub fn with_json_dataset(&mut self, name: String, path: String, sql: Option<String>) {
         debug!("Added JSON dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Json(JsonDataset::new(name, path).unwrap()),
+            DatasetType::Json(JsonDataset::new(name, path, sql).unwrap()),
         );
     }
 
@@ -116,35 +124,39 @@ impl PipelineBuilder {
         );
     }
 
-    pub fn with_parquet_dataset(&mut self, name: String, path: String) {
+    #[pyo3(signature = (name, path, sql=None))]
+    pub fn with_parquet_dataset(&mut self, name: String, path: String, sql: Option<String>) {
         debug!("Added Parquet dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Parquet(ParquetDataset::new(name, path, None).unwrap()),
+            DatasetType::Parquet(ParquetDataset::new(name, path, sql).unwrap()),
         );
     }
 
-    pub fn with_ipc_dataset(&mut self, name: String, ipc_data: &[u8]) {
+    #[pyo3(signature = (name, ipc_data, sql=None))]
+    pub fn with_ipc_dataset(&mut self, name: String, ipc_data: &[u8], sql: Option<String>) {
         debug!("Added Ipc dataset: {}", &name);
 
         self.datasets.add(
             name.clone(),
-            DatasetType::Ipc(IpcDataset::new(name, ipc_data)),
+            DatasetType::Ipc(IpcDataset::new(name, ipc_data, sql).unwrap()),
         );
     }
 
+    #[pyo3(signature = (name, path, delimiter, has_header, sql=None))]
     pub fn with_csv_dataset(
         &mut self,
         name: String,
         path: String,
         delimiter: String,
         has_header: bool,
+        sql: Option<String>,
     ) {
         debug!("Added CSV dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Csv(
-                CsvDataset::new(name, path, delimiter.as_bytes()[0], has_header, None).unwrap(),
+                CsvDataset::new(name, path, delimiter.as_bytes()[0], has_header, sql).unwrap(),
             ),
         );
     }

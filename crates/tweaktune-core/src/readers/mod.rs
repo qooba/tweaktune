@@ -1,10 +1,9 @@
 use anyhow::Result;
-use opendal::services::Fs;
+use opendal::services::{AzblobConfig, FsConfig, GcsConfig, HttpConfig, S3Config};
 use opendal::Operator;
 use opendal::StdReader;
+use serde::Deserialize;
 use std::path::Path;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio_util::io::StreamReader;
 
 pub struct OpReader {
     pub inner: StdReader,
@@ -20,14 +19,32 @@ impl OpReader {
     }
 }
 
-pub fn read_file_with_opendal(path: &str) -> Result<OpReader> {
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+#[allow(clippy::large_enum_variant)]
+pub enum OpConfig {
+    Fs(FsConfig),
+    S3(S3Config),
+    Gcs(GcsConfig),
+    Azblob(AzblobConfig),
+    Http(HttpConfig),
+}
+
+pub fn build_reader(path: &str) -> Result<OpReader> {
     let p = Path::new(path);
     let dir = p.parent().unwrap().to_str().unwrap();
     let file_name = p.file_name().unwrap().to_str().unwrap();
 
-    let builder = Fs::default().root(dir);
-
-    let operator: Operator = Operator::new(builder)?.finish();
+    // let builder = Fs::default().root(dir);
+    let json_config = format!("{{\"type\":\"Fs\", \"root\": \"{}\"}}", dir);
+    let op_config: OpConfig = serde_json::from_str(&json_config)?;
+    let operator = match op_config {
+        OpConfig::Fs(config) => Operator::from_config(config)?.finish(),
+        OpConfig::S3(config) => Operator::from_config(config)?.finish(),
+        OpConfig::Gcs(config) => Operator::from_config(config)?.finish(),
+        OpConfig::Azblob(config) => Operator::from_config(config)?.finish(),
+        OpConfig::Http(config) => Operator::from_config(config)?.finish(),
+    };
 
     let op = operator.blocking();
     // let content_length = op.stat(file_name)?.content_length();
@@ -36,34 +53,4 @@ pub fn read_file_with_opendal(path: &str) -> Result<OpReader> {
         inner: reader,
         // content_length,
     })
-}
-
-pub struct JsonlReader {
-    pub path: String,
-}
-
-impl JsonlReader {
-    pub async fn load(&self) -> Result<Vec<String>> {
-        let path = Path::new(&self.path);
-        let dir = path.parent().unwrap().to_str().unwrap();
-        let file = path.file_name().unwrap().to_str().unwrap();
-
-        let builder = Fs::default().root(dir);
-        let op: Operator = Operator::new(builder)?.finish();
-        let reader = op.reader(file).await?;
-
-        let bytes_stream = reader.into_bytes_stream(..).await?;
-        let stream_reader = StreamReader::new(bytes_stream);
-        let mut buf_reader = BufReader::new(stream_reader);
-
-        let mut line = String::new();
-
-        let mut lines = Vec::new();
-        while buf_reader.read_line(&mut line).await? != 0 {
-            lines.push(line.trim_end().to_string());
-            line.clear();
-        }
-
-        Ok(lines)
-    }
 }

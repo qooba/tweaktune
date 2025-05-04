@@ -8,10 +8,7 @@ use anyhow::Result;
 // use arrow::record_batch::RecordBatch;
 use minijinja::Environment;
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
 use std::collections::HashMap;
-use std::io::Cursor;
-use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tweaktune_core::llms::{OpenAILLM, LLM};
 
