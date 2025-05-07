@@ -34,6 +34,7 @@ pub fn build_reader(path: &str, op_config: Option<String>) -> Result<OpReader> {
     let p = Path::new(path);
     let dir = p.parent().unwrap().to_str().unwrap();
     let file_name = p.file_name().unwrap().to_str().unwrap();
+    // TODO: implement the other operators
     // let builder = Fs::default().root(dir);
     // let json_config = format!("{{\"type\":\"Fs\", \"root\": \"{}\"}}", dir);
     let operator = match op_config {

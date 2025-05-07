@@ -1,5 +1,5 @@
 use crate::common::ResultExt;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::debug;
@@ -398,7 +398,7 @@ impl PipelineBuilder {
                      bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",)
                     .unwrap().progress_chars("#>-"));
 
-                    stream::iter((*start..*stop).step_by(*step).map(|i| {
+                    let iter_results = stream::iter((*start..*stop).step_by(*step).map(|i| {
                         let bar = &bar;
                         if !running.load(std::sync::atomic::Ordering::SeqCst) {
                             bar.finish_with_message("Interrupted");
@@ -410,13 +410,22 @@ impl PipelineBuilder {
                             let mut context = StepContext::new();
                             context.set("index", i);
                             context.set_status(StepStatus::Running);
-                            process_steps(self, context).await.unwrap();
+                            if let Err(e) = process_steps(self, context).await {
+                                return Err(format!("Error processing step: {} - {}", i ,e));
+                            }
                             bar.inc(1);
+                            Ok(())
                         }
                     }))
                     .buffered(self.workers)
                     .collect::<Vec<_>>()
                     .await;
+
+                    for result in iter_results {
+                        if let Err(e) = result {
+                            bail!(e)
+                        }
+                    }
                 }
                 IterBy::Dataset { name } => {
                     debug!("Iterating by dataset: {}", name);
@@ -427,85 +436,175 @@ impl PipelineBuilder {
                     let dataset = self.datasets.get(name).ok_or_err(name)?;
                     match dataset {
                         DatasetType::Jsonl(dataset) => {
-                            stream::iter(dataset.stream()?.map(|json_row|{
+                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
                                 process_progress_bar(bar, &running);
                                 async move {
-                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
+                                        return Err(format!("Error processing step: {} - {}", name ,e));
+                                    }
                                     bar.inc(1);
-                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
+                                    Ok(())
+                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
+                    
+                            for result in iter_results {
+                                if let Err(e) = result {
+                                    bail!(e)
+                                }
+                            }
+                        }
 
                         DatasetType::Json(dataset) => {
-                            stream::iter(dataset.stream()?.map(|json_row|{
+                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
                                 process_progress_bar(bar, &running);
                                 async move {
-                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
+                                        return Err(format!("Error processing step: {} - {}", name ,e));
+                                    }
                                     bar.inc(1);
-                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
+                                    Ok(())
+                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
+                    
+                            for result in iter_results {
+                                if let Err(e) = result {
+                                    bail!(e)
+                                }
+                            }
+                        },
 
                         DatasetType::JsonList(dataset) => {
-                            stream::iter(dataset.stream()?.map(|json_row|{
+                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
                                 process_progress_bar(bar, &running);
                                 async move {
-                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
+                                        return Err(format!("Error processing step: {} - {}", name ,e));
+                                    }
                                     bar.inc(1);
-                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
+                                    Ok(())
+                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
+                    
+                            for result in iter_results {
+                                if let Err(e) = result {
+                                    bail!(e)
+                                }
+                            }
+                        },
 
                         DatasetType::OpenApi(dataset) => {
-                            stream::iter(dataset.stream()?.map(|json_row|{
+                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
                                 process_progress_bar(bar, &running);
                                 async move {
-                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
+                                        return Err(format!("Error processing step: {} - {}", name ,e));
+                                    }
                                     bar.inc(1);
-                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
+                                    Ok(())
+                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
+                    
+                             for result in iter_results {
+                                if let Err(e) = result {
+                                    bail!(e)
+                                }
+                            }
+                        },
 
                         DatasetType::Polars(dataset) => {
-                            stream::iter(dataset.stream()?.map(|json_row|{
+                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
                                 process_progress_bar(bar, &running);
                                 async move {
-                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
+                                        return Err(format!("Error processing step: {} - {}", name ,e));
+                                    }
                                     bar.inc(1);
-                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
+                                    Ok(())
+                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
+                    
+                            for result in iter_results {
+                                if let Err(e) = result {
+                                    bail!(e)
+                                }
+                            }
+                        },
 
                         DatasetType::Ipc(dataset) => {
-                            stream::iter(dataset.stream()?.map(|json_row|{
+                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
                                 process_progress_bar(bar, &running);
                                 async move {
-                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
+                                        return Err(format!("Error processing step: {} - {}", name ,e));
+                                    }
                                     bar.inc(1);
-                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
+                                    Ok(())
+                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
+
+                            for result in iter_results {
+                                if let Err(e) = result {
+                                    bail!(e)
+                                }
+                            }
+                        },
 
                         DatasetType::Csv(dataset) => {
-                            stream::iter(dataset.stream()?.map(|json_row|{
+                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
                                 process_progress_bar(bar, &running);
                                 async move {
-                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
+                                        return Err(format!("Error processing step: {} - {}", name ,e));
+                                    }
                                     bar.inc(1);
-                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
+                                    Ok(())
+                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
+
+                            for result in iter_results {
+                                if let Err(e) = result {
+                                    bail!(e)
+                                }
+                            }
+                        },
 
                         DatasetType::Parquet(dataset) => {
-                            stream::iter(dataset.stream()?.map(|json_row|{
+                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
                                 process_progress_bar(bar, &running);
                                 async move {
-                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
+                                        return Err(format!("Error processing step: {} - {}", name ,e));
+                                    }
                                     bar.inc(1);
-                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;},
+                                    Ok(())
+                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
+
+                            for result in iter_results {
+                                if let Err(e) = result {
+                                    bail!(e)
+                                }
+                            }
+                        },
 
                         DatasetType::Mixed(dataset) => {
-                            stream::iter(dataset.stream_mix(&self.datasets.resources)?.map(|json_row|{
+                            let iter_results = stream::iter(dataset.stream_mix(&self.datasets.resources)?.map(|json_row|{
                                 let bar= &bar;
                                 process_progress_bar(bar, &running);
                                 async move {
-                                    map_record_batches(self,name, &json_row.unwrap()).await.unwrap();
+                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
+                                        return Err(format!("Error processing step: {} - {}", name ,e));
+                                    }
                                     bar.inc(1);
-                        }},)).buffered(self.workers).collect:: <Vec<_> >().await;}
+                                    Ok(())
+                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
+
+                            for result in iter_results {
+                                if let Err(e) = result {
+                                    bail!(e)
+                                }
+                            }
+                    }
 
                     }
                 }
