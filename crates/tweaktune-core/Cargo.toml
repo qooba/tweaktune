@@ -21,6 +21,7 @@ once_cell = { workspace = true }
 opendal = { workspace = true }
 pyo3 = { workspace = true}
 polars = { workspace = true }
+polars-arrow = { workspace = true }
 polars-plan = { workspace = true }
 polars-utils = { workspace = true }
 rand = { workspace = true }

@@ -285,3 +285,28 @@ def test_read_openapi(request, output_dir):
     assert len(lines) == number
 
 
+def test_read_jsonl(request, data_dir, output_dir):
+    number = 5
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    functions_micro_file = f"{data_dir}/functions_micro.json"
+    with open(functions_micro_file, "w") as f:
+        f.write('{"name": "function1", "description": "This is function.", "parameters": {"type": "object", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}}, "required": ["x", "y"]}}\n')
+        f.write('{"name": "function2", "description": "This is function.", "parameters": {"type": "object", "properties": {"a": {"type": "string"}, "b": {"type": "boolean"}}, "required": ["a"]}}\n')
+
+    Pipeline()\
+        .with_workers(1)\
+        .with_jsonl_dataset("functions", functions_micro_file)\
+        .with_template("output", """{"description": {{functions[0].description|jstr}}, "functions": {{functions|jstr}} }""")\
+    .iter_range(number)\
+        .sample(dataset="functions", size=1, output="functions")\
+        .write_jsonl(path=output_file, template="output")\
+    .run()
+
+    lines = open(output_file, "r").readlines()
+    print(lines)
+    line = json.loads(lines[0])
+    assert "description" in line
+    assert line["description"] == "This is function."
+    assert len(lines) == number
+    

@@ -4216,6 +4216,7 @@ dependencies = [
  "once_cell",
  "opendal",
  "polars",
+ "polars-arrow",
  "polars-plan",
  "polars-utils",
  "pyo3",

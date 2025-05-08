@@ -79,6 +79,7 @@ opendal = { version="0.53.1", features=["services-fs", "services-s3", "services-
 openidconnect = { version="4.0.0", features=["reqwest"] }
 pyo3 = { version = "0.24.2", features = ["extension-module", "abi3", "abi3-py38", "anyhow", "auto-initialize"] }
 polars = { version ="0.46.0", features = ["lazy", "sql", "csv", "json", "parquet", "serde", "ipc", "ipc_streaming"] }
+polars-arrow = { version ="0.46.0" }
 polars-plan = { version ="0.46.0" }
 polars-utils = { version ="0.46.0" }
 rand = "0.9.1"
