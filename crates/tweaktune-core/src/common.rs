@@ -1,8 +1,7 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
 use once_cell::sync::OnceCell;
-use polars::frame::DataFrame;
-use polars::prelude::AnyValue;
+use polars::prelude::*;
 use rand::distr::Alphanumeric;
 use rand::{Rng, RngCore};
 use regex::Regex;
@@ -536,7 +535,12 @@ fn map_struct_to_value(
                     // Convert ArrowField to polars Field
                     let fields: Vec<polars::prelude::Field> = f
                         .iter()
-                        .map(|af| polars::prelude::Field::new(af.name, af.dtype.clone()))
+                        .map(|af| {
+                            polars::prelude::Field::new(
+                                af.name.clone(),
+                                arrow_data_type_to_polars_data_type(&af.dtype),
+                            )
+                        })
                         .collect();
                     let _struct_obj = map_struct_to_value(v, &fields);
                 }
@@ -544,6 +548,12 @@ fn map_struct_to_value(
             }
         });
     Value::Object(obj)
+}
+
+fn arrow_data_type_to_polars_data_type(
+    arrow_data_type: &polars_arrow::datatypes::ArrowDataType,
+) -> polars::prelude::DataType {
+    polars::prelude::DataType::from_arrow(arrow_data_type, false, None)
 }
 
 #[cfg(test)]
