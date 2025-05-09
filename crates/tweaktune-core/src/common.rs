@@ -382,7 +382,6 @@ pub fn anyvalue_to_json(val: &AnyValue) -> Value {
             Value::Array(list)
         }
         AnyValue::Struct(_, struct_array, fields) => map_struct_to_value(struct_array, fields),
-        AnyValue::StructOwned(_) => todo!(),
         AnyValue::StringOwned(pl_small_str) => Value::from(pl_small_str.to_string()),
         AnyValue::Binary(items) => {
             let list = items.iter().map(|v| Value::from(*v)).collect::<Vec<_>>();
@@ -392,6 +391,7 @@ pub fn anyvalue_to_json(val: &AnyValue) -> Value {
             let list = items.iter().map(|v| Value::from(*v)).collect::<Vec<_>>();
             Value::Array(list)
         }
+        _ => Value::String(val.to_string()),
     }
 }
 
@@ -415,7 +415,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::Bool(x.unwrap_or(false)))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::Int64 => {
                     let v = v
@@ -425,7 +427,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::from(*x.unwrap_or(&0)))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::UInt64 => {
                     let v = v
@@ -435,7 +439,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::from(*x.unwrap_or(&0)))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::Float64 => {
                     let v = v
@@ -445,7 +451,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::from(*x.unwrap_or(&0.0)))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::Utf8 => {
                     let v = v
@@ -455,7 +463,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::from(x.unwrap_or("")))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::Int8 => {
                     let v = v
@@ -465,7 +475,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::from(*x.unwrap_or(&0)))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::Int16 => {
                     let v = v
@@ -475,7 +487,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::from(*x.unwrap_or(&0)))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::Int32 => {
                     let v = v
@@ -485,7 +499,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::from(*x.unwrap_or(&0)))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::UInt8 => {
                     let v = v
@@ -495,7 +511,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::from(*x.unwrap_or(&0)))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::UInt16 => {
                     let v = v
@@ -505,7 +523,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::from(*x.unwrap_or(&0)))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::UInt32 => {
                     let v = v
@@ -515,7 +535,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::from(*x.unwrap_or(&0)))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::Float32 => {
                     let v = v
@@ -525,7 +547,9 @@ fn map_struct_to_value(
                         .iter()
                         .map(|x| Value::from(*x.unwrap_or(&0.0)))
                         .collect::<Vec<_>>();
-                    obj.insert(field_name.to_string(), Value::Array(v));
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
                 }
                 polars_arrow::datatypes::ArrowDataType::Struct(f) => {
                     let v = v
