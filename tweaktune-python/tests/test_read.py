@@ -291,7 +291,7 @@ def test_read_jsonl(request, data_dir, output_dir):
 
     functions_micro_file = f"{data_dir}/functions_micro.json"
     with open(functions_micro_file, "w") as f:
-        f.write('{"name": "function1", "test_bool": true, "test_int": 1, "test_float": 0.1, "description": "This is function.", "parameters": {"type": "object", "p_bool": true, "p_int": 1, "p_float": 0.1, "properties": {"x": {"type": "integer", "v_int": 1, "v_float": 0.7, "v_bool": true}, "y": {"type": "integer"}}, "required": ["x", "y"]}}\n')
+        f.write('{"name": "function1", "test_bool": true, "test_int": 1, "test_float": 0.1, "description": "This is function.", "parameters": {"type": "object", "p_bool": true, "p_int": 1, "p_float": 0.1, "properties": {"x": {"type": "integer", "v_int": 1, "v_float": 0.7, "v_bool": true}, "y": {"type": "integer"}}, "required": ["x", "y"], "arr_int": [1,2,3], "arr_float": [0.1,0.2,0.3], "arr_bool": [true, false, true]}}\n')
 
     Pipeline()\
         .with_workers(1)\
@@ -336,5 +336,11 @@ def test_read_jsonl(request, data_dir, output_dir):
     assert line["functions"][0]["parameters"]["properties"]["y"]["type"] == "integer"
     assert "required" in line["functions"][0]["parameters"]
     assert line["functions"][0]["parameters"]["required"] == ["x", "y"]
+    assert "arr_int" in line["functions"][0]["parameters"]
+    assert line["functions"][0]["parameters"]["arr_int"] == [1,2,3]
+    assert "arr_float" in line["functions"][0]["parameters"]
+    assert line["functions"][0]["parameters"]["arr_float"] == [0.1,0.2,0.3]
+    assert "arr_bool" in line["functions"][0]["parameters"]
+    assert line["functions"][0]["parameters"]["arr_bool"] == [True, False, True]
     assert len(lines) == number
     
