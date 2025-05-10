@@ -407,8 +407,6 @@ fn map_struct_to_value(
         .zip((*fields).iter())
         .for_each(|(v, f)| {
             let field_name = f.name();
-            println!("FIELD NAME: {:?}", field_name);
-            println!("FIELD TYPE: {:?}", f.dtype());
             match v.dtype() {
                 ArrowDataType::Boolean => {
                     let v = v
@@ -422,10 +420,94 @@ fn map_struct_to_value(
                     let v = v[0].to_owned();
                     obj.insert(field_name.to_string(), v);
                 }
+                ArrowDataType::Int8 => {
+                    let v = v
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Int8Array>()
+                        .unwrap()
+                        .iter()
+                        .map(|x| Value::from(*x.unwrap_or(&0)))
+                        .collect::<Vec<_>>();
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
+                }
+                ArrowDataType::Int16 => {
+                    let v = v
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Int16Array>()
+                        .unwrap()
+                        .iter()
+                        .map(|x| Value::from(*x.unwrap_or(&0)))
+                        .collect::<Vec<_>>();
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
+                }
+                ArrowDataType::Int32 => {
+                    let v = v
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Int32Array>()
+                        .unwrap()
+                        .iter()
+                        .map(|x| Value::from(*x.unwrap_or(&0)))
+                        .collect::<Vec<_>>();
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
+                }
                 ArrowDataType::Int64 => {
                     let v = v
                         .as_any()
                         .downcast_ref::<polars_arrow::array::Int64Array>()
+                        .unwrap()
+                        .iter()
+                        .map(|x| Value::from(*x.unwrap_or(&0)))
+                        .collect::<Vec<_>>();
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
+                }
+                ArrowDataType::Int128 => {
+                    let v = v
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Int128Array>()
+                        .unwrap()
+                        .iter()
+                        .map(|x| Value::from(*x.unwrap_or(&0) as i64))
+                        .collect::<Vec<_>>();
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
+                }
+                ArrowDataType::UInt8 => {
+                    let v = v
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::UInt8Array>()
+                        .unwrap()
+                        .iter()
+                        .map(|x| Value::from(*x.unwrap_or(&0)))
+                        .collect::<Vec<_>>();
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
+                }
+                ArrowDataType::UInt16 => {
+                    let v = v
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::UInt16Array>()
+                        .unwrap()
+                        .iter()
+                        .map(|x| Value::from(*x.unwrap_or(&0)))
+                        .collect::<Vec<_>>();
+
+                    let v = v[0].to_owned();
+                    obj.insert(field_name.to_string(), v);
+                }
+                ArrowDataType::UInt32 => {
+                    let v = v
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::UInt32Array>()
                         .unwrap()
                         .iter()
                         .map(|x| Value::from(*x.unwrap_or(&0)))
@@ -498,90 +580,6 @@ fn map_struct_to_value(
                     let v = v[0].to_owned();
                     obj.insert(field_name.to_string(), v);
                 }
-                ArrowDataType::Int8 => {
-                    let v = v
-                        .as_any()
-                        .downcast_ref::<polars_arrow::array::Int8Array>()
-                        .unwrap()
-                        .iter()
-                        .map(|x| Value::from(*x.unwrap_or(&0)))
-                        .collect::<Vec<_>>();
-
-                    let v = v[0].to_owned();
-                    obj.insert(field_name.to_string(), v);
-                }
-                ArrowDataType::Int16 => {
-                    let v = v
-                        .as_any()
-                        .downcast_ref::<polars_arrow::array::Int16Array>()
-                        .unwrap()
-                        .iter()
-                        .map(|x| Value::from(*x.unwrap_or(&0)))
-                        .collect::<Vec<_>>();
-
-                    let v = v[0].to_owned();
-                    obj.insert(field_name.to_string(), v);
-                }
-                ArrowDataType::Int32 => {
-                    let v = v
-                        .as_any()
-                        .downcast_ref::<polars_arrow::array::Int32Array>()
-                        .unwrap()
-                        .iter()
-                        .map(|x| Value::from(*x.unwrap_or(&0)))
-                        .collect::<Vec<_>>();
-
-                    let v = v[0].to_owned();
-                    obj.insert(field_name.to_string(), v);
-                }
-                ArrowDataType::Int128 => {
-                    let v = v
-                        .as_any()
-                        .downcast_ref::<polars_arrow::array::Int128Array>()
-                        .unwrap()
-                        .iter()
-                        .map(|x| Value::from(*x.unwrap_or(&0) as i64))
-                        .collect::<Vec<_>>();
-
-                    let v = v[0].to_owned();
-                    obj.insert(field_name.to_string(), v);
-                }
-                ArrowDataType::UInt8 => {
-                    let v = v
-                        .as_any()
-                        .downcast_ref::<polars_arrow::array::UInt8Array>()
-                        .unwrap()
-                        .iter()
-                        .map(|x| Value::from(*x.unwrap_or(&0)))
-                        .collect::<Vec<_>>();
-
-                    let v = v[0].to_owned();
-                    obj.insert(field_name.to_string(), v);
-                }
-                ArrowDataType::UInt16 => {
-                    let v = v
-                        .as_any()
-                        .downcast_ref::<polars_arrow::array::UInt16Array>()
-                        .unwrap()
-                        .iter()
-                        .map(|x| Value::from(*x.unwrap_or(&0)))
-                        .collect::<Vec<_>>();
-
-                    let v = v[0].to_owned();
-                    obj.insert(field_name.to_string(), v);
-                }
-                ArrowDataType::UInt32 => {
-                    let v = v
-                        .as_any()
-                        .downcast_ref::<polars_arrow::array::UInt32Array>()
-                        .unwrap()
-                        .iter()
-                        .map(|x| Value::from(*x.unwrap_or(&0)))
-                        .collect::<Vec<_>>();
-
-                    let v = v[0].to_owned();
-                    obj.insert(field_name.to_string(), v);
-                }
                 ArrowDataType::Struct(f) => {
                     let v = v
                         .as_any()
@@ -600,7 +598,10 @@ fn map_struct_to_value(
                     let struct_obj = map_struct_to_value(v, &fields);
                     obj.insert(field_name.to_string(), struct_obj);
                 }
-                ArrowDataType::Timestamp(_time_unit, _pl_small_str) => todo!(),
+                ArrowDataType::Timestamp(_time_unit, _pl_small_str) => {
+                    println!("TIMESTAMP");
+                    todo!()
+                }
                 ArrowDataType::Date32 => {
                     println!("DATE32");
                     todo!()
@@ -687,107 +688,219 @@ fn map_struct_to_value(
 
 fn map_array_to_value(array: &ListArray<i64>, arrow_type: ArrowDataType) -> Value {
     match arrow_type {
+        ArrowDataType::Boolean => {
+            let v = array
+                .iter()
+                .map(|x| {
+                    let val = x.unwrap();
+                    let bool_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::BooleanArray>()
+                        .unwrap();
+
+                    bool_val.iter().map(|x| x.unwrap()).collect::<Vec<bool>>()
+                })
+                .collect::<Vec<_>>();
+            let v = &v[0];
+            Value::from(v.clone())
+        }
+        ArrowDataType::Int8 => {
+            let v = array
+                .iter()
+                .map(|x| {
+                    let val = x.unwrap();
+                    let int_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Int8Array>()
+                        .unwrap();
+
+                    int_val.iter().map(|x| *x.unwrap()).collect::<Vec<i8>>()
+                })
+                .collect::<Vec<_>>();
+            let v = &v[0];
+            Value::from(v.clone())
+        }
+        ArrowDataType::Int16 => {
+            let v = array
+                .iter()
+                .map(|x| {
+                    let val = x.unwrap();
+                    let int_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Int16Array>()
+                        .unwrap();
+
+                    int_val.iter().map(|x| *x.unwrap()).collect::<Vec<i16>>()
+                })
+                .collect::<Vec<_>>();
+            let v = &v[0];
+            Value::from(v.clone())
+        }
         ArrowDataType::Int32 => {
             let v = array
                 .iter()
-                .map(|x| match x {
-                    Some(val) => {
-                        let int_val = val
-                            .as_any()
-                            .downcast_ref::<polars_arrow::array::Int32Array>()
-                            .unwrap();
+                .map(|x| {
+                    let val = x.unwrap();
+                    let int_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Int32Array>()
+                        .unwrap();
 
-                        Value::from(int_val.value(0))
-                    }
-                    None => Value::Null,
+                    int_val.iter().map(|x| *x.unwrap()).collect::<Vec<i32>>()
                 })
                 .collect::<Vec<_>>();
-            Value::Array(v)
+            let v = &v[0];
+            Value::from(v.clone())
         }
         ArrowDataType::Int64 => {
             let v = array
                 .iter()
-                .map(|x| match x {
-                    Some(val) => {
-                        let int_val = val
-                            .as_any()
-                            .downcast_ref::<polars_arrow::array::Int64Array>()
-                            .unwrap();
+                .map(|x| {
+                    let val = x.unwrap();
+                    let int_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Int64Array>()
+                        .unwrap();
 
-                        Value::from(int_val.value(0))
-                    }
-                    None => Value::Null,
+                    int_val.iter().map(|x| *x.unwrap()).collect::<Vec<i64>>()
                 })
                 .collect::<Vec<_>>();
-            Value::Array(v)
+            let v = &v[0];
+            Value::from(v.clone())
+        }
+        ArrowDataType::UInt16 => {
+            let v = array
+                .iter()
+                .map(|x| {
+                    let val = x.unwrap();
+                    let int_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::UInt16Array>()
+                        .unwrap();
+
+                    int_val.iter().map(|x| *x.unwrap()).collect::<Vec<u16>>()
+                })
+                .collect::<Vec<_>>();
+            let v = &v[0];
+            Value::from(v.clone())
+        }
+        ArrowDataType::UInt32 => {
+            let v = array
+                .iter()
+                .map(|x| {
+                    let val = x.unwrap();
+                    let int_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::UInt32Array>()
+                        .unwrap();
+
+                    int_val.iter().map(|x| *x.unwrap()).collect::<Vec<u32>>()
+                })
+                .collect::<Vec<_>>();
+            let v = &v[0];
+            Value::from(v.clone())
+        }
+        ArrowDataType::UInt64 => {
+            let v = array
+                .iter()
+                .map(|x| {
+                    let val = x.unwrap();
+                    let int_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::UInt64Array>()
+                        .unwrap();
+
+                    int_val.iter().map(|x| *x.unwrap()).collect::<Vec<u64>>()
+                })
+                .collect::<Vec<_>>();
+            let v = &v[0];
+            Value::from(v.clone())
+        }
+        ArrowDataType::Float16 => {
+            let v = array
+                .iter()
+                .map(|x| {
+                    let val = x.unwrap();
+                    let float_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Float32Array>()
+                        .unwrap();
+
+                    float_val.iter().map(|x| *x.unwrap()).collect::<Vec<f32>>()
+                })
+                .collect::<Vec<_>>();
+            let v = &v[0];
+            Value::from(v.clone())
         }
         ArrowDataType::Float32 => {
             let v = array
                 .iter()
-                .map(|x| match x {
-                    Some(val) => {
-                        let float_val = val
-                            .as_any()
-                            .downcast_ref::<polars_arrow::array::Float32Array>()
-                            .unwrap();
+                .map(|x| {
+                    let val = x.unwrap();
+                    let float_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Float32Array>()
+                        .unwrap();
 
-                        Value::from(float_val.value(0))
-                    }
-                    None => Value::Null,
+                    float_val.iter().map(|x| *x.unwrap()).collect::<Vec<f32>>()
                 })
                 .collect::<Vec<_>>();
-            Value::Array(v)
+            let v = &v[0];
+            Value::from(v.clone())
         }
         ArrowDataType::Float64 => {
             let v = array
                 .iter()
-                .map(|x| match x {
-                    Some(val) => {
-                        let float_val = val
-                            .as_any()
-                            .downcast_ref::<polars_arrow::array::Float64Array>()
-                            .unwrap();
+                .map(|x| {
+                    let val = x.unwrap();
+                    let float_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Float64Array>()
+                        .unwrap();
 
-                        Value::from(float_val.value(0))
-                    }
-                    None => Value::Null,
+                    float_val.iter().map(|x| *x.unwrap()).collect::<Vec<f64>>()
                 })
                 .collect::<Vec<_>>();
-            Value::Array(v)
+            let v = &v[0];
+            Value::from(v.clone())
         }
         ArrowDataType::Utf8 | ArrowDataType::LargeUtf8 => {
             let v = array
                 .iter()
-                .map(|x| match x {
-                    Some(val) => {
-                        let utf8_val = val
-                            .as_any()
-                            .downcast_ref::<polars_arrow::array::Utf8Array<i64>>()
-                            .unwrap();
+                .map(|x| {
+                    let val = x.unwrap();
+                    let utf8_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Utf8Array<i64>>()
+                        .unwrap();
 
-                        Value::from(utf8_val.value(0))
-                    }
-                    None => Value::Null,
+                    utf8_val
+                        .iter()
+                        .map(|x| x.unwrap().to_string())
+                        .collect::<Vec<String>>()
                 })
                 .collect::<Vec<_>>();
-            Value::Array(v)
+            let v = &v[0];
+            Value::from(v.clone())
         }
         ArrowDataType::Utf8View => {
             let v = array
                 .iter()
-                .map(|x| match x {
-                    Some(val) => {
-                        let utf8_val = val
-                            .as_any()
-                            .downcast_ref::<polars_arrow::array::Utf8ViewArray>()
-                            .unwrap();
+                .map(|x| {
+                    let val = x.unwrap();
+                    let utf8_val = val
+                        .as_any()
+                        .downcast_ref::<polars_arrow::array::Utf8ViewArray>()
+                        .unwrap();
 
-                        Value::from(utf8_val.value(0))
-                    }
-                    None => Value::Null,
+                    utf8_val
+                        .iter()
+                        .map(|x| x.unwrap().to_string())
+                        .collect::<Vec<String>>()
                 })
                 .collect::<Vec<_>>();
-            Value::Array(v)
+            let v = &v[0];
+            Value::from(v.clone())
         }
         _ => {
             println!("Unsupported ArrowDataType: {:?}", arrow_type);
