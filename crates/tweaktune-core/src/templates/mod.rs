@@ -6,6 +6,7 @@ use minijinja::Environment;
 use rand::rng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
+use std::io::Cursor;
 use std::sync::{OnceLock, RwLock};
 
 static ENVIRONMENT: RwLock<OnceLock<Environment>> = RwLock::new(OnceLock::new());
@@ -46,6 +47,12 @@ impl Templates {
                     value
                 }
             }
+        });
+
+        e.add_filter("hash", |value: String| {
+            let mut cursor = Cursor::new(value);
+            let hash = murmur3::murmur3_32(&mut cursor, 0).unwrap();
+            format!("{:x}", hash)
         });
 
         for (k, v) in self.templates.clone() {
