@@ -5,6 +5,7 @@ use log::debug;
 use minijinja::Environment;
 use rand::rng;
 use rand::seq::SliceRandom;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::{OnceLock, RwLock};
@@ -32,7 +33,14 @@ impl Templates {
     pub fn compile(&self) -> Result<()> {
         let mut e = Environment::new();
         e.add_filter("jstr", |value: String| {
-            serde_json::to_string(&value).unwrap()
+            let val = serde_json::to_string(&value);
+            match val {
+                Ok(v) => v,
+                Err(_) => {
+                    log::debug!("Failed to convert to JSON string");
+                    value
+                }
+            }
         });
 
         e.add_filter("shuffle", |value: String| {
@@ -40,7 +48,14 @@ impl Templates {
                 Ok(arr) => {
                     let mut arr = arr;
                     arr.shuffle(&mut rng());
-                    serde_json::to_string(&arr).unwrap()
+                    let val = serde_json::to_string(&arr);
+                    match val {
+                        Ok(v) => v,
+                        Err(_) => {
+                            log::debug!("Failed to convert shuffled array to JSON string");
+                            value
+                        }
+                    }
                 }
                 Err(_) => {
                     log::debug!("Failed to shuffle array");
@@ -50,9 +65,32 @@ impl Templates {
         });
 
         e.add_filter("hash", |value: String| {
-            let mut cursor = Cursor::new(value);
-            let hash = murmur3::murmur3_32(&mut cursor, 0).unwrap();
-            format!("{:x}", hash)
+            let mut cursor = Cursor::new(value.clone());
+            let hash = murmur3::murmur3_32(&mut cursor, 0);
+            match hash {
+                Ok(hash) => format!("{:x}", hash),
+                Err(_) => {
+                    log::debug!("Failed to hash value");
+                    value
+                }
+            }
+        });
+
+        e.add_filter("deserialize", |value: String| {
+            let val: serde_json::error::Result<Value> = serde_json::from_str(&value);
+            match val {
+                Ok(v) => serde_json::to_string(&v).unwrap(),
+                Err(_) => {
+                    log::debug!("Failed to deserialize JSON");
+                    value
+                }
+            }
+        });
+
+        e.add_filter("dict2items", |value: String| {
+            let items: HashMap<String, Value> = serde_json::from_str(&value).unwrap();
+            let items: Vec<(String, Value)> = items.into_iter().collect();
+            serde_json::to_string(&items).unwrap()
         });
 
         for (k, v) in self.templates.clone() {

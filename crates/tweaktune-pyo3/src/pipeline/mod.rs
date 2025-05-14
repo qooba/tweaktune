@@ -66,12 +66,13 @@ impl PipelineBuilder {
         debug!("Setting workers to {}", workers);
     }
 
-    pub fn with_openapi_dataset(&mut self, name: String, path_or_url: String) {
+    pub fn with_openapi_dataset(&mut self, name: String, path_or_url: String) -> PyResult<()> {
         debug!("Added OPEN_API dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::OpenApi(OpenApiDataset::new(name, path_or_url).unwrap()),
+            DatasetType::OpenApi(OpenApiDataset::new(name, path_or_url)?),
         );
+        Ok(())
     }
 
     #[pyo3(signature = (name, json_list, sql=None))]
@@ -80,67 +81,74 @@ impl PipelineBuilder {
         name: String,
         json_list: Vec<String>,
         sql: Option<String>,
-    ) {
+    ) -> PyResult<()> {
         debug!("Added JSON_LIST dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::JsonList(JsonListDataset::new(name, json_list, sql).unwrap()),
+            DatasetType::JsonList(JsonListDataset::new(name, json_list, sql)?),
         );
+        Ok(())
     }
 
     #[pyo3(signature = (name, path, sql=None))]
-    pub fn with_jsonl_dataset(&mut self, name: String, path: String, sql: Option<String>) {
+    pub fn with_jsonl_dataset(&mut self, name: String, path: String, sql: Option<String>) -> PyResult<()> {
         debug!("Added JSONL dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Jsonl(JsonlDataset::new(name, path, sql).unwrap()),
+            DatasetType::Jsonl(JsonlDataset::new(name, path, sql)?),
         );
+        Ok(())
     }
 
-    pub fn with_polars_dataset(&mut self, name: String, path: String, sql: String) {
+    pub fn with_polars_dataset(&mut self, name: String, path: String, sql: String) -> PyResult<()> {
         debug!("Added POLARS dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Polars(PolarsDataset::new(name, path, Some(sql)).unwrap()),
+            DatasetType::Polars(PolarsDataset::new(name, path, Some(sql))?),
         );
+        Ok(())
     }
 
     #[pyo3(signature = (name, path, sql=None))]
-    pub fn with_json_dataset(&mut self, name: String, path: String, sql: Option<String>) {
+    pub fn with_json_dataset(&mut self, name: String, path: String, sql: Option<String>) -> PyResult<()> {
         debug!("Added JSON dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Json(JsonDataset::new(name, path, sql).unwrap()),
+            DatasetType::Json(JsonDataset::new(name, path, sql)?),
         );
+        Ok(())
     }
 
-    pub fn with_mixed_dataset(&mut self, name: String, datasets: Vec<String>) {
+    pub fn with_mixed_dataset(&mut self, name: String, datasets: Vec<String>) -> PyResult<()> {
         debug!("Added MIXED dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Mixed(
-                MixedDataset::new(name, datasets, &self.datasets.resources).unwrap(),
+                MixedDataset::new(name, datasets, &self.datasets.resources)?,
             ),
         );
+        Ok(())
     }
 
     #[pyo3(signature = (name, path, sql=None))]
-    pub fn with_parquet_dataset(&mut self, name: String, path: String, sql: Option<String>) {
+    pub fn with_parquet_dataset(&mut self, name: String, path: String, sql: Option<String>) -> PyResult<()> {
         debug!("Added Parquet dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Parquet(ParquetDataset::new(name, path, sql).unwrap()),
+            DatasetType::Parquet(ParquetDataset::new(name, path, sql)?),
         );
+        Ok(())
     }
 
     #[pyo3(signature = (name, ipc_data, sql=None))]
-    pub fn with_ipc_dataset(&mut self, name: String, ipc_data: &[u8], sql: Option<String>) {
+    pub fn with_ipc_dataset(&mut self, name: String, ipc_data: &[u8], sql: Option<String>) -> PyResult<()> {
         debug!("Added Ipc dataset: {}", &name);
 
         self.datasets.add(
             name.clone(),
-            DatasetType::Ipc(IpcDataset::new(name, ipc_data, sql).unwrap()),
+            DatasetType::Ipc(IpcDataset::new(name, ipc_data, sql)?),
         );
+        Ok(())
     }
 
     #[pyo3(signature = (name, path, delimiter, has_header, sql=None))]
@@ -151,14 +159,15 @@ impl PipelineBuilder {
         delimiter: String,
         has_header: bool,
         sql: Option<String>,
-    ) {
+    ) -> PyResult<()> {
         debug!("Added CSV dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Csv(
-                CsvDataset::new(name, path, delimiter.as_bytes()[0], has_header, sql).unwrap(),
+                CsvDataset::new(name, path, delimiter.as_bytes()[0], has_header, sql)?,
             ),
         );
+        Ok(())
     }
 
     pub fn with_llm_api(
