@@ -366,7 +366,6 @@ class Pipeline:
 class PipelineRunner:
 
     def __init__(self, builder: PipelineBuilder):
-        builder.compile()
         self.builder = builder
         self.step_index = 0
 
@@ -418,6 +417,12 @@ class PipelineRunner:
         self.builder.add_render_step(self.__name(name), template, output)
         self.step_index += 1
         return self
+    
+    def validate_json(self, schema: str, instance: str, name: str = "VALIDATE-JSON"):
+        self.builder.add_validatejson_step(self.__name(name), schema, instance)
+        self.step_index += 1
+        return self
+
 
     def chunk(self, capacity: Tuple[int, int], input: str, output: str, name: str = "CHUNK"):
         self.builder.add_chunk_step(self.__name(name), capacity, input, output)
@@ -466,4 +471,5 @@ class PipelineRunner:
         return self
     
     def run(self):
+        self.builder.compile()
         return self.builder.run()

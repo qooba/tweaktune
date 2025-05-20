@@ -15,6 +15,7 @@ base64 = { workspace = true }
 bytes = { workspace = true }
 csv = { workspace = true }
 hf-hub = { workspace = true }
+jsonschema = { workspace = true}
 log = { workspace = true}
 minijinja = { workspace = true}
 once_cell = { workspace = true }

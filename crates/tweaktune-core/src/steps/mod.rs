@@ -10,7 +10,7 @@ use log::debug;
 use pyo3::prelude::*;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::io::Write;
 use std::{collections::HashMap, fs::File};
 use text_splitter::{Characters, TextSplitter};
@@ -84,6 +84,7 @@ pub enum StepType {
     DataSampler(DataSamplerStep),
     Chunk(ChunkStep),
     Render(RenderStep),
+    ValidateJson(ValidateJsonStep),
 }
 
 pub struct PyStep {
@@ -200,6 +201,70 @@ impl Step for RenderStep {
         let rendered = templates.render(self.template.clone(), context.data.clone())?;
         context.set(&self.output, rendered);
         Ok(context)
+    }
+}
+
+pub struct ValidateJsonStep {
+    pub name: String,
+    pub schema: String,
+    pub instance: String,
+}
+
+impl ValidateJsonStep {
+    pub fn new(name: String, schema: String, instance: String) -> Self {
+        Self {
+            name,
+            schema,
+            instance,
+        }
+    }
+}
+
+impl Step for ValidateJsonStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        let schema = templates.render(self.schema.clone(), context.data.clone())?;
+        let full_schema: Value = serde_json::from_str(&schema).unwrap();
+
+        let properties = if let Value::String(v) = full_schema["properties"].clone() {
+            serde_json::from_str(&v).unwrap()
+        } else {
+            full_schema["properties"].clone()
+        };
+
+        let schema_value = json!({
+            "type": "object",
+            "properties": properties,
+            "required": full_schema["required"],
+            "additionalProperties": false,
+        });
+
+        let instance_json = templates.render(self.instance.clone(), context.data.clone())?;
+        match serde_json::from_str(&instance_json) {
+            Ok(instance) => {
+                let is_valid = jsonschema::is_valid(&schema_value, &instance);
+
+                if !is_valid {
+                    debug!(target: "generate", "Failed to validate JSON: {} with schema {}", instance, schema_value);
+                    context.set_status(StepStatus::Failed);
+                }
+
+                Ok(context)
+            }
+            Err(e) => {
+                debug!(target: "generate", "Failed to render instance: {}", e);
+                context.set_status(StepStatus::Failed);
+                Ok(context)
+            }
+        }
     }
 }
 
@@ -663,9 +728,97 @@ impl Step for ChunkStep {
 
 #[cfg(test)]
 mod tests {
+    use polars::prelude::full;
 
     #[test]
     fn it_works() {
+        println!("hello");
+    }
+
+    #[test]
+    fn schema_validate() {
+        use serde_json::{json, Value};
+
+        let raw_schema = r#"{
+            "type": "object",
+            "properties": {
+                    "critic": {
+                        "description": "Nazwisko krytyka",
+                        "type": "string"
+                    },
+                    "title": {
+                        "description": "Tytuł filmu",
+                        "type": "string"
+                    }
+            }
+        }"#;
+
+        let instance_json = r#"{
+            "critic": "Jan Kowalski",
+            "title": "Incepcja"
+        }"#;
+
+        let full_schema: Value = serde_json::from_str(raw_schema).unwrap();
+        let instance: Value = serde_json::from_str(instance_json).unwrap();
+
+        assert!(jsonschema::is_valid(&full_schema, &instance));
+        println!("hello");
+    }
+
+    #[test]
+    fn schema_validate2() {
+        use serde_json::{json, Value};
+
+        let raw_schema = r#"{
+            "type": "object",
+            "properties": {
+                "color": {
+                    "description": "Typ kolorystyczny obrazów do wyszukania",
+                    "enum": [
+                        "color",
+                        "black-and-white"
+                    ],
+                    "type": "string"
+                },
+                "keywords": {
+                    "description": "Słowa kluczowe do wyszukiwania obrazów",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "license": {
+                    "description": "Typ licencji obrazów do wyszukania",
+                    "enum": [
+                        "public",
+                        "commercial",
+                        "any"
+                    ],
+                    "type": "string"
+                },
+                "size": {
+                    "description": "Rozmiar obrazów do wyszukania",
+                    "enum": [
+                        "small",
+                        "medium",
+                        "large"
+                    ],
+                    "type": "string"
+                }
+            }
+        }"#;
+
+        let instance_json = r#"{
+            "color": "black-and-white",
+            "keywords": ["cat", "dog"],
+            "license": "public",
+            "size": 1
+        }"#;
+
+        let full_schema: Value = serde_json::from_str(raw_schema).unwrap();
+        let instance: Value = serde_json::from_str(instance_json).unwrap();
+
+        assert!(jsonschema::is_valid(&full_schema, &instance));
         println!("hello");
     }
 }

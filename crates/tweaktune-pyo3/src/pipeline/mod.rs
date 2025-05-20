@@ -12,7 +12,7 @@ use tweaktune_core::datasets::{
     PolarsDataset,
 };
 use tweaktune_core::llms::UnslothLLM;
-use tweaktune_core::steps::{ChunkStep, RenderStep};
+use tweaktune_core::steps::{ChunkStep, RenderStep, ValidateJsonStep};
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
@@ -367,6 +367,18 @@ impl PipelineBuilder {
             .push(StepType::Render(RenderStep::new(name, template, output)));
     }
 
+    pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
+        debug!("Added render step");
+
+        let schema_key  = format!("validatejson_schema_{}_{}", name, schema);
+        let instance_key  = format!("validatejson_instance_{}_{}", name, instance);
+        self.templates.add(schema_key.clone(), format!("{{{{{}}}}}",schema.clone()));
+        self.templates.add(instance_key.clone(), format!("{{{{{}}}}}",instance.clone()));
+        self.steps
+            .push(StepType::ValidateJson(ValidateJsonStep::new(name, schema_key, instance_key)));
+    }
+
+
     pub fn compile(&self) {
         self.templates.compile().unwrap();
     }
@@ -661,115 +673,127 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) -> 
 
         match step {
             StepType::Py(py_step) => {
-                context = py_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
+                        context = py_step
+                            .process(
+                                &pipeline.datasets.resources,
+                                &pipeline.templates,
+                                &pipeline.llms.resources,
+                                &pipeline.embeddings.resources,
+                                &context,
+                            )
+                            .await?;
+                    }
             StepType::TextGeneration(text_generation_step) => {
-                context = text_generation_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
+                        context = text_generation_step
+                            .process(
+                                &pipeline.datasets.resources,
+                                &pipeline.templates,
+                                &pipeline.llms.resources,
+                                &pipeline.embeddings.resources,
+                                &context,
+                            )
+                            .await?;
+                    }
             StepType::JsonGeneration(json_generation_step) => {
-                context = json_generation_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
+                        context = json_generation_step
+                            .process(
+                                &pipeline.datasets.resources,
+                                &pipeline.templates,
+                                &pipeline.llms.resources,
+                                &pipeline.embeddings.resources,
+                                &context,
+                            )
+                            .await?;
+                    }
             StepType::PyValidator(py_validator) => {
-                context = py_validator
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
+                        context = py_validator
+                            .process(
+                                &pipeline.datasets.resources,
+                                &pipeline.templates,
+                                &pipeline.llms.resources,
+                                &pipeline.embeddings.resources,
+                                &context,
+                            )
+                            .await?;
+                    }
             StepType::JsonWriter(jsonl_writer_step) => {
-                context = jsonl_writer_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
+                        context = jsonl_writer_step
+                            .process(
+                                &pipeline.datasets.resources,
+                                &pipeline.templates,
+                                &pipeline.llms.resources,
+                                &pipeline.embeddings.resources,
+                                &context,
+                            )
+                            .await?;
+                    }
             StepType::CsvWriter(csv_writer_step) => {
-                context = csv_writer_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
+                        context = csv_writer_step
+                            .process(
+                                &pipeline.datasets.resources,
+                                &pipeline.templates,
+                                &pipeline.llms.resources,
+                                &pipeline.embeddings.resources,
+                                &context,
+                            )
+                            .await?;
+                    }
             StepType::Print(print_step) => {
-                context = print_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
+                        context = print_step
+                            .process(
+                                &pipeline.datasets.resources,
+                                &pipeline.templates,
+                                &pipeline.llms.resources,
+                                &pipeline.embeddings.resources,
+                                &context,
+                            )
+                            .await?;
+                    }
             StepType::DataSampler(data_sampler_step) => {
-                context = data_sampler_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
+                        context = data_sampler_step
+                            .process(
+                                &pipeline.datasets.resources,
+                                &pipeline.templates,
+                                &pipeline.llms.resources,
+                                &pipeline.embeddings.resources,
+                                &context,
+                            )
+                            .await?;
+                    }
             StepType::Chunk(chunk_step) => {
-                context = chunk_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
+                        context = chunk_step
+                            .process(
+                                &pipeline.datasets.resources,
+                                &pipeline.templates,
+                                &pipeline.llms.resources,
+                                &pipeline.embeddings.resources,
+                                &context,
+                            )
+                            .await?;
+                    }
             StepType::Render(render_step) => {
-                context = render_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
+                        context = render_step
+                            .process(
+                                &pipeline.datasets.resources,
+                                &pipeline.templates,
+                                &pipeline.llms.resources,
+                                &pipeline.embeddings.resources,
+                                &context,
+                            )
+                            .await?;
+                    }
+            StepType::ValidateJson(validate_json_step) => {
+                        context = validate_json_step
+                            .process(
+                                &pipeline.datasets.resources,
+                                &pipeline.templates,
+                                &pipeline.llms.resources,
+                                &pipeline.embeddings.resources,
+                                &context,
+                            )
+                            .await?;
+                    }
+            
         }
     }
 

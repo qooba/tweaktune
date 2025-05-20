@@ -25,4 +25,6 @@ pyo3-publish: ## Test musl
 
 test:
 #	RUST_LOG=debug cargo test --release common::tests::test_extract_json -- --nocapture
-	cargo test --release datasets::tests::it_works -- --nocapture
+#	cargo test --release datasets::tests::it_works -- --nocapture
+
+	cargo test --release steps::tests::schema_validate2 -- --nocapture
