@@ -25,6 +25,79 @@ pub trait LLM {
 pub enum LLMType {
     OpenAI(OpenAILLM),
     Unsloth(UnslothLLM),
+    Mistralrs(MistralrsLLM),
+}
+
+pub struct MistralrsLLM {
+    pub name: String,
+    pub py_func: PyObject,
+}
+
+impl MistralrsLLM {
+    pub fn new(name: String, py_func: PyObject) -> Self {
+        Self { name, py_func }
+    }
+
+    async fn process(&self, messages: Vec<HashMap<String, String>>) -> Result<String> {
+        let result: PyResult<String> = Python::with_gil(|py| {
+            let result: String = self
+                .py_func
+                .call_method1(py, "process", (messages,))?
+                .extract(py)?;
+            Ok(result)
+        });
+
+        match result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                debug!("{:?}", e);
+                Err(anyhow::anyhow!("Error processing messages: {:?}", e))
+            }
+        }
+    }
+}
+
+impl LLM for MistralrsLLM {
+    async fn chat_completion(
+        &self,
+        messages: Vec<ChatMessage>,
+        _json_schema: Option<String>,
+    ) -> Result<ChatCompletionResponse> {
+        let messages: Vec<HashMap<String, String>> = messages
+            .into_iter()
+            .map(|msg| {
+                let mut map = HashMap::new();
+                map.insert("role".to_string(), msg.role);
+                map.insert("content".to_string(), msg.content);
+                map
+            })
+            .collect();
+
+        let result = self.process(messages).await?;
+        let response = ChatCompletionResponse {
+            choices: vec![ChatChoice {
+                message: ChatMessage {
+                    role: "assistant".to_string(),
+                    content: result,
+                },
+            }],
+        };
+        Ok(response)
+    }
+
+    fn call(
+        &self,
+        prompt: String,
+        json_schema: Option<String>,
+    ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>> {
+        self.chat_completion(
+            vec![ChatMessage {
+                role: "user".to_string(),
+                content: prompt,
+            }],
+            json_schema,
+        )
+    }
 }
 
 pub struct UnslothLLM {

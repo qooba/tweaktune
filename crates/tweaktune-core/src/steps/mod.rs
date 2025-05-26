@@ -385,6 +385,13 @@ impl TextGenerationStep {
                     None
                 }
             },
+            llms::LLMType::Mistralrs(llm) => match llm.call(template, json_schema).await {
+                Ok(response) => Some(response.choices[0].message.content.clone()),
+                Err(e) => {
+                    debug!(target: "generate", "Failed to generate text: {}", e);
+                    None
+                }
+            },
         };
 
         Ok(result)

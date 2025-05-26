@@ -135,6 +135,24 @@ class UnslothWrapper:
         output_text = self.tokenizer.decode(output_ids[0][input_size:], skip_special_tokens=False)
         return output_text
     
+class MistralrsWrapper:
+    def __init__(self, runner):
+        self.runner = runner
+
+    def process(self, messages: dict):
+        from mistralrs import ChatCompletionRequest, Runner, Which
+        res = self.runner.send_chat_completion_request(
+            ChatCompletionRequest(
+                model="mistral",
+                messages=messages,
+                max_tokens=1024,
+                presence_penalty=1.0,
+                temperature=0.1,
+            )
+        )
+
+        return res.choices[0].message.content
+    
 class PyStepValidatorWrapper:
     def __init__(self, func):
         self.func = func
@@ -274,6 +292,24 @@ class Pipeline:
         """Adds an OpenAI LLM to the pipeline."""
         self.builder.with_llm_api(name, base_url, api_key, model, max_tokens, temperature)
         return self
+    
+    def with_llm_mistralrs(self, name: str, 
+                         model_id: str, 
+                         in_situ_quant: str
+                         ):
+        try:
+            from mistralrs import ChatCompletionRequest, Runner, Which
+            runner = Runner(
+                which=Which.Plain(model_id=model_id),
+                in_situ_quant=in_situ_quant,
+            )
+            self.builder.with_llm_mistralrs(name, MistralrsWrapper(runner))
+
+            return self
+        except ModuleNotFoundError:
+            package_installation_hint("mistralrs")
+            raise
+
     
     def with_llm_unsloth(self, name: str, 
                          model_name: str, 

@@ -11,7 +11,7 @@ use tweaktune_core::datasets::{
     CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
     PolarsDataset,
 };
-use tweaktune_core::llms::UnslothLLM;
+use tweaktune_core::llms::{MistralrsLLM, UnslothLLM};
 use tweaktune_core::steps::{ChunkStep, RenderStep, ValidateJsonStep};
 use tweaktune_core::{
     common::OptionToResult,
@@ -198,6 +198,14 @@ impl PipelineBuilder {
         self.llms.add(
             name.clone(),
             LLMType::Unsloth(UnslothLLM::new(name, py_func)),
+        );
+    }
+
+    pub fn with_llm_mistralrs(&mut self, name: String, py_func: PyObject) {
+        debug!("Added LLM MISTRALRS: {}", &name);
+        self.llms.add(
+            name.clone(),
+            LLMType::Mistralrs(MistralrsLLM::new(name, py_func)),
         );
     }
 
