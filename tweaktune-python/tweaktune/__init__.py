@@ -110,6 +110,7 @@ def normalize_schema(schema):
                 prop["type"] = [t["type"] for t in prop.pop("anyOf")]
 
             prop.pop("title", None)
+        schema["properties"] = json.dumps(schema["properties"], ensure_ascii=False)
     schema["additionalProperties"] = False
     return schema
 
@@ -128,9 +129,9 @@ class UnslothWrapper:
         self.model = model
         self.tokenizer = tokenizer
 
-    def process(self, messages: dict):
+    def process(self, messages: dict, json_schema: Optional[str] = None, max_tokens: int = 1024, temperature: float = 0.1):
         inputs = self.tokenizer.apply_chat_template(messages, tokenize = True, add_generation_prompt = True, return_tensors = "pt").to("cuda")
-        output_ids = self.model.generate(input_ids = inputs, max_new_tokens = 1024, use_cache = True)
+        output_ids = self.model.generate(input_ids = inputs, max_new_tokens = max_tokens, temperature = temperature, use_cache = True)
         input_size = inputs[0].shape[0]
         output_text = self.tokenizer.decode(output_ids[0][input_size:], skip_special_tokens=False)
         return output_text
@@ -139,18 +140,30 @@ class MistralrsWrapper:
     def __init__(self, runner):
         self.runner = runner
 
-    def process(self, messages: dict):
+    def process(self, messages: dict, json_schema: Optional[str] = None, max_tokens: int = 1024, temperature: float = 0.1):
         from mistralrs import ChatCompletionRequest, Runner, Which
-        res = self.runner.send_chat_completion_request(
-            ChatCompletionRequest(
+
+        req = ChatCompletionRequest(
+                model="mistral",
+                messages=messages,
+                max_tokens=max_tokens,
+                presence_penalty=1.0,
+                temperature=temperature,
+        )
+
+        if json_schema:
+            req = ChatCompletionRequest(
                 model="mistral",
                 messages=messages,
                 max_tokens=1024,
                 presence_penalty=1.0,
                 temperature=0.1,
+                grammar_type = "json_schema",
+                grammar = json.dumps(json.loads(json_schema)["schema"])
             )
-        )
 
+
+        res = self.runner.send_chat_completion_request(req)
         return res.choices[0].message.content
     
 class PyStepValidatorWrapper:
@@ -421,12 +434,12 @@ class PipelineRunner:
         return self
 
 
-    def generate_text(self, template: str, llm: str, output: str, system_template: str = None, name: str = "GENERATE-TEXT"):
-        self.builder.add_text_generation_step(self.__name(name), template, llm, output, system_template)
+    def generate_text(self, template: str, llm: str, output: str, system_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-TEXT"):
+        self.builder.add_text_generation_step(self.__name(name), template, llm, output, system_template, max_tokens, temperature)
         self.step_index += 1
         return self
 
-    def generate_json(self, template: str, llm: str, output: str, json_path: str = None, system_template: str = None, response_format: BaseModel = None,  name: str = "GENERATE-JSON"):
+    def generate_json(self, template: str, llm: str, output: str, json_path: str = None, system_template: str = None, response_format: BaseModel = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-JSON"):
         schema = None
         if response_format:
             schema = {
@@ -437,12 +450,12 @@ class PipelineRunner:
             schema["schema"]["additionalProperties"] = False
             schema = json.dumps(schema)
 
-        self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template, schema)
+        self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template, schema, max_tokens, temperature)
         self.step_index += 1
         return self
     
-    def generate_structured(self, template: str, llm: str, output: str, response_format: BaseModel, system_template: str = None,  name: str = "GENERATE-JSON"):
-        return self.generate_json(template, llm, output, json_path=None, system_template=system_template, response_format=response_format, name=name)
+    def generate_structured(self, template: str, llm: str, output: str, response_format: BaseModel, system_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-JSON"):
+        return self.generate_json(template, llm, output, json_path=None, system_template=system_template, response_format=response_format, max_tokens=max_tokens, temperature=temperature, name=name)
     
     def sample(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
         self.builder.add_data_sampler_step(self.__name(name), dataset, size, output)

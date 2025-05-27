@@ -13,12 +13,16 @@ pub trait LLM {
         &self,
         messages: Vec<ChatMessage>,
         json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>>;
 
     fn call(
         &self,
         prompt: String,
         json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>>;
 }
 
@@ -38,11 +42,21 @@ impl MistralrsLLM {
         Self { name, py_func }
     }
 
-    async fn process(&self, messages: Vec<HashMap<String, String>>) -> Result<String> {
+    async fn process(
+        &self,
+        messages: Vec<HashMap<String, String>>,
+        json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<String> {
         let result: PyResult<String> = Python::with_gil(|py| {
             let result: String = self
                 .py_func
-                .call_method1(py, "process", (messages,))?
+                .call_method1(
+                    py,
+                    "process",
+                    (messages, json_schema, max_tokens, temperature),
+                )?
                 .extract(py)?;
             Ok(result)
         });
@@ -61,7 +75,9 @@ impl LLM for MistralrsLLM {
     async fn chat_completion(
         &self,
         messages: Vec<ChatMessage>,
-        _json_schema: Option<String>,
+        json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Result<ChatCompletionResponse> {
         let messages: Vec<HashMap<String, String>> = messages
             .into_iter()
@@ -73,7 +89,9 @@ impl LLM for MistralrsLLM {
             })
             .collect();
 
-        let result = self.process(messages).await?;
+        let result = self
+            .process(messages, json_schema, max_tokens, temperature)
+            .await?;
         let response = ChatCompletionResponse {
             choices: vec![ChatChoice {
                 message: ChatMessage {
@@ -89,6 +107,8 @@ impl LLM for MistralrsLLM {
         &self,
         prompt: String,
         json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>> {
         self.chat_completion(
             vec![ChatMessage {
@@ -96,6 +116,8 @@ impl LLM for MistralrsLLM {
                 content: prompt,
             }],
             json_schema,
+            max_tokens,
+            temperature,
         )
     }
 }
@@ -110,11 +132,21 @@ impl UnslothLLM {
         Self { name, py_func }
     }
 
-    async fn process(&self, messages: Vec<HashMap<String, String>>) -> Result<String> {
+    async fn process(
+        &self,
+        messages: Vec<HashMap<String, String>>,
+        json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<String> {
         let result: PyResult<String> = Python::with_gil(|py| {
             let result: String = self
                 .py_func
-                .call_method1(py, "process", (messages,))?
+                .call_method1(
+                    py,
+                    "process",
+                    (messages, json_schema, max_tokens, temperature),
+                )?
                 .extract(py)?;
             Ok(result)
         });
@@ -133,7 +165,9 @@ impl LLM for UnslothLLM {
     async fn chat_completion(
         &self,
         messages: Vec<ChatMessage>,
-        _json_schema: Option<String>,
+        json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Result<ChatCompletionResponse> {
         let messages: Vec<HashMap<String, String>> = messages
             .into_iter()
@@ -145,7 +179,9 @@ impl LLM for UnslothLLM {
             })
             .collect();
 
-        let result = self.process(messages).await?;
+        let result = self
+            .process(messages, json_schema, max_tokens, temperature)
+            .await?;
         let response = ChatCompletionResponse {
             choices: vec![ChatChoice {
                 message: ChatMessage {
@@ -161,6 +197,8 @@ impl LLM for UnslothLLM {
         &self,
         prompt: String,
         json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>> {
         self.chat_completion(
             vec![ChatMessage {
@@ -168,6 +206,8 @@ impl LLM for UnslothLLM {
                 content: prompt,
             }],
             json_schema,
+            max_tokens,
+            temperature,
         )
     }
 }
@@ -208,15 +248,25 @@ impl LLM for OpenAILLM {
         &self,
         messages: Vec<ChatMessage>,
         json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Result<ChatCompletionResponse> {
         let url = format!("{}/v1/chat/completions", self.base_url);
         let request = ChatCompletionRequest {
             model: self.model.clone(),
             messages,
-            max_tokens: self.max_tokens,
+            max_tokens: if let Some(mt) = max_tokens {
+                mt
+            } else {
+                self.max_tokens
+            },
             stream: None,
             seed: None,
-            temperature: Some(self.temperature),
+            temperature: if temperature.is_some() {
+                temperature
+            } else {
+                Some(self.temperature)
+            },
             top_p: None,
             response_format: if json_schema.is_some() {
                 Some(json!({"type": "json_schema", "json_schema": json_schema
@@ -243,6 +293,8 @@ impl LLM for OpenAILLM {
         &self,
         prompt: String,
         json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>> {
         self.chat_completion(
             vec![ChatMessage {
@@ -250,6 +302,8 @@ impl LLM for OpenAILLM {
                 content: prompt,
             }],
             json_schema,
+            max_tokens,
+            temperature,
         )
     }
 }
@@ -284,8 +338,6 @@ pub struct ChatChoice {
 
 #[cfg(test)]
 mod tests {
-
-    use super::*;
 
     #[tokio::test]
     async fn test_openai_invoke() {

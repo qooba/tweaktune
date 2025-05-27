@@ -248,6 +248,7 @@ impl Step for ValidateJsonStep {
         });
 
         let instance_json = templates.render(self.instance.clone(), context.data.clone())?;
+
         match serde_json::from_str(&instance_json) {
             Ok(instance) => {
                 let is_valid = jsonschema::is_valid(&schema_value, &instance);
@@ -332,6 +333,8 @@ pub struct TextGenerationStep {
     pub system_template: Option<String>,
     pub llm: String,
     pub output: String,
+    pub max_tokens: Option<u32>,
+    pub temperature: Option<f32>,
 }
 
 impl TextGenerationStep {
@@ -341,6 +344,8 @@ impl TextGenerationStep {
         llm: String,
         output: String,
         system_template: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Self {
         Self {
             name,
@@ -348,9 +353,12 @@ impl TextGenerationStep {
             llm,
             output,
             system_template,
+            max_tokens,
+            temperature,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn generate(
         &self,
         _datasets: &HashMap<String, DatasetType>,
@@ -359,6 +367,8 @@ impl TextGenerationStep {
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
         json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Result<Option<String>> {
         let template = templates.render(self.template.clone(), context.data.clone());
         let template = match template {
@@ -371,21 +381,30 @@ impl TextGenerationStep {
 
         let llm = llms.get(&self.llm).expect("LLM");
         let result = match llm {
-            llms::LLMType::OpenAI(llm) => match llm.call(template, json_schema).await {
+            llms::LLMType::OpenAI(llm) => match llm
+                .call(template, json_schema, max_tokens, temperature)
+                .await
+            {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
                     debug!(target: "generate", "Failed to generate text: {}", e);
                     None
                 }
             },
-            llms::LLMType::Unsloth(llm) => match llm.call(template, json_schema).await {
+            llms::LLMType::Unsloth(llm) => match llm
+                .call(template, json_schema, max_tokens, temperature)
+                .await
+            {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
                     debug!(target: "generate", "Failed to generate text: {}", e);
                     None
                 }
             },
-            llms::LLMType::Mistralrs(llm) => match llm.call(template, json_schema).await {
+            llms::LLMType::Mistralrs(llm) => match llm
+                .call(template, json_schema, max_tokens, temperature)
+                .await
+            {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
                     debug!(target: "generate", "Failed to generate text: {}", e);
@@ -409,7 +428,16 @@ impl Step for TextGenerationStep {
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let result = self
-            .generate(_datasets, templates, llms, _embeddings, &context, None)
+            .generate(
+                _datasets,
+                templates,
+                llms,
+                _embeddings,
+                &context,
+                None,
+                self.max_tokens,
+                self.temperature,
+            )
             .await?;
 
         match result {
@@ -430,8 +458,11 @@ pub struct JsonGenerationStep {
     pub output: String,
     pub json_path: Option<String>,
     pub json_schema: Option<String>,
+    pub max_tokens: Option<u32>,
+    pub temperature: Option<f32>,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl JsonGenerationStep {
     pub fn new(
         name: String,
@@ -441,6 +472,8 @@ impl JsonGenerationStep {
         json_path: Option<String>,
         system_template: Option<String>,
         json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Self {
         Self {
             generation_step: TextGenerationStep::new(
@@ -449,11 +482,15 @@ impl JsonGenerationStep {
                 llm,
                 output.clone(),
                 system_template,
+                max_tokens,
+                temperature,
             ),
             output,
             name,
             json_path,
             json_schema,
+            max_tokens,
+            temperature,
         }
     }
 }
@@ -477,6 +514,8 @@ impl Step for JsonGenerationStep {
                 _embeddings,
                 &context,
                 self.json_schema.clone(),
+                self.max_tokens,
+                self.temperature,
             )
             .await?;
 
@@ -735,7 +774,6 @@ impl Step for ChunkStep {
 
 #[cfg(test)]
 mod tests {
-    use polars::prelude::full;
 
     #[test]
     fn it_works() {
@@ -744,7 +782,7 @@ mod tests {
 
     #[test]
     fn schema_validate() {
-        use serde_json::{json, Value};
+        use serde_json::Value;
 
         let raw_schema = r#"{
             "type": "object",
@@ -774,7 +812,7 @@ mod tests {
 
     #[test]
     fn schema_validate2() {
-        use serde_json::{json, Value};
+        use serde_json::Value;
 
         let raw_schema = r#"{
             "type": "object",
