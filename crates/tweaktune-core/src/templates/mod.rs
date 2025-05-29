@@ -37,7 +37,7 @@ impl Templates {
             match val {
                 Ok(v) => v,
                 Err(_) => {
-                    log::debug!("Failed to convert to JSON string");
+                    debug!(target: "templates", "Failed to convert to JSON string");
                     value
                 }
             }
@@ -52,13 +52,13 @@ impl Templates {
                     match val {
                         Ok(v) => v,
                         Err(_) => {
-                            log::debug!("Failed to convert shuffled array to JSON string");
+                            debug!(target: "templates", "Failed to convert shuffled array to JSON string");
                             value
                         }
                     }
                 }
                 Err(_) => {
-                    log::debug!("Failed to shuffle array");
+                    debug!(target: "templates", "Failed to shuffle array");
                     value
                 }
             }
@@ -70,7 +70,7 @@ impl Templates {
             match hash {
                 Ok(hash) => format!("{:x}", hash),
                 Err(_) => {
-                    log::debug!("Failed to hash value");
+                    debug!(target: "templates", "Failed to hash value");
                     value
                 }
             }
@@ -81,7 +81,7 @@ impl Templates {
             match val {
                 Ok(v) => serde_json::to_string(&v).unwrap(),
                 Err(_) => {
-                    log::debug!("Failed to deserialize JSON");
+                    debug!(target: "templates", "Failed to deserialize JSON");
                     value
                 }
             }
@@ -111,22 +111,22 @@ impl Templates {
             .ok_or_err("ENVIRONMENT")?;
         let tmpl = match environment.get_template(&name) {
             Ok(t) => {
-                debug!(target:"template", "Template found: {}", name);
+                debug!(target:"templates", "Template found: {}", name);
                 t
             }
             Err(e) => {
-                debug!(target:"template", "Template not found: {}", name);
+                debug!(target:"templates", "Template not found: {}", name);
                 bail!("Template not found: {}", e);
             }
         };
         let rendered_template = match tmpl.render(items) {
             Ok(t) => t,
             Err(e) => {
-                debug!(target:"template", "Failed to render template: {}", e);
+                debug!(target:"templates", "Failed to render template: {}", e);
                 bail!("Failed to render template: {}", e);
             }
         };
-        debug!(target:"template", "-------------------\nRENDERED TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
+        debug!(target:"templates", "-------------------\nRENDERED TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
         Ok(rendered_template)
     }
 }

@@ -2,7 +2,7 @@ use crate::common::ResultExt;
 use anyhow::{bail, Result};
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
-use log::debug;
+use log::info;
 use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
@@ -63,11 +63,11 @@ impl PipelineBuilder {
 
     pub fn with_workers(&mut self, workers: usize) {
         self.workers = workers;
-        debug!("Setting workers to {}", workers);
+        info!("Setting workers to {}", workers);
     }
 
     pub fn with_openapi_dataset(&mut self, name: String, path_or_url: String) -> PyResult<()> {
-        debug!("Added OPEN_API dataset: {}", &name);
+        info!("Added OPEN_API dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::OpenApi(OpenApiDataset::new(name, path_or_url)?),
@@ -82,7 +82,7 @@ impl PipelineBuilder {
         json_list: Vec<String>,
         sql: Option<String>,
     ) -> PyResult<()> {
-        debug!("Added JSON_LIST dataset: {}", &name);
+        info!("Added JSON_LIST dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::JsonList(JsonListDataset::new(name, json_list, sql)?),
@@ -92,7 +92,7 @@ impl PipelineBuilder {
 
     #[pyo3(signature = (name, path, sql=None))]
     pub fn with_jsonl_dataset(&mut self, name: String, path: String, sql: Option<String>) -> PyResult<()> {
-        debug!("Added JSONL dataset: {}", &name);
+        info!("Added JSONL dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Jsonl(JsonlDataset::new(name, path, sql)?),
@@ -101,7 +101,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_polars_dataset(&mut self, name: String, path: String, sql: String) -> PyResult<()> {
-        debug!("Added POLARS dataset: {}", &name);
+        info!("Added POLARS dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Polars(PolarsDataset::new(name, path, Some(sql))?),
@@ -111,7 +111,7 @@ impl PipelineBuilder {
 
     #[pyo3(signature = (name, path, sql=None))]
     pub fn with_json_dataset(&mut self, name: String, path: String, sql: Option<String>) -> PyResult<()> {
-        debug!("Added JSON dataset: {}", &name);
+        info!("Added JSON dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Json(JsonDataset::new(name, path, sql)?),
@@ -120,7 +120,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_mixed_dataset(&mut self, name: String, datasets: Vec<String>) -> PyResult<()> {
-        debug!("Added MIXED dataset: {}", &name);
+        info!("Added MIXED dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Mixed(
@@ -132,7 +132,7 @@ impl PipelineBuilder {
 
     #[pyo3(signature = (name, path, sql=None))]
     pub fn with_parquet_dataset(&mut self, name: String, path: String, sql: Option<String>) -> PyResult<()> {
-        debug!("Added Parquet dataset: {}", &name);
+        info!("Added Parquet dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Parquet(ParquetDataset::new(name, path, sql)?),
@@ -142,7 +142,7 @@ impl PipelineBuilder {
 
     #[pyo3(signature = (name, ipc_data, sql=None))]
     pub fn with_ipc_dataset(&mut self, name: String, ipc_data: &[u8], sql: Option<String>) -> PyResult<()> {
-        debug!("Added Ipc dataset: {}", &name);
+        info!("Added Ipc dataset: {}", &name);
 
         self.datasets.add(
             name.clone(),
@@ -160,7 +160,7 @@ impl PipelineBuilder {
         has_header: bool,
         sql: Option<String>,
     ) -> PyResult<()> {
-        debug!("Added CSV dataset: {}", &name);
+        info!("Added CSV dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Csv(
@@ -179,7 +179,7 @@ impl PipelineBuilder {
         max_tokens: u32,
         temperature: f32,
     ) {
-        debug!("Added LLM API: {}", &name);
+        info!("Added LLM API: {}", &name);
         self.llms.add(
             name.clone(),
             LLMType::OpenAI(OpenAILLM::new(
@@ -194,7 +194,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_llm_unsloth(&mut self, name: String, py_func: PyObject) {
-        debug!("Added LLM UNSLOTH: {}", &name);
+        info!("Added LLM UNSLOTH: {}", &name);
         self.llms.add(
             name.clone(),
             LLMType::Unsloth(UnslothLLM::new(name, py_func)),
@@ -202,7 +202,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_llm_mistralrs(&mut self, name: String, py_func: PyObject) {
-        debug!("Added LLM MISTRALRS: {}", &name);
+        info!("Added LLM MISTRALRS: {}", &name);
         self.llms.add(
             name.clone(),
             LLMType::Mistralrs(MistralrsLLM::new(name, py_func)),
@@ -216,7 +216,7 @@ impl PipelineBuilder {
         api_key: String,
         model: String,
     ) {
-        debug!("Added OpenAI embeddings: {}", &name);
+        info!("Added OpenAI embeddings: {}", &name);
         self.embeddings.add(
             name.clone(),
             EmbeddingsType::OpenAI(OpenAIEmbeddings::new(name, base_url, api_key, model)),
@@ -224,7 +224,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_jinja_template(&mut self, name: String, template: String) {
-        debug!("Added Jinja template: {}", &name);
+        info!("Added Jinja template: {}", &name);
         self.templates.add(name, template);
     }
 
@@ -237,12 +237,12 @@ impl PipelineBuilder {
     }
 
     pub fn add_py_step(&mut self, name: String, py_func: PyObject) {
-        debug!("Added Python step: {}", &name);
+        info!("Added Python step: {}", &name);
         self.steps.push(StepType::Py(PyStep::new(name, py_func)));
     }
 
     pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
-        debug!("Added Python validator step: {}", &name);
+        info!("Added Python validator step: {}", &name);
         self.steps
             .push(StepType::PyValidator(PyValidator::new(name, py_func)));
     }
@@ -259,7 +259,7 @@ impl PipelineBuilder {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) {
-        debug!(
+        info!(
             "Added text generation step with llm: {}, template: {}",
             &llm, &template
         );
@@ -290,7 +290,7 @@ impl PipelineBuilder {
         temperature: Option<f32>,
         schema_template: Option<String>,
     ) {
-        debug!(
+        info!(
             "Added JSON generation step with template: {}, llm: {}",
             &llm, &template
         );
@@ -319,7 +319,7 @@ impl PipelineBuilder {
     }
 
     pub fn add_write_jsonl_step(&mut self, name: String, path: String, template: String) {
-        debug!("Added JSONL writer step: {}", &name);
+        info!("Added JSONL writer step: {}", &name);
         self.steps.push(StepType::JsonWriter(JsonlWriterStep::new(
             name, path, template,
         )));
@@ -332,7 +332,7 @@ impl PipelineBuilder {
         template: Option<String>,
         columns: Option<Vec<String>>,
     ) {
-        debug!("Added print step");
+        info!("Added print step");
         self.steps
             .push(StepType::Print(PrintStep::new(name, template, columns)));
     }
@@ -344,7 +344,7 @@ impl PipelineBuilder {
         columns: Vec<String>,
         delimiter: String,
     ) {
-        debug!("Added CSV writer step: {}", &name);
+        info!("Added CSV writer step: {}", &name);
         self.steps.push(StepType::CsvWriter(CsvWriterStep::new(
             name, path, columns, delimiter,
         )));
@@ -357,7 +357,7 @@ impl PipelineBuilder {
         size: usize,
         output: String,
     ) {
-        debug!(
+        info!(
             "Added data sampler on dataset: {} with size: {}",
             &dataset, &size
         );
@@ -370,7 +370,7 @@ impl PipelineBuilder {
     }
 
     pub fn add_data_read_step(&mut self, name: String, dataset: String, output: String) {
-        debug!("Added data read on dataset: {}", &dataset);
+        info!("Added data read on dataset: {}", &dataset);
         self.steps.push(StepType::DataSampler(DataSamplerStep::new(
             name, dataset, None, output,
         )));
@@ -383,20 +383,20 @@ impl PipelineBuilder {
         input: String,
         output: String,
     ) {
-        debug!("Added data chunking step");
+        info!("Added data chunking step");
         self.steps.push(StepType::Chunk(ChunkStep::new(
             name, capacity, input, output,
         )));
     }
 
     pub fn add_render_step(&mut self, name: String, template: String, output: String) {
-        debug!("Added render step");
+        info!("Added render step");
         self.steps
             .push(StepType::Render(RenderStep::new(name, template, output)));
     }
 
     pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
-        debug!("Added render step");
+        info!("Added render step");
 
         let schema_key  = format!("validatejson_schema_{}_{}", name, schema);
         let instance_key  = format!("validatejson_instance_{}_{}", name, instance);
@@ -431,17 +431,17 @@ impl PipelineBuilder {
             r.store(false, std::sync::atomic::Ordering::SeqCst);
         }) {
             Ok(_) => {
-                debug!("Ctrl-C handler set");
+                info!("Ctrl-C handler set");
             }
             Err(e) => {
-                debug!("Error setting Ctrl-C handler: {}", e);
+                info!("Error setting Ctrl-C handler: {}", e);
             }
         }
 
         let result = Runtime::new()?.block_on(async {
             match &self.iter_by {
                 IterBy::Range { start, stop, step } => {
-                    debug!("Iterating by range: {}..{}..{}", start, stop, step);
+                    info!("Iterating by range: {}..{}..{}", start, stop, step);
                     let bar = ProgressBar::new((stop - start) as u64);
 
                      bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",)
@@ -477,7 +477,7 @@ impl PipelineBuilder {
                     }
                 }
                 IterBy::Dataset { name } => {
-                    debug!("Iterating by dataset: {}", name);
+                    info!("Iterating by dataset: {}", name);
                     let bar = ProgressBar::new(0);
 
                     bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] ({pos})",).unwrap());
