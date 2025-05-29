@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
+use log::debug;
 use once_cell::sync::OnceCell;
 use polars::prelude::*;
 use polars_arrow::array::ListArray;
@@ -310,12 +311,18 @@ fn extract_json_regex(text: &str, re: &str) -> Result<String> {
 }
 
 pub fn extract_json(text: &str) -> Result<Value> {
-    // debug!(target: "extract_json", "EXTRACT JSON {}", &text);
-    let value = match serde_json::from_str(text) {
+    let text = text.replace("<|im_end|>", "");
+    let value = match serde_json::from_str(&text) {
         Ok(v) => v,
-        Err(_e) => match extract_json_block_md(text) {
+        Err(_e) => match extract_json_block_md(&text) {
             Ok(v) => v,
-            Err(_e) => extract_json_block(text)?,
+            Err(_e) => match extract_json_block(&text) {
+                Ok(v) => v,
+                Err(e) => {
+                    debug!(target: "extract_json", "EXTRACT JSON {}", &text);
+                    return Err(anyhow!("Failed to extract JSON: {}", e));
+                }
+            },
         },
     };
     Ok(value)
