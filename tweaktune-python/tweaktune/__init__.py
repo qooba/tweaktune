@@ -130,6 +130,10 @@ class UnslothWrapper:
         self.tokenizer = tokenizer
 
     def process(self, messages: dict, json_schema: Optional[str] = None, max_tokens: int = 1024, temperature: float = 0.1):
+        if json_schema:
+            system_message = [{"role": "system", "content": "Always respond in valid JSON format, strictly following the provided schema. Do not include any extra text, explanations, or comments outside the JSON structure. Ensure that all responses adhere precisely to the given schema.\n\nThe expected schema is:\n\n" + json_schema}]
+            messages = system_message + messages
+
         inputs = self.tokenizer.apply_chat_template(messages, tokenize = True, add_generation_prompt = True, return_tensors = "pt").to("cuda")
         output_ids = self.model.generate(input_ids = inputs, max_new_tokens = max_tokens, temperature = temperature, use_cache = True)
         input_size = inputs[0].shape[0]
@@ -142,6 +146,9 @@ class MistralrsWrapper:
 
     def process(self, messages: dict, json_schema: Optional[str] = None, max_tokens: int = 1024, temperature: float = 0.1):
         from mistralrs import ChatCompletionRequest, Runner, Which
+        if json_schema:
+            system_message = [{"role": "system", "content": "Always respond in valid JSON format, strictly following the provided schema. Do not include any extra text, explanations, or comments outside the JSON structure. Ensure that all responses adhere precisely to the given schema.\n\nThe expected schema is:\n\n" + json_schema}]
+            messages = system_message + messages
 
         req = ChatCompletionRequest(
                 model="mistral",
@@ -151,16 +158,16 @@ class MistralrsWrapper:
                 temperature=temperature,
         )
 
-        if json_schema:
-            req = ChatCompletionRequest(
-                model="mistral",
-                messages=messages,
-                max_tokens=1024,
-                presence_penalty=1.0,
-                temperature=0.1,
-                grammar_type = "json_schema",
-                grammar = json.dumps(json.loads(json_schema)["schema"])
-            )
+#        if json_schema:
+#            req = ChatCompletionRequest(
+#                model="mistral",
+#                messages=messages,
+#                max_tokens=1024,
+#                presence_penalty=1.0,
+#                temperature=0.1,
+#                grammar_type = "json_schema",
+#                grammar = json.dumps(json.loads(json_schema)["schema"])
+#            )
 
 
         res = self.runner.send_chat_completion_request(req)
@@ -439,9 +446,9 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def generate_json(self, template: str, llm: str, output: str, json_path: str = None, system_template: str = None, response_format: BaseModel = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-JSON"):
+    def generate_json(self, template: str, llm: str, output: str, json_path: str = None, system_template: str = None, response_format: BaseModel = None, schema_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-JSON"):
         schema = None
-        if response_format:
+        if not schema_template and response_format:
             schema = {
                 "name": response_format.__class__.__name__,
                 "schema": response_format.model_json_schema(),
@@ -450,7 +457,7 @@ class PipelineRunner:
             schema["schema"]["additionalProperties"] = False
             schema = json.dumps(schema)
 
-        self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template, schema, max_tokens, temperature)
+        self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template, schema, max_tokens, temperature, schema_template)
         self.step_index += 1
         return self
     

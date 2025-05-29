@@ -276,7 +276,7 @@ impl PipelineBuilder {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (name, template, llm, output, json_path=None, system_template=None, json_schema=None, max_tokens=None, temperature=None))]
+    #[pyo3(signature = (name, template, llm, output, json_path=None, system_template=None, json_schema=None, max_tokens=None, temperature=None, schema_template=None))]
     pub fn add_json_generation_step(
         &mut self,
         name: String,
@@ -288,11 +288,21 @@ impl PipelineBuilder {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        schema_template: Option<String>,
     ) {
         debug!(
             "Added JSON generation step with template: {}, llm: {}",
             &llm, &template
         );
+
+        let schema_key = if let Some(schema) = &schema_template { 
+            let schema_key  = format!("json_generation_step_{}_{}", name, schema);
+            self.templates.add(schema_key.clone(), format!("{{{{{}}}}}",schema.clone()));
+            Some(schema_key)
+        } else { 
+            None
+        };
+ 
         self.steps
             .push(StepType::JsonGeneration(JsonGenerationStep::new(
                 name,
@@ -304,6 +314,7 @@ impl PipelineBuilder {
                 json_schema,
                 max_tokens,
                 temperature,
+                schema_key
             )));
     }
 

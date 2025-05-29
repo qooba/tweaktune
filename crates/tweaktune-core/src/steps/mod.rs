@@ -254,14 +254,14 @@ impl Step for ValidateJsonStep {
                 let is_valid = jsonschema::is_valid(&schema_value, &instance);
 
                 if !is_valid {
-                    debug!(target: "generate", "Failed to validate JSON: {} with schema {}", instance, schema_value);
+                    debug!(target: "validate_json_step", "Failed to validate JSON: {} with schema {}", instance, schema_value);
                     context.set_status(StepStatus::Failed);
                 }
 
                 Ok(context)
             }
             Err(e) => {
-                debug!(target: "generate", "Failed to render instance: {}", e);
+                debug!(target: "validate_json_step", "Failed to render instance: {}", e);
                 context.set_status(StepStatus::Failed);
                 Ok(context)
             }
@@ -374,7 +374,7 @@ impl TextGenerationStep {
         let template = match template {
             Ok(t) => t,
             Err(e) => {
-                debug!(target: "generate", "Failed to render template: {}", e);
+                debug!(target: "text_generation_step", "Failed to render template: {}", e);
                 return Ok(None);
             }
         };
@@ -387,7 +387,7 @@ impl TextGenerationStep {
             {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
-                    debug!(target: "generate", "Failed to generate text: {}", e);
+                    debug!(target: "text_generation_step", "Failed to generate text: {}", e);
                     None
                 }
             },
@@ -460,6 +460,7 @@ pub struct JsonGenerationStep {
     pub json_schema: Option<String>,
     pub max_tokens: Option<u32>,
     pub temperature: Option<f32>,
+    pub schema_key: Option<String>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -474,6 +475,7 @@ impl JsonGenerationStep {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        schema_key: Option<String>,
     ) -> Self {
         Self {
             generation_step: TextGenerationStep::new(
@@ -491,6 +493,7 @@ impl JsonGenerationStep {
             json_schema,
             max_tokens,
             temperature,
+            schema_key,
         }
     }
 }
@@ -505,6 +508,39 @@ impl Step for JsonGenerationStep {
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
+
+        let json_schema = if let Some(schema_key) = &self.schema_key {
+            let schema = templates.render(schema_key.clone(), context.data.clone())?;
+
+            let full_schema: Value = serde_json::from_str(&schema).unwrap();
+
+            let properties = if let Value::String(v) = full_schema["properties"].clone() {
+                serde_json::from_str(&v).unwrap()
+            } else {
+                full_schema["properties"].clone()
+            };
+
+            let schema = json!({
+                "name": "OUTPUT",
+                "schema":{
+                    "type": "object",
+                    "properties": properties,
+                    "required": full_schema["required"],
+                    "additionalProperties": false,
+                },
+                "strict": true
+            })
+            .to_string();
+
+            debug!(target: "generate_json", "RENDERED SCHEMA: {}", schema);
+            Some(schema)
+        } else if let Some(schema) = &self.json_schema {
+            debug!(target: "generate_json", "PROVIDED SCHEMA: {}", schema);
+            Some(schema.clone())
+        } else {
+            None
+        };
+
         let result = self
             .generation_step
             .generate(
@@ -513,7 +549,7 @@ impl Step for JsonGenerationStep {
                 llms,
                 _embeddings,
                 &context,
-                self.json_schema.clone(),
+                json_schema,
                 self.max_tokens,
                 self.temperature,
             )
