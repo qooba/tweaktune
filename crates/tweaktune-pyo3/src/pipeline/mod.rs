@@ -91,7 +91,12 @@ impl PipelineBuilder {
     }
 
     #[pyo3(signature = (name, path, sql=None))]
-    pub fn with_jsonl_dataset(&mut self, name: String, path: String, sql: Option<String>) -> PyResult<()> {
+    pub fn with_jsonl_dataset(
+        &mut self,
+        name: String,
+        path: String,
+        sql: Option<String>,
+    ) -> PyResult<()> {
         info!("Added JSONL dataset: {}", &name);
         self.datasets.add(
             name.clone(),
@@ -110,7 +115,12 @@ impl PipelineBuilder {
     }
 
     #[pyo3(signature = (name, path, sql=None))]
-    pub fn with_json_dataset(&mut self, name: String, path: String, sql: Option<String>) -> PyResult<()> {
+    pub fn with_json_dataset(
+        &mut self,
+        name: String,
+        path: String,
+        sql: Option<String>,
+    ) -> PyResult<()> {
         info!("Added JSON dataset: {}", &name);
         self.datasets.add(
             name.clone(),
@@ -123,15 +133,18 @@ impl PipelineBuilder {
         info!("Added MIXED dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Mixed(
-                MixedDataset::new(name, datasets, &self.datasets.resources)?,
-            ),
+            DatasetType::Mixed(MixedDataset::new(name, datasets, &self.datasets.resources)?),
         );
         Ok(())
     }
 
     #[pyo3(signature = (name, path, sql=None))]
-    pub fn with_parquet_dataset(&mut self, name: String, path: String, sql: Option<String>) -> PyResult<()> {
+    pub fn with_parquet_dataset(
+        &mut self,
+        name: String,
+        path: String,
+        sql: Option<String>,
+    ) -> PyResult<()> {
         info!("Added Parquet dataset: {}", &name);
         self.datasets.add(
             name.clone(),
@@ -141,7 +154,12 @@ impl PipelineBuilder {
     }
 
     #[pyo3(signature = (name, ipc_data, sql=None))]
-    pub fn with_ipc_dataset(&mut self, name: String, ipc_data: &[u8], sql: Option<String>) -> PyResult<()> {
+    pub fn with_ipc_dataset(
+        &mut self,
+        name: String,
+        ipc_data: &[u8],
+        sql: Option<String>,
+    ) -> PyResult<()> {
         info!("Added Ipc dataset: {}", &name);
 
         self.datasets.add(
@@ -163,9 +181,13 @@ impl PipelineBuilder {
         info!("Added CSV dataset: {}", &name);
         self.datasets.add(
             name.clone(),
-            DatasetType::Csv(
-                CsvDataset::new(name, path, delimiter.as_bytes()[0], has_header, sql)?,
-            ),
+            DatasetType::Csv(CsvDataset::new(
+                name,
+                path,
+                delimiter.as_bytes()[0],
+                has_header,
+                sql,
+            )?),
         );
         Ok(())
     }
@@ -295,14 +317,15 @@ impl PipelineBuilder {
             &llm, &template
         );
 
-        let schema_key = if let Some(schema) = &schema_template { 
-            let schema_key  = format!("json_generation_step_{}_{}", name, schema);
-            self.templates.add(schema_key.clone(), format!("{{{{{}}}}}",schema.clone()));
+        let schema_key = if let Some(schema) = &schema_template {
+            let schema_key = format!("json_generation_step_{}_{}", name, schema);
+            self.templates
+                .add(schema_key.clone(), format!("{{{{{}}}}}", schema.clone()));
             Some(schema_key)
-        } else { 
+        } else {
             None
         };
- 
+
         self.steps
             .push(StepType::JsonGeneration(JsonGenerationStep::new(
                 name,
@@ -314,7 +337,7 @@ impl PipelineBuilder {
                 json_schema,
                 max_tokens,
                 temperature,
-                schema_key
+                schema_key,
             )));
     }
 
@@ -398,14 +421,21 @@ impl PipelineBuilder {
     pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
         info!("Added render step");
 
-        let schema_key  = format!("validatejson_schema_{}_{}", name, schema);
-        let instance_key  = format!("validatejson_instance_{}_{}", name, instance);
-        self.templates.add(schema_key.clone(), format!("{{{{{}}}}}",schema.clone()));
-        self.templates.add(instance_key.clone(), format!("{{{{{}}}}}",instance.clone()));
+        let schema_key = format!("validatejson_schema_{}_{}", name, schema);
+        let instance_key = format!("validatejson_instance_{}_{}", name, instance);
+        self.templates
+            .add(schema_key.clone(), format!("{{{{{}}}}}", schema.clone()));
+        self.templates.add(
+            instance_key.clone(),
+            format!("{{{{{}}}}}", instance.clone()),
+        );
         self.steps
-            .push(StepType::ValidateJson(ValidateJsonStep::new(name, schema_key, instance_key)));
+            .push(StepType::ValidateJson(ValidateJsonStep::new(
+                name,
+                schema_key,
+                instance_key,
+            )));
     }
-
 
     pub fn compile(&self) {
         self.templates.compile().unwrap();
@@ -495,7 +525,6 @@ impl PipelineBuilder {
                                     bar.inc(1);
                                     Ok(())
                             }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                    
                             for result in iter_results {
                                 if let Err(e) = result {
                                     bail!(e)
@@ -514,7 +543,6 @@ impl PipelineBuilder {
                                     bar.inc(1);
                                     Ok(())
                             }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                    
                             for result in iter_results {
                                 if let Err(e) = result {
                                     bail!(e)
@@ -533,7 +561,6 @@ impl PipelineBuilder {
                                     bar.inc(1);
                                     Ok(())
                             }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                    
                             for result in iter_results {
                                 if let Err(e) = result {
                                     bail!(e)
@@ -552,8 +579,7 @@ impl PipelineBuilder {
                                     bar.inc(1);
                                     Ok(())
                             }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                    
-                             for result in iter_results {
+                            for result in iter_results {
                                 if let Err(e) = result {
                                     bail!(e)
                                 }
@@ -571,7 +597,6 @@ impl PipelineBuilder {
                                     bar.inc(1);
                                     Ok(())
                             }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                    
                             for result in iter_results {
                                 if let Err(e) = result {
                                     bail!(e)
@@ -590,7 +615,6 @@ impl PipelineBuilder {
                                     bar.inc(1);
                                     Ok(())
                             }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-
                             for result in iter_results {
                                 if let Err(e) = result {
                                     bail!(e)
@@ -609,7 +633,6 @@ impl PipelineBuilder {
                                     bar.inc(1);
                                     Ok(())
                             }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-
                             for result in iter_results {
                                 if let Err(e) = result {
                                     bail!(e)
@@ -628,7 +651,6 @@ impl PipelineBuilder {
                                     bar.inc(1);
                                     Ok(())
                             }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-
                             for result in iter_results {
                                 if let Err(e) = result {
                                     bail!(e)
@@ -647,14 +669,12 @@ impl PipelineBuilder {
                                     bar.inc(1);
                                     Ok(())
                             }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-
                             for result in iter_results {
                                 if let Err(e) = result {
                                     bail!(e)
                                 }
                             }
-                    }
-
+                        }
                     }
                 }
             }
@@ -701,127 +721,126 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) -> 
 
         match step {
             StepType::Py(py_step) => {
-                        context = py_step
-                            .process(
-                                &pipeline.datasets.resources,
-                                &pipeline.templates,
-                                &pipeline.llms.resources,
-                                &pipeline.embeddings.resources,
-                                &context,
-                            )
-                            .await?;
-                    }
+                context = py_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
             StepType::TextGeneration(text_generation_step) => {
-                        context = text_generation_step
-                            .process(
-                                &pipeline.datasets.resources,
-                                &pipeline.templates,
-                                &pipeline.llms.resources,
-                                &pipeline.embeddings.resources,
-                                &context,
-                            )
-                            .await?;
-                    }
+                context = text_generation_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
             StepType::JsonGeneration(json_generation_step) => {
-                        context = json_generation_step
-                            .process(
-                                &pipeline.datasets.resources,
-                                &pipeline.templates,
-                                &pipeline.llms.resources,
-                                &pipeline.embeddings.resources,
-                                &context,
-                            )
-                            .await?;
-                    }
+                context = json_generation_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
             StepType::PyValidator(py_validator) => {
-                        context = py_validator
-                            .process(
-                                &pipeline.datasets.resources,
-                                &pipeline.templates,
-                                &pipeline.llms.resources,
-                                &pipeline.embeddings.resources,
-                                &context,
-                            )
-                            .await?;
-                    }
+                context = py_validator
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
             StepType::JsonWriter(jsonl_writer_step) => {
-                        context = jsonl_writer_step
-                            .process(
-                                &pipeline.datasets.resources,
-                                &pipeline.templates,
-                                &pipeline.llms.resources,
-                                &pipeline.embeddings.resources,
-                                &context,
-                            )
-                            .await?;
-                    }
+                context = jsonl_writer_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
             StepType::CsvWriter(csv_writer_step) => {
-                        context = csv_writer_step
-                            .process(
-                                &pipeline.datasets.resources,
-                                &pipeline.templates,
-                                &pipeline.llms.resources,
-                                &pipeline.embeddings.resources,
-                                &context,
-                            )
-                            .await?;
-                    }
+                context = csv_writer_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
             StepType::Print(print_step) => {
-                        context = print_step
-                            .process(
-                                &pipeline.datasets.resources,
-                                &pipeline.templates,
-                                &pipeline.llms.resources,
-                                &pipeline.embeddings.resources,
-                                &context,
-                            )
-                            .await?;
-                    }
+                context = print_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
             StepType::DataSampler(data_sampler_step) => {
-                        context = data_sampler_step
-                            .process(
-                                &pipeline.datasets.resources,
-                                &pipeline.templates,
-                                &pipeline.llms.resources,
-                                &pipeline.embeddings.resources,
-                                &context,
-                            )
-                            .await?;
-                    }
+                context = data_sampler_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
             StepType::Chunk(chunk_step) => {
-                        context = chunk_step
-                            .process(
-                                &pipeline.datasets.resources,
-                                &pipeline.templates,
-                                &pipeline.llms.resources,
-                                &pipeline.embeddings.resources,
-                                &context,
-                            )
-                            .await?;
-                    }
+                context = chunk_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
             StepType::Render(render_step) => {
-                        context = render_step
-                            .process(
-                                &pipeline.datasets.resources,
-                                &pipeline.templates,
-                                &pipeline.llms.resources,
-                                &pipeline.embeddings.resources,
-                                &context,
-                            )
-                            .await?;
-                    }
+                context = render_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
             StepType::ValidateJson(validate_json_step) => {
-                        context = validate_json_step
-                            .process(
-                                &pipeline.datasets.resources,
-                                &pipeline.templates,
-                                &pipeline.llms.resources,
-                                &pipeline.embeddings.resources,
-                                &context,
-                            )
-                            .await?;
-                    }
-            
+                context = validate_json_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
         }
     }
 
