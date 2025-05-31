@@ -86,7 +86,7 @@ def test_tools_sample(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    OUTPUT_TEMPLATE = """{"all_functions": {{all_functions}} }"""
+    OUTPUT_TEMPLATE = """{"all_functions": {{all_functions|tojson}} }"""
 
 #   , search_products, list_categories, , , 
 # .with_tools_dataset("functions", [place_order, get_order_status, search_products, list_categories, add_review, get_product_details, list_user_orders])\

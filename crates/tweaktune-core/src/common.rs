@@ -338,12 +338,9 @@ pub fn df_to_values(df: &DataFrame) -> Result<Vec<Value>> {
     let json_str = String::from_utf8(buffer.clone())
         .map_err(|e| anyhow!("Failed to convert DataFrame to string: {}", e))?;
 
-    println!("DATAFRAME JSON STR: {}", json_str);
-
     let df_json = serde_json::from_str(&json_str)
         .map_err(|e| anyhow!("Failed to parse DataFrame to JSON: {}", e))?;
 
-    println!("DATAFRAME JSON: {}", df_json);
     if let Value::Array(arr) = df_json {
         Ok(arr)
     } else {
