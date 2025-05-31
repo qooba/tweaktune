@@ -110,6 +110,7 @@ def normalize_schema(schema):
                 prop["type"] = [t["type"] for t in prop.pop("anyOf")]
 
             prop.pop("title", None)
+        schema["properties"] = json.dumps(schema["properties"], ensure_ascii=False)
     schema["additionalProperties"] = False
     return schema
 
@@ -121,19 +122,67 @@ class PyStepWrapper:
     def process(self, context):
         context = json.loads(context)
         return json.dumps(self.step.process(context))
-    
 
-class UnslothWrapper:
+class LLMWrapper:
+
+    def prepare_messages(self, messages: dict, json_schema: Optional[str]) -> Optional[str]:
+        if json_schema:
+            json_schema = json.loads(json_schema).get("schema", None)
+            if json_schema:
+                properties = json_schema.get("properties", {})
+                if len(properties.keys()) > 0:
+                    json_schema = json.dumps(json_schema, ensure_ascii=False)
+                    system_message = [{"role": "system", "content": f"Always respond in valid JSON format, strictly following the provided schema. Do not include any extra text, explanations, or comments outside the JSON structure. Ensure that all responses adhere precisely to the given schema.\n\nThe expected schema is:\n\n{json_schema}"}]
+                    messages = system_message + messages
+
+        return messages
+    
+    def process(self, messages: dict, json_schema: Optional[str] = None, max_tokens: int = 1024, temperature: float = 0.1):
+        raise NotImplementedError("This method should be implemented by subclasses.")
+
+class UnslothWrapper(LLMWrapper):
     def __init__(self, model, tokenizer):
         self.model = model
         self.tokenizer = tokenizer
 
-    def process(self, messages: dict):
+    def process(self, messages: dict, json_schema: Optional[str] = None, max_tokens: int = 1024, temperature: float = 0.1):
+        messages = self.prepare_messages(messages, json_schema)
         inputs = self.tokenizer.apply_chat_template(messages, tokenize = True, add_generation_prompt = True, return_tensors = "pt").to("cuda")
-        output_ids = self.model.generate(input_ids = inputs, max_new_tokens = 1024, use_cache = True)
+        output_ids = self.model.generate(input_ids = inputs, max_new_tokens = max_tokens, temperature = temperature, use_cache = True)
         input_size = inputs[0].shape[0]
         output_text = self.tokenizer.decode(output_ids[0][input_size:], skip_special_tokens=False)
         return output_text
+    
+class MistralrsWrapper(LLMWrapper):
+    def __init__(self, runner):
+        self.runner = runner
+
+    def process(self, messages: dict, json_schema: Optional[str] = None, max_tokens: int = 1024, temperature: float = 0.1):
+        from mistralrs import ChatCompletionRequest, Runner, Which
+        messages = self.prepare_messages(messages, json_schema)
+
+        req = ChatCompletionRequest(
+                model="mistral",
+                messages=messages,
+                max_tokens=max_tokens,
+                presence_penalty=1.0,
+                temperature=temperature,
+        )
+
+#        if json_schema:
+#            req = ChatCompletionRequest(
+#                model="mistral",
+#                messages=messages,
+#                max_tokens=1024,
+#                presence_penalty=1.0,
+#                temperature=0.1,
+#                grammar_type = "json_schema",
+#                grammar = json.dumps(json.loads(json_schema)["schema"])
+#            )
+
+
+        res = self.runner.send_chat_completion_request(req)
+        return res.choices[0].message.content
     
 class PyStepValidatorWrapper:
     def __init__(self, func):
@@ -275,6 +324,24 @@ class Pipeline:
         self.builder.with_llm_api(name, base_url, api_key, model, max_tokens, temperature)
         return self
     
+    def with_llm_mistralrs(self, name: str, 
+                         model_id: str, 
+                         in_situ_quant: str
+                         ):
+        try:
+            from mistralrs import ChatCompletionRequest, Runner, Which
+            runner = Runner(
+                which=Which.Plain(model_id=model_id),
+                in_situ_quant=in_situ_quant,
+            )
+            self.builder.with_llm_mistralrs(name, MistralrsWrapper(runner))
+
+            return self
+        except ModuleNotFoundError:
+            package_installation_hint("mistralrs")
+            raise
+
+    
     def with_llm_unsloth(self, name: str, 
                          model_name: str, 
                          load_in_4bit: bool = True, 
@@ -366,7 +433,6 @@ class Pipeline:
 class PipelineRunner:
 
     def __init__(self, builder: PipelineBuilder):
-        builder.compile()
         self.builder = builder
         self.step_index = 0
 
@@ -386,14 +452,14 @@ class PipelineRunner:
         return self
 
 
-    def generate_text(self, template: str, llm: str, output: str, system_template: str = None, name: str = "GENERATE-TEXT"):
-        self.builder.add_text_generation_step(self.__name(name), template, llm, output, system_template)
+    def generate_text(self, template: str, llm: str, output: str, system_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-TEXT"):
+        self.builder.add_text_generation_step(self.__name(name), template, llm, output, system_template, max_tokens, temperature)
         self.step_index += 1
         return self
 
-    def generate_json(self, template: str, llm: str, output: str, json_path: str = None, system_template: str = None, response_format: BaseModel = None,  name: str = "GENERATE-JSON"):
+    def generate_json(self, template: str, llm: str, output: str, json_path: str = None, system_template: str = None, response_format: BaseModel = None, schema_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-JSON"):
         schema = None
-        if response_format:
+        if not schema_template and response_format:
             schema = {
                 "name": response_format.__class__.__name__,
                 "schema": response_format.model_json_schema(),
@@ -402,12 +468,12 @@ class PipelineRunner:
             schema["schema"]["additionalProperties"] = False
             schema = json.dumps(schema)
 
-        self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template, schema)
+        self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template, schema, max_tokens, temperature, schema_template)
         self.step_index += 1
         return self
     
-    def generate_structured(self, template: str, llm: str, output: str, response_format: BaseModel, system_template: str = None,  name: str = "GENERATE-JSON"):
-        return self.generate_json(template, llm, output, json_path=None, system_template=system_template, response_format=response_format, name=name)
+    def generate_structured(self, template: str, llm: str, output: str, response_format: BaseModel, system_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-JSON"):
+        return self.generate_json(template, llm, output, json_path=None, system_template=system_template, response_format=response_format, max_tokens=max_tokens, temperature=temperature, name=name)
     
     def sample(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
         self.builder.add_data_sampler_step(self.__name(name), dataset, size, output)
@@ -418,6 +484,12 @@ class PipelineRunner:
         self.builder.add_render_step(self.__name(name), template, output)
         self.step_index += 1
         return self
+    
+    def validate_json(self, schema: str, instance: str, name: str = "VALIDATE-JSON"):
+        self.builder.add_validatejson_step(self.__name(name), schema, instance)
+        self.step_index += 1
+        return self
+
 
     def chunk(self, capacity: Tuple[int, int], input: str, output: str, name: str = "CHUNK"):
         self.builder.add_chunk_step(self.__name(name), capacity, input, output)
@@ -466,4 +538,5 @@ class PipelineRunner:
         return self
     
     def run(self):
+        self.builder.compile()
         return self.builder.run()

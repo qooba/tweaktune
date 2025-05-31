@@ -1,9 +1,8 @@
-use crate::common::{anyvalue_to_json, create_rows_stream};
+use crate::common::{create_rows_stream, df_to_values};
 use crate::config::read_config;
 use crate::readers::build_reader;
 use anyhow::Result;
 use polars::prelude::*;
-use polars_plan::plans::ScanSources;
 use polars_utils::mmap::MemSlice;
 use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
@@ -43,7 +42,7 @@ pub struct JsonlDataset {
 
 impl JsonlDataset {
     pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
-        let op_reader = build_reader(&path)?;
+        let op_reader = build_reader(&path, None)?;
         let mut reader = op_reader.inner;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
@@ -86,7 +85,7 @@ pub struct ParquetDataset {
 
 impl ParquetDataset {
     pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
-        let op_reader = build_reader(&path)?;
+        let op_reader = build_reader(&path, None)?;
         let mut reader = op_reader.inner;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
@@ -130,7 +129,7 @@ impl CsvDataset {
         has_header: bool,
         sql: Option<String>,
     ) -> Result<Self> {
-        let op_reader = build_reader(&path)?;
+        let op_reader = build_reader(&path, None)?;
         let mut reader = op_reader.inner;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
@@ -171,7 +170,7 @@ pub struct PolarsDataset {
 
 impl PolarsDataset {
     pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
-        let op_reader = build_reader(&path)?;
+        let op_reader = build_reader(&path, None)?;
         let mut reader = op_reader.inner;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
@@ -253,7 +252,7 @@ pub struct JsonDataset {
 
 impl JsonDataset {
     pub fn new(name: String, path: String, sql: Option<String>) -> Result<Self> {
-        let mut op_reader = build_reader(&path)?;
+        let mut op_reader = build_reader(&path, None)?;
         let mut buf = String::new();
         op_reader.inner.read_to_string(&mut buf)?;
         let cursor = std::io::Cursor::new(buf.as_bytes());
@@ -378,6 +377,32 @@ impl MixedDataset {
             .collect::<Vec<_>>();
         let num = samples.len();
 
+        let df_selected_value = self
+            .selected_datasets
+            .iter()
+            .map(|dataset_name| {
+                datasets
+                    .get(dataset_name)
+                    .map(|dataset| {
+                        let df = match dataset {
+                            DatasetType::Json(json_dataset) => json_dataset.df(),
+                            DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
+                            DatasetType::OpenApi(open_api_dataset) => open_api_dataset.df(),
+                            DatasetType::Polars(polars_dataset) => polars_dataset.df(),
+                            DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
+                            DatasetType::Csv(csv_dataset) => csv_dataset.df(),
+                            DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
+                            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
+                            DatasetType::Mixed(_mixed_dataset) => unimplemented!(),
+                        };
+
+                        let df_values = df_to_values(df).unwrap();
+                        (dataset_name, df_values)
+                    })
+                    .unwrap_or_else(|| panic!("Dataset {} not found", dataset_name))
+            })
+            .collect::<HashMap<_, _>>();
+
         let v: Vec<Value> = (0..num)
             .map(move |idx| {
                 let index = self.indexes[idx].clone();
@@ -385,27 +410,9 @@ impl MixedDataset {
                 let mut mix_obj = serde_json::Map::new();
                 for (i, ix) in index.iter().enumerate() {
                     let dataset_name = &self.selected_datasets[i];
-                    let dataset = datasets.get(dataset_name).unwrap();
-                    let df = match dataset {
-                        DatasetType::Json(json_dataset) => json_dataset.df(),
-                        DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
-                        DatasetType::OpenApi(open_api_dataset) => open_api_dataset.df(),
-                        DatasetType::Polars(polars_dataset) => polars_dataset.df(),
-                        DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
-                        DatasetType::Csv(csv_dataset) => csv_dataset.df(),
-                        DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
-                        DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
-                        DatasetType::Mixed(_mixed_dataset) => unimplemented!(),
-                    };
-
-                    let row = df.get_row(*ix).unwrap();
-                    let mut obj = serde_json::Map::new();
-                    let columns = df.get_column_names();
-                    for (col, val) in columns.iter().zip(row.0.iter()) {
-                        obj.insert(col.to_string(), anyvalue_to_json(val));
-                    }
-
-                    mix_obj.insert(dataset_name.clone(), Value::Object(obj));
+                    let df_values = df_selected_value.get(dataset_name).unwrap();
+                    let row = df_values.get(*ix).unwrap();
+                    mix_obj.insert(dataset_name.clone(), row.clone());
                 }
                 Value::Object(mix_obj)
             })
@@ -420,33 +427,41 @@ impl MixedDataset {
     ) -> Result<impl Iterator<Item = Result<Value>> + 'a> {
         let num = self.indexes.len();
 
+        let df_selected_value = self
+            .selected_datasets
+            .iter()
+            .map(|dataset_name| {
+                datasets
+                    .get(dataset_name)
+                    .map(|dataset| {
+                        let df = match dataset {
+                            DatasetType::Json(json_dataset) => json_dataset.df(),
+                            DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
+                            DatasetType::OpenApi(open_api_dataset) => open_api_dataset.df(),
+                            DatasetType::Polars(polars_dataset) => polars_dataset.df(),
+                            DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
+                            DatasetType::Csv(csv_dataset) => csv_dataset.df(),
+                            DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
+                            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
+                            DatasetType::Mixed(_mixed_dataset) => unimplemented!(),
+                        };
+
+                        let df_values = df_to_values(df).unwrap();
+                        (dataset_name, df_values)
+                    })
+                    .unwrap_or_else(|| panic!("Dataset {} not found", dataset_name))
+            })
+            .collect::<HashMap<_, _>>();
+
         Ok((0..num).map(move |idx| {
             let index = self.indexes[idx].clone();
 
             let mut mix_obj = serde_json::Map::new();
             for (i, ix) in index.iter().enumerate() {
                 let dataset_name = &self.selected_datasets[i];
-                let dataset = datasets.get(dataset_name).unwrap();
-                let df = match dataset {
-                    DatasetType::Json(json_dataset) => json_dataset.df(),
-                    DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
-                    DatasetType::OpenApi(open_api_dataset) => open_api_dataset.df(),
-                    DatasetType::Polars(polars_dataset) => polars_dataset.df(),
-                    DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
-                    DatasetType::Csv(csv_dataset) => csv_dataset.df(),
-                    DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
-                    DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
-                    DatasetType::Mixed(_mixed_dataset) => unimplemented!(),
-                };
-
-                let row = df.get_row(*ix).unwrap();
-                let mut obj = serde_json::Map::new();
-                let columns = df.get_column_names();
-                for (col, val) in columns.iter().zip(row.0.iter()) {
-                    obj.insert(col.to_string(), anyvalue_to_json(val));
-                }
-
-                mix_obj.insert(dataset_name.clone(), Value::Object(obj));
+                let df_values = df_selected_value.get(dataset_name).unwrap();
+                let row = df_values.get(*ix).unwrap();
+                mix_obj.insert(dataset_name.clone(), row.clone());
             }
             Ok(Value::Object(mix_obj))
         }))

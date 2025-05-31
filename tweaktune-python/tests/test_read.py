@@ -285,3 +285,62 @@ def test_read_openapi(request, output_dir):
     assert len(lines) == number
 
 
+def test_read_jsonl(request, data_dir, output_dir):
+    number = 1
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    functions_micro_file = f"{data_dir}/functions_micro.json"
+    with open(functions_micro_file, "w") as f:
+        f.write('{"name": "function1", "test_bool": true, "test_int": 1, "test_float": 0.1, "description": "This is function.", "parameters": {"type": "object", "p_bool": true, "p_int": 1, "p_float": 0.1, "properties": {"x": {"type": "integer", "v_int": 1, "v_float": 0.7, "v_bool": true}, "y": {"type": "integer"}}, "required": ["x", "y"], "arr_int": [1,2,3], "arr_float": [0.1,0.2,0.3], "arr_bool": [true, false, true]}}\n')
+
+    Pipeline()\
+        .with_workers(1)\
+        .with_jsonl_dataset("functions", functions_micro_file)\
+        .with_template("output", """{"description": {{functions[0].description|jstr}}, "functions": {{functions}} }""")\
+    .iter_range(number)\
+        .sample(dataset="functions", size=1, output="functions")\
+        .write_jsonl(path=output_file, template="output")\
+    .run()
+
+    lines = open(output_file, "r").readlines()
+    line = json.loads(lines[0])
+    assert "description" in line
+    assert line["description"] == "This is function."
+    assert "test_bool" in line["functions"][0]
+    assert line["functions"][0]["test_bool"] == True
+    assert "test_int" in line["functions"][0]
+    assert line["functions"][0]["test_int"] == 1
+    assert "test_float" in line["functions"][0]
+    assert line["functions"][0]["test_float"] == 0.1
+    assert "parameters" in line["functions"][0]
+
+
+    print(line["functions"][0]["parameters"])
+    assert "type" in line["functions"][0]["parameters"]
+    assert line["functions"][0]["parameters"]["type"] == "object"
+    assert "p_bool" in line["functions"][0]["parameters"]
+    assert line["functions"][0]["parameters"]["p_bool"] == True
+    assert "p_int" in line["functions"][0]["parameters"]
+    assert line["functions"][0]["parameters"]["p_int"] == 1
+    assert "p_float" in line["functions"][0]["parameters"]
+    assert line["functions"][0]["parameters"]["p_float"] == 0.1
+
+
+    assert "properties" in line["functions"][0]["parameters"]
+    assert "x" in line["functions"][0]["parameters"]["properties"]
+    assert line["functions"][0]["parameters"]["properties"]["x"]["type"] == "integer"
+    assert line["functions"][0]["parameters"]["properties"]["x"]["v_int"] == 1
+    assert line["functions"][0]["parameters"]["properties"]["x"]["v_float"] == 0.7
+    assert line["functions"][0]["parameters"]["properties"]["x"]["v_bool"] == True
+    assert "y" in line["functions"][0]["parameters"]["properties"]
+    assert line["functions"][0]["parameters"]["properties"]["y"]["type"] == "integer"
+    assert "required" in line["functions"][0]["parameters"]
+    assert line["functions"][0]["parameters"]["required"] == ["x", "y"]
+    assert "arr_int" in line["functions"][0]["parameters"]
+    assert line["functions"][0]["parameters"]["arr_int"] == [1,2,3]
+    assert "arr_float" in line["functions"][0]["parameters"]
+    assert line["functions"][0]["parameters"]["arr_float"] == [0.1,0.2,0.3]
+    assert "arr_bool" in line["functions"][0]["parameters"]
+    assert line["functions"][0]["parameters"]["arr_bool"] == [True, False, True]
+    assert len(lines) == number
+    
