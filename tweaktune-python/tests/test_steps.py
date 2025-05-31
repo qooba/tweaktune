@@ -26,6 +26,7 @@ def test_step_sample(request, output_dir, data_dir, arrow_dataset):
     lines = open(output_file, "r").readlines()
     item = json.loads(lines[0])
     assert "my_items" in item
+    print("ITEM:", item)
     assert "name" in item["my_items"]
     assert len(lines) == 10
 
