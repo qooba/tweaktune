@@ -3,7 +3,6 @@ use crate::config::read_config;
 use crate::readers::build_reader;
 use anyhow::Result;
 use polars::prelude::*;
-use polars_plan::plans::ScanSources;
 use polars_utils::mmap::MemSlice;
 use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};

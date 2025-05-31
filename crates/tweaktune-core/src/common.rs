@@ -360,7 +360,7 @@ pub fn create_rows_stream(df: &DataFrame) -> Result<impl Iterator<Item = Result<
 fn arrow_data_type_to_polars_data_type(
     arrow_data_type: &polars_arrow::datatypes::ArrowDataType,
 ) -> polars::prelude::DataType {
-    polars::prelude::DataType::from_arrow(arrow_data_type, false, None)
+    polars::prelude::DataType::from_arrow(arrow_data_type, None)
 }
 
 #[cfg(test)]
