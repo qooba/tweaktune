@@ -335,9 +335,15 @@ pub fn df_to_values(df: &DataFrame) -> Result<Vec<Value>> {
         .with_json_format(JsonFormat::Json)
         .finish(&mut df)
         .unwrap();
+    let json_str = String::from_utf8(buffer.clone())
+        .map_err(|e| anyhow!("Failed to convert DataFrame to string: {}", e))?;
 
-    let df_json = serde_json::from_str(str::from_utf8(&buffer).unwrap())
+    println!("DATAFRAME JSON STR: {}", json_str);
+
+    let df_json = serde_json::from_str(&json_str)
         .map_err(|e| anyhow!("Failed to parse DataFrame to JSON: {}", e))?;
+
+    println!("DATAFRAME JSON: {}", df_json);
     if let Value::Array(arr) = df_json {
         Ok(arr)
     } else {
@@ -346,15 +352,12 @@ pub fn df_to_values(df: &DataFrame) -> Result<Vec<Value>> {
 }
 
 pub fn create_rows_stream(df: &DataFrame) -> Result<impl Iterator<Item = Result<Value>> + '_> {
-    let values = df_to_values(df)?;
-    let iter = values.into_iter().map(|value| {
-        if let Value::Object(obj) = value {
-            Ok(Value::Object(obj))
-        } else {
-            Err(anyhow!("Expected Value::Object, found {:?}", value))
-        }
-    });
-    Ok(iter)
+    let height = df.height();
+    Ok((0..height).map(move |idx| {
+        let row = df.slice(idx as i64, 1);
+        let values = df_to_values(&row)?;
+        Ok(values[0].clone())
+    }))
 }
 
 fn arrow_data_type_to_polars_data_type(
