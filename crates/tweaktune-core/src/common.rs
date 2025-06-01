@@ -357,6 +357,7 @@ pub fn create_rows_stream(df: &DataFrame) -> Result<impl Iterator<Item = Result<
     }))
 }
 
+#[allow(dead_code)]
 fn arrow_data_type_to_polars_data_type(
     arrow_data_type: &polars_arrow::datatypes::ArrowDataType,
 ) -> polars::prelude::DataType {
