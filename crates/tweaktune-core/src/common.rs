@@ -1,8 +1,9 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
+use log::debug;
 use once_cell::sync::OnceCell;
-use polars::frame::DataFrame;
-use polars::prelude::AnyValue;
+use polars::prelude::*;
+use polars_arrow::array::ListArray;
 use rand::distr::Alphanumeric;
 use rand::{Rng, RngCore};
 use regex::Regex;
@@ -71,7 +72,7 @@ impl<T, E: std::fmt::Debug> ResultExt<T, E> for Result<T, E> {
     }
 
     fn map_io_err(self) -> IoResult<T> {
-        self.map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{e:?}")))
+        self.map_err(|e| io::Error::other(format!("{e:?}")))
     }
 
     fn map_box_err(self) -> Result<T, Box<dyn std::error::Error>> {
@@ -310,71 +311,57 @@ fn extract_json_regex(text: &str, re: &str) -> Result<String> {
 }
 
 pub fn extract_json(text: &str) -> Result<Value> {
-    // debug!(target: "extract_json", "EXTRACT JSON {}", &text);
-    let value = match serde_json::from_str(text) {
+    let text = text.replace("<|im_end|>", "");
+    let value = match serde_json::from_str(&text) {
         Ok(v) => v,
-        Err(_e) => match extract_json_block_md(text) {
+        Err(_e) => match extract_json_block_md(&text) {
             Ok(v) => v,
-            Err(_e) => extract_json_block(text)?,
+            Err(_e) => match extract_json_block(&text) {
+                Ok(v) => v,
+                Err(e) => {
+                    debug!(target: "extract_json", "EXTRACT JSON {}", &text);
+                    return Err(anyhow!("Failed to extract JSON: {}", e));
+                }
+            },
         },
     };
     Ok(value)
 }
 
 pub fn df_to_values(df: &DataFrame) -> Result<Vec<Value>> {
-    let columns = df.get_column_names();
-    let mut json_rows = Vec::new();
+    let mut buffer = Vec::new();
+    let mut df = df.clone();
+    JsonWriter::new(&mut buffer)
+        .with_json_format(JsonFormat::Json)
+        .finish(&mut df)
+        .unwrap();
+    let json_str = String::from_utf8(buffer.clone())
+        .map_err(|e| anyhow!("Failed to convert DataFrame to string: {}", e))?;
 
-    for idx in 0..df.height() {
-        let row = df.get_row(idx)?;
-        let mut obj = serde_json::Map::new();
-        for (col, val) in columns.iter().zip(row.0.iter()) {
-            obj.insert(col.to_string(), anyvalue_to_json(val));
-        }
-        json_rows.push(Value::Object(obj));
+    let df_json = serde_json::from_str(&json_str)
+        .map_err(|e| anyhow!("Failed to parse DataFrame to JSON: {}", e))?;
+
+    if let Value::Array(arr) = df_json {
+        Ok(arr)
+    } else {
+        Err(anyhow!("DataFrame JSON is not an array"))
     }
-
-    Ok(json_rows)
 }
 
 pub fn create_rows_stream(df: &DataFrame) -> Result<impl Iterator<Item = Result<Value>> + '_> {
-    let columns = df.get_column_names();
     let height = df.height();
     Ok((0..height).map(move |idx| {
-        let row = df.get_row(idx).unwrap();
-        let mut obj = serde_json::Map::new();
-        for (col, val) in columns.iter().zip(row.0.iter()) {
-            obj.insert(col.to_string(), anyvalue_to_json(val));
-        }
-        Ok(Value::Object(obj))
+        let row = df.slice(idx as i64, 1);
+        let values = df_to_values(&row)?;
+        Ok(values[0].clone())
     }))
 }
 
-pub fn anyvalue_to_json(val: &AnyValue) -> Value {
-    match val {
-        AnyValue::Null => Value::Null,
-        AnyValue::Boolean(b) => Value::Bool(*b),
-        AnyValue::Int64(i) => Value::from(*i),
-        AnyValue::UInt64(u) => Value::from(*u),
-        AnyValue::Float64(f) => Value::from(*f),
-        AnyValue::String(s) => Value::from(*s),
-        AnyValue::Int8(i) => Value::from(*i),
-        AnyValue::Int16(i) => Value::from(*i),
-        AnyValue::Int32(i) => Value::from(*i),
-        AnyValue::UInt8(u) => Value::from(*u),
-        AnyValue::UInt16(u) => Value::from(*u),
-        AnyValue::UInt32(u) => Value::from(*u),
-        AnyValue::Float32(f) => Value::from(*f),
-        AnyValue::Date(d) => Value::from(*d),
-        AnyValue::Datetime(dt, _, _) => Value::from(*dt),
-        AnyValue::Time(t) => Value::from(*t),
-        AnyValue::Duration(d, _) => Value::from(*d),
-        AnyValue::Decimal(val, scale) => {
-            let factor = 10f64.powi(*scale as i32);
-            Value::from(*val as f64 / factor)
-        }
-        _ => Value::String(val.to_string()),
-    }
+#[allow(dead_code)]
+fn arrow_data_type_to_polars_data_type(
+    arrow_data_type: &polars_arrow::datatypes::ArrowDataType,
+) -> polars::prelude::DataType {
+    polars::prelude::DataType::from_arrow(arrow_data_type, None)
 }
 
 #[cfg(test)]

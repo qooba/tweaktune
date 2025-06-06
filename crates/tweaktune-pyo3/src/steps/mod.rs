@@ -58,7 +58,7 @@ impl StepTest {
         );
 
         let t: Result<String> = Runtime::new().unwrap().block_on(async {
-            let result = llm.call(prompt, None).await.unwrap();
+            let result = llm.call(prompt, None, None, None).await.unwrap();
             Ok(result.choices[0].message.content.clone())
         });
 

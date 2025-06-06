@@ -10,7 +10,7 @@ use log::debug;
 use pyo3::prelude::*;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::io::Write;
 use std::{collections::HashMap, fs::File};
 use text_splitter::{Characters, TextSplitter};
@@ -84,6 +84,7 @@ pub enum StepType {
     DataSampler(DataSamplerStep),
     Chunk(ChunkStep),
     Render(RenderStep),
+    ValidateJson(ValidateJsonStep),
 }
 
 pub struct PyStep {
@@ -122,7 +123,7 @@ impl Step for PyStep {
                 Ok(result)
             }
             Err(e) => {
-                debug!("{:?}", e);
+                debug!(target: "pystep", "{:?}", e);
                 let mut context = context.clone();
                 context.set_status(StepStatus::Failed);
                 Ok(context)
@@ -203,6 +204,71 @@ impl Step for RenderStep {
     }
 }
 
+pub struct ValidateJsonStep {
+    pub name: String,
+    pub schema: String,
+    pub instance: String,
+}
+
+impl ValidateJsonStep {
+    pub fn new(name: String, schema: String, instance: String) -> Self {
+        Self {
+            name,
+            schema,
+            instance,
+        }
+    }
+}
+
+impl Step for ValidateJsonStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        let schema = templates.render(self.schema.clone(), context.data.clone())?;
+        let full_schema: Value = serde_json::from_str(&schema).unwrap();
+
+        let properties = if let Value::String(v) = full_schema["properties"].clone() {
+            serde_json::from_str(&v).unwrap()
+        } else {
+            full_schema["properties"].clone()
+        };
+
+        let schema_value = json!({
+            "type": "object",
+            "properties": properties,
+            "required": full_schema["required"],
+            "additionalProperties": false,
+        });
+
+        let instance_json = templates.render(self.instance.clone(), context.data.clone())?;
+
+        match serde_json::from_str(&instance_json) {
+            Ok(instance) => {
+                let is_valid = jsonschema::is_valid(&schema_value, &instance);
+
+                if !is_valid {
+                    debug!(target: "validate_json_step", "Failed to validate JSON: {} with schema {}", instance, schema_value);
+                    context.set_status(StepStatus::Failed);
+                }
+
+                Ok(context)
+            }
+            Err(e) => {
+                debug!(target: "validate_json_step", "Failed to render instance: {}", e);
+                context.set_status(StepStatus::Failed);
+                Ok(context)
+            }
+        }
+    }
+}
+
 pub struct PrintStep {
     pub name: String,
     pub template: Option<String>,
@@ -267,6 +333,8 @@ pub struct TextGenerationStep {
     pub system_template: Option<String>,
     pub llm: String,
     pub output: String,
+    pub max_tokens: Option<u32>,
+    pub temperature: Option<f32>,
 }
 
 impl TextGenerationStep {
@@ -276,6 +344,8 @@ impl TextGenerationStep {
         llm: String,
         output: String,
         system_template: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Self {
         Self {
             name,
@@ -283,9 +353,12 @@ impl TextGenerationStep {
             llm,
             output,
             system_template,
+            max_tokens,
+            temperature,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn generate(
         &self,
         _datasets: &HashMap<String, DatasetType>,
@@ -294,29 +367,47 @@ impl TextGenerationStep {
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
         json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Result<Option<String>> {
         let template = templates.render(self.template.clone(), context.data.clone());
         let template = match template {
             Ok(t) => t,
             Err(e) => {
-                debug!(target: "generate", "Failed to render template: {}", e);
+                debug!(target: "text_generation_step", "Failed to render template: {}", e);
                 return Ok(None);
             }
         };
 
         let llm = llms.get(&self.llm).expect("LLM");
         let result = match llm {
-            llms::LLMType::OpenAI(llm) => match llm.call(template, json_schema).await {
+            llms::LLMType::OpenAI(llm) => match llm
+                .call(template, json_schema, max_tokens, temperature)
+                .await
+            {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
-                    debug!(target: "generate", "Failed to generate text: {}", e);
+                    debug!(target: "text_generation_step", "Failed to generate text: {}", e);
                     None
                 }
             },
-            llms::LLMType::Unsloth(llm) => match llm.call(template, json_schema).await {
+            llms::LLMType::Unsloth(llm) => match llm
+                .call(template, json_schema, max_tokens, temperature)
+                .await
+            {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
-                    debug!(target: "generate", "Failed to generate text: {}", e);
+                    debug!(target: "text_generation_step", "Failed to generate text: {}", e);
+                    None
+                }
+            },
+            llms::LLMType::Mistralrs(llm) => match llm
+                .call(template, json_schema, max_tokens, temperature)
+                .await
+            {
+                Ok(response) => Some(response.choices[0].message.content.clone()),
+                Err(e) => {
+                    debug!(target: "text_generation_step", "Failed to generate text: {}", e);
                     None
                 }
             },
@@ -337,7 +428,16 @@ impl Step for TextGenerationStep {
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let result = self
-            .generate(_datasets, templates, llms, _embeddings, &context, None)
+            .generate(
+                _datasets,
+                templates,
+                llms,
+                _embeddings,
+                &context,
+                None,
+                self.max_tokens,
+                self.temperature,
+            )
             .await?;
 
         match result {
@@ -358,8 +458,12 @@ pub struct JsonGenerationStep {
     pub output: String,
     pub json_path: Option<String>,
     pub json_schema: Option<String>,
+    pub max_tokens: Option<u32>,
+    pub temperature: Option<f32>,
+    pub schema_key: Option<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl JsonGenerationStep {
     pub fn new(
         name: String,
@@ -369,6 +473,9 @@ impl JsonGenerationStep {
         json_path: Option<String>,
         system_template: Option<String>,
         json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+        schema_key: Option<String>,
     ) -> Self {
         Self {
             generation_step: TextGenerationStep::new(
@@ -377,11 +484,16 @@ impl JsonGenerationStep {
                 llm,
                 output.clone(),
                 system_template,
+                max_tokens,
+                temperature,
             ),
             output,
             name,
             json_path,
             json_schema,
+            max_tokens,
+            temperature,
+            schema_key,
         }
     }
 }
@@ -396,6 +508,39 @@ impl Step for JsonGenerationStep {
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
+
+        let json_schema = if let Some(schema_key) = &self.schema_key {
+            let schema = templates.render(schema_key.clone(), context.data.clone())?;
+
+            let full_schema: Value = serde_json::from_str(&schema).unwrap();
+
+            let properties = if let Value::String(v) = full_schema["properties"].clone() {
+                serde_json::from_str(&v).unwrap()
+            } else {
+                full_schema["properties"].clone()
+            };
+
+            let schema = json!({
+                "name": "OUTPUT",
+                "schema":{
+                    "type": "object",
+                    "properties": properties,
+                    "required": full_schema["required"],
+                    "additionalProperties": false,
+                },
+                "strict": true
+            })
+            .to_string();
+
+            debug!(target: "json_generation_step", "RENDERED SCHEMA: {}", schema);
+            Some(schema)
+        } else if let Some(schema) = &self.json_schema {
+            debug!(target: "json_generation_step", "PROVIDED SCHEMA: {}", schema);
+            Some(schema.clone())
+        } else {
+            None
+        };
+
         let result = self
             .generation_step
             .generate(
@@ -404,7 +549,9 @@ impl Step for JsonGenerationStep {
                 llms,
                 _embeddings,
                 &context,
-                self.json_schema.clone(),
+                json_schema,
+                self.max_tokens,
+                self.temperature,
             )
             .await?;
 
@@ -417,11 +564,11 @@ impl Step for JsonGenerationStep {
                         });
                     }
 
-                    debug!(target:"generate", "Generated VALUE: {}", value);
+                    debug!(target:"json_generation_step", "Generated VALUE: {}", value);
                     context.data[self.output.clone()] = value;
                 }
                 Err(e) => {
-                    debug!(target:"generate", "Failed to extract JSON: {}", e);
+                    debug!(target:"json_generation_step", "Failed to extract JSON: {}", e);
                     context.set_status(StepStatus::Failed);
                 }
             },
@@ -469,7 +616,7 @@ impl Step for JsonlWriterStep {
                 writer.flush()?;
             }
             Err(e) => {
-                debug!("Failed to render template: {}", e);
+                debug!(target: "json_writer_step", "Failed to render template: {}", e);
                 context.set_status(StepStatus::Failed);
             }
         };
@@ -666,6 +813,93 @@ mod tests {
 
     #[test]
     fn it_works() {
+        println!("hello");
+    }
+
+    #[test]
+    fn schema_validate() {
+        use serde_json::Value;
+
+        let raw_schema = r#"{
+            "type": "object",
+            "properties": {
+                    "critic": {
+                        "description": "Nazwisko krytyka",
+                        "type": "string"
+                    },
+                    "title": {
+                        "description": "Tytuł filmu",
+                        "type": "string"
+                    }
+            }
+        }"#;
+
+        let instance_json = r#"{
+            "critic": "Jan Kowalski",
+            "title": "Incepcja"
+        }"#;
+
+        let full_schema: Value = serde_json::from_str(raw_schema).unwrap();
+        let instance: Value = serde_json::from_str(instance_json).unwrap();
+
+        assert!(jsonschema::is_valid(&full_schema, &instance));
+        println!("hello");
+    }
+
+    #[test]
+    fn schema_validate2() {
+        use serde_json::Value;
+
+        let raw_schema = r#"{
+            "type": "object",
+            "properties": {
+                "color": {
+                    "description": "Typ kolorystyczny obrazów do wyszukania",
+                    "enum": [
+                        "color",
+                        "black-and-white"
+                    ],
+                    "type": "string"
+                },
+                "keywords": {
+                    "description": "Słowa kluczowe do wyszukiwania obrazów",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "license": {
+                    "description": "Typ licencji obrazów do wyszukania",
+                    "enum": [
+                        "public",
+                        "commercial",
+                        "any"
+                    ],
+                    "type": "string"
+                },
+                "size": {
+                    "description": "Rozmiar obrazów do wyszukania",
+                    "enum": [
+                        "small",
+                        "medium",
+                        "large"
+                    ],
+                    "type": "string"
+                }
+            }
+        }"#;
+
+        let instance_json = r#"{
+            "color": "black-and-white",
+            "keywords": ["cat", "dog"],
+            "license": "public",
+            "size": 1
+        }"#;
+
+        let full_schema: Value = serde_json::from_str(raw_schema).unwrap();
+        let instance: Value = serde_json::from_str(instance_json).unwrap();
+
+        assert!(jsonschema::is_valid(&full_schema, &instance));
         println!("hello");
     }
 }
