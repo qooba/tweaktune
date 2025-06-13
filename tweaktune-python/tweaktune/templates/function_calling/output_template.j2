@@ -1,0 +1,1 @@
+{ "conversation": [{"role":"user", "content":"{{question}}"}, {"role":"assistant", "content":"<tool_call>{\"name\":\"{{function[0].name|jstr}}\", \"arguments\": {{call|jstr|jstr}} }</tool_call>"}]  , "function_descriptions": {{all_functions|tojson}} }
