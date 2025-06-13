@@ -2,8 +2,16 @@ from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings
 from tweaktune.common import record_batches_to_ipc_bytes, package_installation_hint, pydantic_to_json_schema, function_to_json_schema
 from tweaktune.wrappers import PyStepWrapper, UnslothWrapper, MistralrsWrapper, PyStepValidatorWrapper
 import json
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Callable, Optional
 from pydantic import BaseModel
+from enum import Enum
+
+class StepStatus(Enum):
+    """Enum for step status."""
+    Pending = "Pending"
+    Running = "Running"
+    Completed = "Completed"
+    Failed = "Failed"
 
 class Pipeline:
     def __init__(self):
@@ -253,10 +261,29 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
-    def map(self, func, name: str = "PY-STEP"):
+    def map(self, func: Callable, name: str = "PY-MAP"):
         name = self.__name(name)
         step = type(name.replace("-","_"), (object,), {'process': lambda self, context: func(context)})()
         self.builder.add_py_step(name, PyStepWrapper(step))
+        self.step_index += 1
+        return self
+    
+    def add_column(self, output: str, func: Callable, name: str = "PY-ADD-COLUMN"):
+        def wrapper(context):
+            context["data"][output] = func(context["data"])
+            return context
+
+        self.map(wrapper, name=name)
+        self.step_index += 1
+        return self
+
+    def filter(self, condition: Callable, name: str = "PY-FILTER"):
+        def condition_wrapper(context):
+            if not condition(context["data"]):
+                context["status"] = StepStatus.Failed.value
+            return context
+
+        self.map(condition_wrapper, name=name)
         self.step_index += 1
         return self
 
