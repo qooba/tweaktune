@@ -42,3 +42,23 @@ def test_basic_j2(request, output_dir, j2_file):
     item = json.loads(lines[0])
     assert item["hello"] == "world"
 
+#def test_basic_j2_https(request, output_dir):
+#    """Test the basic functionality of the pipeline."""
+#    number = 5
+#    output_file = f"{output_dir}/{request.node.name}.jsonl"
+#    j2_file = "https://raw.githubusercontent.com/qooba/tweaktune/refs/heads/json_serialization/tweaktune-python/tweaktune/templates/function_calling/output_template.j2"
+#    j2_file ="http://localhost:4444/template.txt"
+#
+#    Pipeline()\
+#        .with_workers(1)\
+#        .with_j2_template("output", j2_file)\
+#    .iter_range(number)\
+#        .add_column("question", lambda data: "How are you ?")\
+#        .write_jsonl(path=output_file, template="output")\
+#        .debug()\
+#    .run()
+#
+#    lines = open(output_file, "r").readlines()
+#    assert len(lines) == number
+#    item = json.loads(lines[0])
+#    #assert item["hello"] == "world"
