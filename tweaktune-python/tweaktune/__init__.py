@@ -120,11 +120,16 @@ class Pipeline:
             package_installation_hint("datasets")
             package_installation_hint("pyarrow")
             raise
-
     
     def with_template(self, name: str, template: str):
         """Adds a template to the pipeline."""
         self.builder.with_jinja_template(name, template)
+        return self
+    
+    def with_j2_template(self, name: str, path: str, op_config: Optional[dict] = None):
+        """Adds a template from file to the pipeline."""
+        op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
+        self.builder.with_j2_template(name, path, op_config)
         return self
     
     def with_llm(self, llm: LLM):
@@ -270,6 +275,8 @@ class PipelineRunner:
     
     def add_column(self, output: str, func: Callable, name: str = "PY-ADD-COLUMN"):
         def wrapper(context):
+            if output in context["data"]:
+                print("Warning: Output column already exists, overwriting it.")
             context["data"][output] = func(context["data"])
             return context
 
@@ -286,7 +293,15 @@ class PipelineRunner:
         self.map(condition_wrapper, name=name)
         self.step_index += 1
         return self
+    
+    def mutate(self, output: str, func: Callable, name: str = "PY-ADD-COLUMN"):
+        def wrapper(context):
+            context["data"][output] = func(context["data"][output])
+            return context
 
+        self.map(wrapper, name=name)
+        self.step_index += 1
+        return self
 
     def generate_text(self, template: str, llm: str, output: str, system_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-TEXT"):
         self.builder.add_text_generation_step(self.__name(name), template, llm, output, system_template, max_tokens, temperature)

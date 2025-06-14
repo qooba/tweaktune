@@ -12,6 +12,7 @@ use tweaktune_core::datasets::{
     PolarsDataset,
 };
 use tweaktune_core::llms::{MistralrsLLM, UnslothLLM};
+use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::{ChunkStep, RenderStep, ValidateJsonStep};
 use tweaktune_core::{
     common::OptionToResult,
@@ -247,6 +248,13 @@ impl PipelineBuilder {
 
     pub fn with_jinja_template(&mut self, name: String, template: String) {
         info!("Added Jinja template: {}", &name);
+        self.templates.add(name, template);
+    }
+
+    #[pyo3(signature = (name, path, op_config=None))]
+    pub fn with_j2_template(&mut self, name: String, path: String, op_config: Option<String>) {
+        info!("Added Jinja template: {}", &name);
+        let template = read_to_string(&path, op_config).unwrap();
         self.templates.add(name, template);
     }
 

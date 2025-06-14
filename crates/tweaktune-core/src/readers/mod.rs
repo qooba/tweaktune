@@ -3,6 +3,7 @@ use opendal::services::{AzblobConfig, Fs, FsConfig, GcsConfig, HttpConfig, S3Con
 use opendal::Operator;
 use opendal::StdReader;
 use serde::Deserialize;
+use std::io::Read;
 use std::path::Path;
 
 pub struct OpReader {
@@ -61,4 +62,11 @@ pub fn build_reader(path: &str, op_config: Option<String>) -> Result<OpReader> {
         inner: reader,
         // content_length,
     })
+}
+
+pub fn read_to_string(path: &str, op_config: Option<String>) -> Result<String> {
+    let mut reader = build_reader(path, op_config)?;
+    let mut content = String::new();
+    reader.inner.read_to_string(&mut content)?;
+    Ok(content)
 }
