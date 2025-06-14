@@ -46,7 +46,6 @@ def test_basic_j2(request, output_dir, j2_file):
 #    """Test the basic functionality of the pipeline."""
 #    number = 5
 #    output_file = f"{output_dir}/{request.node.name}.jsonl"
-#    j2_file = "https://raw.githubusercontent.com/qooba/tweaktune/refs/heads/json_serialization/tweaktune-python/tweaktune/templates/function_calling/output_template.j2"
 #    j2_file ="http://localhost:4444/template.txt"
 #
 #    Pipeline()\

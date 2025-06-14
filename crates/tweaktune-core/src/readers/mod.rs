@@ -1,5 +1,5 @@
 use anyhow::Result;
-use opendal::services::{AzblobConfig, Fs, FsConfig, GcsConfig, HttpConfig, S3Config};
+use opendal::services::{AzblobConfig, FsConfig, GcsConfig, HttpConfig, S3Config};
 use opendal::Operator;
 use opendal::StdReader;
 use serde::Deserialize;
@@ -31,6 +31,7 @@ pub enum OpConfig {
     Http(HttpConfig),
 }
 
+#[allow(dead_code, unreachable_code, clippy::field_reassign_with_default)]
 pub fn path_to_operator(path: &str) -> Result<OpConfig> {
     if path.starts_with("s3://") {
         let mut config = S3Config::default();
@@ -48,21 +49,22 @@ pub fn path_to_operator(path: &str) -> Result<OpConfig> {
         todo!("Azure Blob Storage configuration is not fully implemented yet");
         // Ok(OpConfig::Azblob(config))
     } else if path.starts_with("http://") || path.starts_with("https://") {
+        todo!("HTTP configuration is not fully implemented yet");
         let mut config = HttpConfig::default();
-        // let url = url::Url::parse(path)?;
-        // if let Some(host) = url.host_str() {
-        //     if let Some(p) = url.path().strip_prefix('/') {
-        //         if let Some(pos) = p.rfind('/') {
-        //             let p = &p[..pos];
-        //             config.endpoint = Some(format!("{}://{}/{}/", url.scheme(), host, p));
-        //         }
-        //     }
-        // }
-
-        if let Some(pos) = path.rfind('/') {
-            println!("ENDPOINT: {}", &path[..pos]);
-            config.endpoint = Some(path[..pos].to_string());
+        let url = url::Url::parse(path)?;
+        if let Some(host) = url.host_str() {
+            if let Some(p) = url.path().strip_prefix('/') {
+                if let Some(pos) = p.rfind('/') {
+                    let p = &p[..pos];
+                    config.endpoint = Some(format!("{}://{}/{}/", url.scheme(), host, p));
+                }
+            }
         }
+
+        // if let Some(pos) = path.rfind('/') {
+        //     println!("ENDPOINT: {}", &path[..pos]);
+        //     config.endpoint = Some(path[..pos].to_string());
+        // }
         Ok(OpConfig::Http(config))
     } else {
         let p = Path::new(path);
