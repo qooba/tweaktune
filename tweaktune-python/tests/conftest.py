@@ -116,3 +116,16 @@ def parquet_file():
     yield pq_file
     shutil.rmtree(output_pq_dir)
 
+@pytest.fixture(scope="session")
+def j2_file():
+    """Prepare an example j2 template file."""
+
+
+    output_j2_dir = tempfile.mkdtemp()
+    j2_file = f"{output_j2_dir}/example.j2"
+    with open(j2_file, "w") as f:
+        f.write("""{"hello": "{{value}}"}""")
+
+    yield j2_file
+    shutil.rmtree(output_j2_dir)
+

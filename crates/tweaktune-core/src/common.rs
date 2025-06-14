@@ -3,7 +3,6 @@ use base64::{engine::general_purpose, Engine as _};
 use log::debug;
 use once_cell::sync::OnceCell;
 use polars::prelude::*;
-use polars_arrow::array::ListArray;
 use rand::distr::Alphanumeric;
 use rand::{Rng, RngCore};
 use regex::Regex;
@@ -30,7 +29,7 @@ impl Errors {
     }
 
     pub fn io(error: &str) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, format!("{error:?}"))
+        io::Error::other(format!("{error:?}"))
     }
 }
 

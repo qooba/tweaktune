@@ -21,6 +21,9 @@ dependencies = [
 [project.urls]
 repository = "https://github.com/qooba/tweaktune"
 
+[tool.setuptools.package-data]
+tweaktune = ["templates/*.j2", "templates/**/*.j2"]
+
 [project.optional-dependencies]
 dev = [
     "pytest ~=8.3.5",
