@@ -127,7 +127,6 @@ class Tools:
             matches = re.findall(r"<tool_call>(.*?)</tool_call>", response, re.DOTALL)
             results = []
             tool_calls = []
-            tool_responses = []
             for m in matches:
                 data = json.loads(m.strip())
                 name = data.get("name")
