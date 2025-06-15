@@ -1,5 +1,6 @@
 from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings
-from tweaktune.common import record_batches_to_ipc_bytes, package_installation_hint, pydantic_to_json_schema, function_to_json_schema
+from tweaktune.common import record_batches_to_ipc_bytes, package_installation_hint
+from tweaktune.tools import pydantic_to_json_schema, function_to_json_schema
 from tweaktune.wrappers import PyStepWrapper, UnslothWrapper, MistralrsWrapper, PyStepValidatorWrapper
 import json
 from typing import List, Union, Tuple, Callable, Optional
