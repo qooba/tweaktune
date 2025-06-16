@@ -41,12 +41,12 @@ jobs:
           version: "latest"
 
       - name: Set up uv environment
-        working-directory:  ./
+        working-directory:  ./tweaktune-python
         run: |
-          uv venv ./.venv
-          source ./.venv/bin/activate
-          uv pip install cibuildwheel maturin twine
-          cibuildwheel --output-dir wheelhouse ./tweaktune-python
+          uv venv ../.venv
+          source ../.venv/bin/activate
+          uv pip install maturin twine
+          maturin build --release --compatibility manylinux2014  --skip-auditwheel
 
       - name: Publish to PyPI
         env:
@@ -54,4 +54,4 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           source .venv/bin/activate
-          twine upload  --repository pypi ./wheelhouse/*.whl
+          twine upload  --repository pypi ./target/wheels/*
