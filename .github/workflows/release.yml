@@ -7,8 +7,7 @@ on:
 
 jobs:
   build-and-publish:
-    runs-on: ubuntu-22.04
-    #runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -42,12 +41,12 @@ jobs:
           version: "latest"
 
       - name: Set up uv environment
-        working-directory:  ./tweaktune-python
+        working-directory:  ./
         run: |
-          uv venv ../.venv
-          source ../.venv/bin/activate
-          uv pip install maturin twine
-          maturin build --release --compatibility manylinux2014  --skip-auditwheel
+          uv venv ./.venv
+          source ./.venv/bin/activate
+          uv pip install cibuildwheel maturin twine
+          cibuildwheel --output-dir wheelhouse ./tweaktune-python
 
       - name: Publish to PyPI
         env:
@@ -55,4 +54,4 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           source .venv/bin/activate
-          twine upload  --repository pypi ./target/wheels/*
+          twine upload  --repository pypi ./wheelhouse/*.whl
