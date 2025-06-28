@@ -267,7 +267,6 @@ impl PipelineBuilder {
             SerializationType::YAML
         };
         let template = read_to_string(&path, op_config).unwrap();
-        println!("DUPA!!!! {}", template);
         let templates = deserialize::<Templates>(&template, serialization_type).unwrap();
         for (name, template) in templates.templates {
             info!("Adding template: {}", &name);

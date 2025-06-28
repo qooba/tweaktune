@@ -6,6 +6,8 @@ use serde::Deserialize;
 use std::io::Read;
 use std::path::Path;
 
+use crate::config::read_config_str;
+
 pub struct OpReader {
     pub inner: StdReader,
     // pub content_length: u64,
@@ -117,8 +119,12 @@ pub fn build_reader(path: &str, op_config: Option<String>) -> Result<OpReader> {
 }
 
 pub fn read_to_string(path: &str, op_config: Option<String>) -> Result<String> {
-    let mut reader = build_reader(path, op_config)?;
-    let mut content = String::new();
-    reader.inner.read_to_string(&mut content)?;
-    Ok(content)
+    if path.starts_with("http://") || path.starts_with("https://") {
+        read_config_str(&path.to_string(), None)
+    } else {
+        let mut reader = build_reader(path, op_config)?;
+        let mut content = String::new();
+        reader.inner.read_to_string(&mut content)?;
+        Ok(content)
+    }
 }
