@@ -133,6 +133,12 @@ class Pipeline:
         self.builder.with_j2_template(name, path, op_config)
         return self
     
+    def with_j2_templates(self, path: str, op_config: Optional[dict] = None):
+        """Adds a template from file to the pipeline."""
+        op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
+        self.builder.with_j2_templates(path, op_config)
+        return self
+    
     def with_llm(self, llm: LLM):
         """Adds a LLM to the pipeline."""
         if llm.__class__ == LLM.OpenAI:

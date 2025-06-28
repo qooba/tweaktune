@@ -5,6 +5,7 @@ use log::debug;
 use minijinja::Environment;
 use rand::rng;
 use rand::seq::SliceRandom;
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -12,9 +13,9 @@ use std::sync::{OnceLock, RwLock};
 
 static ENVIRONMENT: RwLock<OnceLock<Environment>> = RwLock::new(OnceLock::new());
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Deserialize)]
 pub struct Templates {
-    templates: HashMap<String, String>,
+    pub templates: HashMap<String, String>,
 }
 
 impl Templates {

@@ -7,6 +7,7 @@ use pyo3::{pyclass, pymethods, PyObject, PyResult};
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
+use tweaktune_core::common::{deserialize, SerializationType};
 use tweaktune_core::datasets::{
     CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
     PolarsDataset,
@@ -256,6 +257,22 @@ impl PipelineBuilder {
         info!("Added Jinja template: {}", &name);
         let template = read_to_string(&path, op_config).unwrap();
         self.templates.add(name, template);
+    }
+
+    #[pyo3(signature = (path, op_config=None))]
+    pub fn with_j2_templates(&mut self, path: String, op_config: Option<String>) {
+        let serialization_type = if path.ends_with(".json") {
+            SerializationType::JSON
+        } else {
+            SerializationType::YAML
+        };
+        let template = read_to_string(&path, op_config).unwrap();
+        println!("DUPA!!!! {}", template);
+        let templates = deserialize::<Templates>(&template, serialization_type).unwrap();
+        for (name, template) in templates.templates {
+            info!("Adding template: {}", &name);
+            self.templates.add(name, template);
+        }
     }
 
     pub fn iter_by_range(&mut self, start: usize, stop: usize, step: usize) {

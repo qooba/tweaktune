@@ -212,6 +212,30 @@ pub enum SerializationType {
     YAML,
 }
 
+pub fn deserialize<T>(data: &str, serialization_type: SerializationType) -> Result<T>
+where
+    T: DeserializeOwned,
+{
+    let object = match serialization_type {
+        SerializationType::JSON => serde_json::from_str(data)?,
+        SerializationType::YAML => serde_yaml::from_str(data)?,
+    };
+
+    Ok(object)
+}
+
+pub fn serialize<T>(object: T, serialization_type: SerializationType) -> Result<String>
+where
+    T: serde::Serialize,
+{
+    let object_str = match serialization_type {
+        SerializationType::JSON => serde_json::to_string(&object)?,
+        SerializationType::YAML => serde_yaml::to_string(&object)?,
+    };
+
+    Ok(object_str)
+}
+
 pub fn decode_and_deserialize<T>(b64_data: &str, serialization_type: SerializationType) -> Result<T>
 where
     T: DeserializeOwned,
