@@ -89,12 +89,12 @@ class Pipeline:
             package_installation_hint("connectorx")
             raise
 
-    def with_hf_dataset(self, name: str, path: str, split = None, sql: str = None):
+    def with_hf_dataset(self, name: str, dataset_path: str, dataset_name: str = None, dataset_split = "train", sql: str = None):
         try:
             from datasets import load_dataset
-            dataset = load_dataset(path, split=split)
-            ipc_data = record_batches_to_ipc_bytes(dataset.to_reader())
-            self.builder.with_icp_dataset(name, ipc_data, sql)
+            dataset = load_dataset(dataset_path, name=dataset_name, split=dataset_split)
+            ipc_data = record_batches_to_ipc_bytes(dataset.data.to_reader())
+            self.builder.with_ipc_dataset(name, ipc_data, sql)
             return self
         except ModuleNotFoundError:
             package_installation_hint("datasets")
