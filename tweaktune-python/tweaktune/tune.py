@@ -1,20 +1,15 @@
 import json
 from datasets import Dataset
-from unsloth import FastLanguageModel
+from transformers import AutoTokenizer
 from unsloth.chat_templates import get_chat_template
 
 class BaseDataset:
 
-    def with_tokenizer(self, model_name: str, chat_template: str = None, eos_token: str = None, max_seq_length: int = 2048, dtype=None, load_in_4bit=False, mapping: dict = None):
+    def with_tokenizer(self, model_name: str, chat_template: str, eos_token: str, mapping: dict = None):
         """
         Prepare the tokenizer for the model.
         """
-        model, tok = FastLanguageModel.from_pretrained(
-            model_name=model_name,
-            max_seq_length=max_seq_length,
-            dtype=dtype,
-            load_in_4bit=load_in_4bit,
-        )
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         if mapping is None:
             mapping = {
@@ -25,14 +20,13 @@ class BaseDataset:
             }
 
         tokenizer = get_chat_template(
-            tok,
+            tokenizer,
             chat_template = (chat_template, eos_token,),
             mapping = mapping,
             map_eos_token = True,
         )
 
         self.tokenizer = tokenizer
-        del model
         return self
 
     def _normalize(self, path) -> list:
