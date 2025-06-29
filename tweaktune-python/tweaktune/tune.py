@@ -93,6 +93,7 @@ class ToolsDataset(BaseDataset):
                             del c["speaker"]
                         elif c.get("action") == "function-call":
                             c["role"] = "assistant"
+                            c["details"]["arguments"] = json.loads(c["details"]["arguments"])
                             c["content"]=f"<tool_call>{json.dumps(c['details'], ensure_ascii=False)}</tool_call>"
                             del c["action"]
                             del c["details"]
@@ -105,7 +106,6 @@ class ToolsDataset(BaseDataset):
 
                     dataset.append(data)
                 except Exception as ex:
-                    print("DUPA!!!",ex)
                     pass
 
         return dataset
