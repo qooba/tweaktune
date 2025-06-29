@@ -1,0 +1,80 @@
+{%- if messages[0]["role"] == "system" %}
+    {%- set system_message = messages[0]["content"] %}
+    {%- set loop_messages = messages[1:] %}
+{%- else %}
+    {%- set loop_messages = messages %}
+{%- endif %}
+
+{%- if not tools is defined %}
+    {%- set tools = none %}
+{%- endif %}
+
+{%- if json_schema is defined %}
+    {%- if not system_message is defined %}
+        {%- set system_message = "" %}
+    {%- endif %}
+    {%- set system_message = system_message 
+        + "Always respond in valid JSON format, strictly following the provided schema."
+        + "Do not include any extra text, explanations, or comments outside the JSON structure."
+        + "Ensure that all responses adhere precisely to the given schema.\n"
+        + "The expected schema is: \n"
+        + (json_schema | tojson(indent=4))
+        + "\n"
+    %}
+{%- endif %}
+
+{{- bos_token }}
+
+{%- if tools is not none %}
+    {{- "<|im_start|>system\n" }}
+    {%- if system_message is defined %}
+        {{- system_message | trim }}
+        {{- "\n\n" }}
+    {%- endif %}
+    {{- "You are provided with tool signatures that you can use to assist with the user's query. " }}
+    {{- "You do not have to use a tool if you can respond adequately without it. " }}
+    {{- "Do not make assumptions about the values to use in tool calls. " }}
+    {{- "If the user's message is missing required parameters or if you do not have an appropriate tool to fulfill the request, inform the user or ask for clarification instead of attempting to call any tools.\n\n" }}
+    {{- "If you decide to invoke a tool, you MUST use the following JSON format:\n" }}
+    {{- "`<tool_call>{\"name\": <tool-name>, \"arguments\": <args-dict>}</tool_call>`\n\n" }}
+    {{- "Below is a list of tools in JSON format that you can invoke:" }}
+    {%- for t in tools %}
+        {{- "\n\n" }}
+        {{- t | tojson(indent=4) }}
+    {%- endfor %}
+    {{- "\n" }}
+    {{- "<|im_end|>\n" }}
+{%- elif system_message is defined %}
+{{- "<|im_start|>system\n" + system_message | trim + "<|im_end|>\n" }}
+{%- endif %}
+
+{%- for message in loop_messages %}
+    {%- if message["role"] == "user" %}
+        {{- "<|im_start|>user\n" + message["content"] + "<|im_end|>\n"}}
+    {%- elif message.tool_calls is defined and message.tool_calls is not none %}
+        {%- set content = message["content"] if message["content"] else "" %}
+        {{- "<|im_start|>assistant\n" + content }}
+        {%- for tool_call in message.tool_calls %}
+            {{- '<tool_call>{"name": "' + tool_call.function["name"] + '", "arguments": ' + tool_call.function["arguments"] | tojson + '}</tool_call>\n'}}
+        {%- endfor %}
+        {{- "<|im_end|>\n" }}
+    {%- elif message["role"] == "assistant" %}
+        {{- "<|im_start|>assistant\n" + message["content"] + "<|im_end|>\n"}}
+    {%- elif message["role"] == "tool_results" or message["role"] == "tool" or message["role"] == "function" %}
+        {%- if message.content is defined and message.content.content is defined %}
+            {%- set content = message.content.content %}
+        {%- else %}
+            {%- set content = message.content %}
+        {%- endif %}
+        {{- "<|im_start|>tool\n" + content|string + "<|im_end|>\n" }}
+    {%- else %}
+        {{- raise_exception("Only user and assistant and tool_results and tool and function roles are supported, with the exception of an initial optional system message!") }}
+    {%- endif %}
+{%- endfor %}
+
+{%- if add_generation_prompt %}
+    {{- '<|im_start|>assistant\n' }}
+    {%- if enable_thinking is defined and not enable_thinking %}
+    {{- "<think>\n\n</think>\n\n"}}
+    {%- endif %}
+{%- endif %}

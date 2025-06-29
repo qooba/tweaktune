@@ -9,5 +9,5 @@ def __getattr__(name):
         return f.read()
     
 
-output_template: str
+output: str
 """Output template for function calling."""
