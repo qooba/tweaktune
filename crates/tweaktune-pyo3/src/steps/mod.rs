@@ -10,7 +10,7 @@ use minijinja::Environment;
 use pyo3::prelude::*;
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
-use tweaktune_core::llms::{OpenAILLM, LLM};
+use tweaktune_core::llms::{ApiLLM, ApiLLMMode, LLM};
 
 #[pyclass]
 #[derive(Debug)]
@@ -48,11 +48,13 @@ impl StepTest {
     }
 
     pub fn call_llm(&self, prompt: String) -> PyResult<String> {
-        let llm = OpenAILLM::new(
+        let llm = ApiLLM::new(
             "test".to_string(),
-            "http://localhost:8093".to_string(),
-            "test_api_key".to_string(),
-            "speakleash/Bielik-11B-v2.3-Instruct".to_string(),
+            ApiLLMMode::Api {
+                base_url: "http://localhost:8000".to_string(),
+                api_key: "test_api_key".to_string(),
+                model: "speakleash/Bielik-11B-v2.3-Instruct".to_string(),
+            },
             250,
             0.7,
         );

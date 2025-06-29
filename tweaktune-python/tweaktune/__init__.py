@@ -153,6 +153,16 @@ class Pipeline:
         self.builder.with_llm_api(name, base_url, api_key, model, max_tokens, temperature)
         return self
     
+    def with_llm_openai(self, name: str, api_key: str, model: str, max_tokens: int = 2048, temperature: float = 0.7):
+        """Adds an OpenAI LLM to the pipeline."""
+        self.builder.with_llm_openai(name, api_key, model, max_tokens, temperature)
+        return self
+
+    def with_llm_azure_openai(self, name: str, api_key: str, endpoint: str, deployment_name: str, api_version: str, max_tokens: int = 2048, temperature: float = 0.7):
+        """Adds an OpenAI LLM to the pipeline."""
+        self.builder.with_llm_azure_openai(name, api_key, endpoint, deployment_name, api_version, max_tokens, temperature)
+        return self
+    
     def with_llm_mistralrs(self, name: str, 
                          model_id: str, 
                          in_situ_quant: str

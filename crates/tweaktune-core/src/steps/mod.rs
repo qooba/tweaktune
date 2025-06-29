@@ -381,7 +381,7 @@ impl TextGenerationStep {
 
         let llm = llms.get(&self.llm).expect("LLM");
         let result = match llm {
-            llms::LLMType::OpenAI(llm) => match llm
+            llms::LLMType::Api(llm) => match llm
                 .call(template, json_schema, max_tokens, temperature)
                 .await
             {

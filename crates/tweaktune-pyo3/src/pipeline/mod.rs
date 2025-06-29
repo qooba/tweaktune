@@ -12,14 +12,14 @@ use tweaktune_core::datasets::{
     CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
     PolarsDataset,
 };
-use tweaktune_core::llms::{MistralrsLLM, UnslothLLM};
+use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::{ChunkStep, RenderStep, ValidateJsonStep};
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
-    llms::{LLMType, OpenAILLM},
+    llms::{ApiLLM, LLMType},
     steps::{
         CsvWriterStep, DataSamplerStep, JsonGenerationStep, JsonlWriterStep, PrintStep, PyStep,
         PyValidator, Step as StepCore, StepContext, StepStatus, StepType, TextGenerationStep,
@@ -206,11 +206,61 @@ impl PipelineBuilder {
         info!("Added LLM API: {}", &name);
         self.llms.add(
             name.clone(),
-            LLMType::OpenAI(OpenAILLM::new(
+            LLMType::Api(ApiLLM::new(
                 name,
-                base_url,
-                api_key,
-                model,
+                ApiLLMMode::Api {
+                    base_url,
+                    api_key,
+                    model,
+                },
+                max_tokens,
+                temperature,
+            )),
+        );
+    }
+
+    pub fn with_llm_openai(
+        &mut self,
+        name: String,
+        api_key: String,
+        model: String,
+        max_tokens: u32,
+        temperature: f32,
+    ) {
+        info!("Added LLM API: {}", &name);
+        self.llms.add(
+            name.clone(),
+            LLMType::Api(ApiLLM::new(
+                name,
+                ApiLLMMode::OpenAI { api_key, model },
+                max_tokens,
+                temperature,
+            )),
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_llm_azure_openai(
+        &mut self,
+        name: String,
+        api_key: String,
+        endpoint: String,
+        deployment_name: String,
+        api_version: String,
+        max_tokens: u32,
+        temperature: f32,
+    ) {
+        info!("Added LLM API: {}", &name);
+        self.llms.add(
+            name.clone(),
+            LLMType::Api(ApiLLM::new(
+                name,
+                ApiLLMMode::AzureOpenAI {
+                    api_key,
+                    endpoint,
+                    deployment_name,
+                    api_version,
+                },
                 max_tokens,
                 temperature,
             )),
