@@ -4,6 +4,7 @@ use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
 use pyo3::{pyclass, pymethods, PyObject, PyResult};
+use std::os::unix::process;
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
@@ -14,7 +15,7 @@ use tweaktune_core::datasets::{
 };
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
-use tweaktune_core::steps::{ChunkStep, RenderStep, ValidateJsonStep};
+use tweaktune_core::steps::{self, ChunkStep, RenderStep, ValidateJsonStep};
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
@@ -563,7 +564,7 @@ impl PipelineBuilder {
                             let mut context = StepContext::new();
                             context.set("index", i);
                             context.set_status(StepStatus::Running);
-                            if let Err(e) = process_steps(self, context).await {
+                            if let Err(e) = process_steps(self, context, None).await {
                                 return Err(format!("Error processing step: {} - {}", i ,e));
                             }
                             bar.inc(1);
@@ -777,7 +778,7 @@ async fn map_record_batches(
 
     context.set(dataset_name, json_row);
     context.set_status(StepStatus::Running);
-    process_steps(pipeline, context).await?;
+    process_steps(pipeline, context, None).await?;
     Ok(())
 }
 
@@ -787,13 +788,46 @@ impl Default for PipelineBuilder {
     }
 }
 
-async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) -> Result<()> {
-    for step in &pipeline.steps {
+async fn process_steps(
+    pipeline: &PipelineBuilder,
+    mut context: StepContext,
+    steps: Option<&Vec<StepType>>,
+) -> Result<StepContext> {
+    let steps = if let Some(steps) = steps {
+        steps
+    } else {
+        &pipeline.steps
+    };
+
+    for step in steps {
         if matches!(context.get_status(), StepStatus::Failed) {
             break;
         }
 
         match step {
+            StepType::IfElse(if_step) => {
+                let check_result = if_step
+                    .check(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+
+                if check_result {
+                    context = Box::pin(process_steps(
+                        pipeline,
+                        context.clone(),
+                        Some(&if_step.then_steps),
+                    ))
+                    .await?;
+                } else if let Some(else_steps) = &if_step.else_steps {
+                    context = Box::pin(process_steps(pipeline, context.clone(), Some(else_steps)))
+                        .await?;
+                }
+            }
             StepType::Py(py_step) => {
                 context = py_step
                     .process(
@@ -918,7 +952,7 @@ async fn process_steps(pipeline: &PipelineBuilder, mut context: StepContext) -> 
         }
     }
 
-    Ok(())
+    Ok(context)
 }
 
 #[pyclass]

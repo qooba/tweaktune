@@ -74,6 +74,7 @@ pub trait Step {
 }
 
 pub enum StepType {
+    IfElse(IfElseStep),
     Py(PyStep),
     PyValidator(PyValidator),
     TextGeneration(TextGenerationStep),
@@ -85,6 +86,71 @@ pub enum StepType {
     Chunk(ChunkStep),
     Render(RenderStep),
     ValidateJson(ValidateJsonStep),
+}
+
+pub struct IfElseStep {
+    pub name: String,
+    pub condition: PyObject,
+    pub then_steps: Vec<StepType>,
+    pub else_steps: Option<Vec<StepType>>,
+}
+
+impl IfElseStep {
+    pub fn new(
+        name: String,
+        condition: PyObject,
+        then_steps: Vec<StepType>,
+        else_steps: Option<Vec<StepType>>,
+    ) -> Self {
+        Self {
+            name,
+            condition,
+            then_steps,
+            else_steps,
+        }
+    }
+
+    pub async fn check(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, LLMType>,
+        _embeddings: &HashMap<String, EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<bool> {
+        let json = serde_json::to_string(context)?;
+
+        let result: PyResult<bool> = Python::with_gil(|py| {
+            let result: bool = self
+                .condition
+                .call_method1(py, "check", (json,))?
+                .extract(py)?;
+            Ok(result)
+        });
+
+        match result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                debug!(target: "ifelsestep", "{:?}", e);
+                let mut context = context.clone();
+                context.set_status(StepStatus::Failed);
+                Ok(false)
+            }
+        }
+    }
+}
+
+impl Step for IfElseStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, LLMType>,
+        _embeddings: &HashMap<String, EmbeddingsType>,
+        _context: &StepContext,
+    ) -> Result<StepContext> {
+        unreachable!("Use check method to evaluate condition");
+    }
 }
 
 pub struct PyStep {

@@ -18,6 +18,15 @@ class PyStepWrapper:
     def process(self, context):
         context = json.loads(context)
         return json.dumps(self.step.process(context))
+    
+class PyConditionWrapper:
+    def __init__(self, step):
+        self.step = step
+
+    def check(self, context):
+        context = json.loads(context)
+        return self.step.check(context)
+
 
 class LLMWrapper:
 
