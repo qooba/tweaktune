@@ -27,7 +27,6 @@ class PyConditionWrapper:
         context = json.loads(context)
         return self.step.check(context["data"])
 
-
 class LLMWrapper:
 
     def prepare_messages(self, messages: dict, json_schema: Optional[str]) -> Optional[str]:

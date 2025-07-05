@@ -1,4 +1,4 @@
-from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings, StepsChain
+from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings
 from tweaktune.common import StepStatus, record_batches_to_ipc_bytes, package_installation_hint
 from tweaktune.tools import pydantic_to_json_schema, function_to_json_schema
 from tweaktune.wrappers import PyStepWrapper, UnslothWrapper, MistralrsWrapper, PyStepValidatorWrapper, PyConditionWrapper
