@@ -3,8 +3,8 @@ use anyhow::{bail, Result};
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
+use polars::prelude::named_serde;
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
-use std::ops::Deref;
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
@@ -16,7 +16,6 @@ use tweaktune_core::datasets::{
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::{self, ChunkStep, IfElseStep, RenderStep, ValidateJsonStep};
-use tweaktune_core::templates;
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
@@ -1034,6 +1033,136 @@ pub enum Embeddings {
 #[derive(Debug)]
 pub struct StepsChain {
     steps: Vec<Step>,
+}
+
+#[pymethods]
+impl StepsChain {
+    #[new]
+    pub fn new() -> Self {
+        StepsChain { steps: Vec::new() }
+    }
+
+    pub fn add_py_step(&mut self, named: String, py_func: PyObject) {
+        info!("Added Python step: {}", &named);
+        self.steps.push(Step::Py {
+            name: named,
+            py_func,
+        });
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_text_generation_step(
+        &mut self,
+        name: String,
+        template: String,
+        llm: String,
+        output: String,
+        system_template: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) {
+        info!(
+            "Added text generation step with llm: {}, template: {}",
+            &llm, &template
+        );
+        self.steps.push(Step::TextGeneration {
+            name,
+            template,
+            llm,
+            output,
+            system_template,
+            max_tokens,
+            temperature,
+        });
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_json_generation_step(
+        &mut self,
+        name: String,
+        template: String,
+        llm: String,
+        output: String,
+        json_path: Option<String>,
+        system_template: Option<String>,
+        schema_template: Option<String>,
+        json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) {
+        info!(
+            "Added JSON generation step with template: {}, llm: {}",
+            &llm, &template
+        );
+        self.steps.push(Step::JsonGeneration {
+            name,
+            template,
+            llm,
+            output,
+            json_path,
+            system_template,
+            json_schema,
+            max_tokens,
+            temperature,
+            schema_template,
+        });
+    }
+
+    pub fn add_print_step(
+        &mut self,
+        name: String,
+        template: Option<String>,
+        columns: Option<Vec<String>>,
+    ) {
+        info!("Added print step");
+        self.steps.push(Step::Print {
+            name,
+            template,
+            columns,
+        });
+    }
+
+    pub fn add_data_sampler_step(
+        &mut self,
+        name: String,
+        dataset: String,
+        size: usize,
+        output: String,
+    ) {
+        info!(
+            "Added data sampler on dataset: {} with size: {}",
+            &dataset, &size
+        );
+        self.steps.push(Step::DataSampler {
+            name,
+            dataset,
+            size,
+            output,
+        });
+    }
+
+    pub fn add_judge_step(&mut self, name: String, template: String, llm: String) {
+        info!("Added judge step: {}", &name);
+        self.steps.push(Step::Judge {
+            name,
+            template,
+            llm,
+        });
+    }
+
+    pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
+        info!("Added Python validator step: {}", &name);
+        self.steps.push(Step::PyValidator { name, py_func });
+    }
+
+    pub fn add_jsonl_writer_step(&mut self, name: String, path: String, template: String) {
+        info!("Added JSONL writer step: {}", &name);
+        self.steps.push(Step::JsonlWriter {
+            name,
+            path,
+            template,
+        });
+    }
 }
 
 #[pyclass]

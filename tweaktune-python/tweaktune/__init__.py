@@ -281,10 +281,8 @@ class PipelineRunner:
         name = self.__name(name)
         step = type(name.replace("-","_"), (object,), {'check': lambda self, context: condition(context)})()
 
-        then_steps = StepsChain(then_chain.steps)
-        else_steps = StepsChain(else_chain.steps)
 
-        self.builder.add_ifelse_step(name, PyConditionWrapper(step), then_steps, else_steps)
+        self.builder.add_ifelse_step(name, PyConditionWrapper(step), then_chain.steps_chain, else_chain.steps_chain)
         self.step_index += 1
         return self
     
@@ -362,7 +360,6 @@ class PipelineRunner:
         self.builder.add_validatejson_step(self.__name(name), schema, instance)
         self.step_index += 1
         return self
-
 
     def chunk(self, capacity: Tuple[int, int], input: str, output: str, name: str = "CHUNK"):
         self.builder.add_chunk_step(self.__name(name), capacity, input, output)

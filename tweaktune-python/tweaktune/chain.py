@@ -1,27 +1,25 @@
 import json
 from typing import Callable
 from tweaktune import StepStatus
-from tweaktune.tweaktune import Step
 from pydantic import BaseModel
 from tweaktune.wrappers import PyStepWrapper
+from tweaktune.tweaktune import StepsChain
 
 class Chain:
     def __init__(self):
-        self.steps = []
+        self.steps_chain = StepsChain()
         self.step_index = 0
 
     def __name(self, name: str):
         return f"{name}--{self.step_index}"   
     
     def sample(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
-        s = Step.DataSampler(self.__name(name), dataset, size, output)
-        self.steps.append(s)
+        self.steps_chain.add_data_sampler_step(name, dataset, size, output)
         self.step_index += 1
         return self
     
     def generate_text(self, template: str, llm: str, output: str, system_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-TEXT"):
-        s = Step.TextGeneration(self.__name(name), template, llm, output, system_template, max_tokens, temperature)
-        self.steps.append(s)
+        self.steps_chain.add_text_generation_step(self.__name(name), template, llm, output, system_template, max_tokens, temperature)
         self.step_index += 1
         return self
     
@@ -36,8 +34,7 @@ class Chain:
             schema["schema"]["additionalProperties"] = False
             schema = json.dumps(schema)
 
-        s = Step.JsonGeneration(self.__name(name), template, llm, output, json_path, system_template, schema, max_tokens, temperature, schema_template)
-        self.steps.append(s)
+        self.steps_chain.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template, schema_template, schema, max_tokens, temperature)   
         self.step_index += 1
         return self
     
@@ -48,22 +45,19 @@ class Chain:
             columns = args[0]
             
         name = "PRINT"
-        s = Step.Print(self.__name(name), template=template, columns=columns)
-        self.steps.append(s)
+        self.steps_chain.add_print_step(self.__name(name), template, columns)
         self.step_index += 1
         return self
 
     def step(self, step, name: str = "PY-STEP"):
-        s = Step.Py(self.__name(name), PyStepWrapper(step))
-        self.steps.append(s)
+        self.steps_chain.add_py_step(self.__name(name),PyStepWrapper(step))
         self.step_index += 1
         return self
 
     def map(self, func: Callable, name: str = "PY-MAP"):
         name = self.__name(name)
         step = type(name.replace("-","_"), (object,), {'process': lambda self, context: func(context)})()
-        s = Step.Py(self.__name(name), PyStepWrapper(step))
-        self.steps.append(s)
+        self.steps_chain.add_py_step(self.__name(name),PyStepWrapper(step))
         self.step_index += 1
         return self
     
