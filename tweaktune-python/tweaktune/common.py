@@ -1,4 +1,5 @@
 import io
+from enum import Enum
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
@@ -19,3 +20,9 @@ def package_installation_hint(package_name: str):
     BOLD = "\033[1m"
     print(f"\t{BOLD}Please install:{ENDC}\t{OKGREEN}{package_name}{ENDC}{BOLD}{ENDC}")
 
+class StepStatus(Enum):
+    """Enum for step status."""
+    Pending = "Pending"
+    Running = "Running"
+    Completed = "Completed"
+    Failed = "Failed"

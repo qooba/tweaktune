@@ -1,18 +1,12 @@
-from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings
-from tweaktune.common import record_batches_to_ipc_bytes, package_installation_hint
+from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings, StepsChain
+from tweaktune.common import StepStatus, record_batches_to_ipc_bytes, package_installation_hint
 from tweaktune.tools import pydantic_to_json_schema, function_to_json_schema
 from tweaktune.wrappers import PyStepWrapper, UnslothWrapper, MistralrsWrapper, PyStepValidatorWrapper, PyConditionWrapper
+from tweaktune.chain import Chain
 import json
 from typing import List, Union, Tuple, Callable, Optional
 from pydantic import BaseModel
-from enum import Enum
 
-class StepStatus(Enum):
-    """Enum for step status."""
-    Pending = "Pending"
-    Running = "Running"
-    Completed = "Completed"
-    Failed = "Failed"
 
 class Pipeline:
     def __init__(self):
@@ -283,10 +277,14 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
-    def ifelse(self, condition: Callable, name: str = "PY-IFELSE"):
+    def ifelse(self, condition: Callable, then_chain: Chain, else_chain: Chain, name: str = "PY-IFELSE"):
         name = self.__name(name)
         step = type(name.replace("-","_"), (object,), {'check': lambda self, context: condition(context)})()
-        self.builder.add_ifelse_step(name, PyConditionWrapper(step))
+
+        then_steps = StepsChain(then_chain.steps)
+        else_steps = StepsChain(else_chain.steps)
+
+        self.builder.add_ifelse_step(name, PyConditionWrapper(step), then_steps, else_steps)
         self.step_index += 1
         return self
     
@@ -415,3 +413,5 @@ class PipelineRunner:
     def run(self):
         self.builder.compile()
         return self.builder.run()
+    
+

@@ -3,8 +3,7 @@ use anyhow::{bail, Result};
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
-use pyo3::{pyclass, pymethods, PyObject, PyResult};
-use std::os::unix::process;
+use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult};
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
@@ -15,7 +14,7 @@ use tweaktune_core::datasets::{
 };
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
-use tweaktune_core::steps::{self, ChunkStep, RenderStep, ValidateJsonStep};
+use tweaktune_core::steps::{self, ChunkStep, IfElseStep, RenderStep, ValidateJsonStep};
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
@@ -336,6 +335,22 @@ impl PipelineBuilder {
     pub fn add_py_step(&mut self, name: String, py_func: PyObject) {
         info!("Added Python step: {}", &name);
         self.steps.push(StepType::Py(PyStep::new(name, py_func)));
+    }
+
+    pub fn add_ifelse_step(
+        &mut self,
+        name: String,
+        condition: PyObject,
+        then_step: PyRef<StepsChain>,
+        else_step: PyRef<StepsChain>,
+    ) {
+        info!("Added Ifelse step: {}", &name);
+        println!("Condition: {:?}", condition);
+        println!("Then step: {:?}", then_step);
+        println!("Else step: {:?}", else_step);
+        // self.steps.push(StepType::IfElse(IfElseStep::new(
+        //     name, condition, then_step, else_step,
+        // )));
     }
 
     pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
@@ -999,6 +1014,12 @@ pub enum Embeddings {
 
 #[pyclass]
 #[derive(Debug)]
+pub struct StepsChain {
+    steps: Vec<Step>,
+}
+
+#[pyclass]
+#[derive(Debug)]
 pub enum Step {
     Py {
         name: String,
@@ -1010,11 +1031,30 @@ pub enum Step {
         llm: String,
         output: String,
         system_template: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    },
+    JsonGeneration {
+        name: String,
+        template: String,
+        llm: String,
+        output: String,
+        json_path: Option<String>,
+        system_template: Option<String>,
+        json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    },
+    Print {
+        name: String,
+        template: Option<String>,
+        columns: Option<Vec<String>>,
     },
     DataSampler {
         name: String,
         dataset: String,
         size: usize,
+        output: String,
     },
     Judge {
         name: String,
