@@ -12,7 +12,12 @@ class Chain:
 
     def __name(self, name: str):
         return f"{name}--{self.step_index}"   
-    
+
+    def write_jsonl(self, path: str, template: str, name: str = "WRITE-JSONL"):
+        self.steps_chain.add_jsonl_writer_step(self.__name(name), path, template)
+        self.step_index += 1
+        return self
+
     def sample(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
         self.steps_chain.add_data_sampler_step(name, dataset, size, output)
         self.step_index += 1

@@ -1164,6 +1164,12 @@ impl StepsChain {
     }
 }
 
+impl Default for StepsChain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[pyclass]
 #[derive(Debug)]
 pub enum Step {
@@ -1321,6 +1327,26 @@ fn map_step(step: &Step, templates: &mut Templates) -> StepType {
                 schema_key,
             ))
         }
+        Step::Print {
+            name,
+            template,
+            columns,
+        } => StepType::Print(PrintStep::new(
+            name.clone(),
+            template.clone(),
+            columns.clone(),
+        )),
+        Step::DataSampler {
+            name,
+            dataset,
+            size,
+            output,
+        } => StepType::DataSampler(DataSamplerStep::new(
+            name.clone(),
+            dataset.clone(),
+            Some(*size),
+            output.clone(),
+        )),
         _ => unimplemented!(), // Handle other step types as needed
     }
 }
