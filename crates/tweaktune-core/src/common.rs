@@ -342,7 +342,7 @@ pub fn extract_json(text: &str) -> Result<Value> {
             Err(_e) => match extract_json_block(&text) {
                 Ok(v) => v,
                 Err(e) => {
-                    debug!(target: "extract_json", "EXTRACT JSON {}", &text);
+                    debug!(target: "extract_json", "🐔 EXTRACT JSON {}", &text);
                     return Err(anyhow!("Failed to extract JSON: {}", e));
                 }
             },

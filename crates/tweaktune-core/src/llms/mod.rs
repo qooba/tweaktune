@@ -82,7 +82,7 @@ impl MistralrsLLM {
         match result {
             Ok(result) => Ok(result),
             Err(e) => {
-                debug!(target: "mistralrs_llm", "{:?}", e);
+                debug!(target: "mistralrs_llm", "🐔 {:?}", e);
                 Err(anyhow::anyhow!("Error processing messages: {:?}", e))
             }
         }
@@ -172,7 +172,7 @@ impl UnslothLLM {
         match result {
             Ok(result) => Ok(result),
             Err(e) => {
-                debug!(target: "unsloth_llm", "{:?}", e);
+                debug!(target: "unsloth_llm", "🐔 {:?}", e);
                 Err(anyhow::anyhow!("Error processing messages: {:?}", e))
             }
         }

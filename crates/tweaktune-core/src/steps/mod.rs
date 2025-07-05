@@ -131,7 +131,7 @@ impl IfElseStep {
         match result {
             Ok(result) => Ok(result),
             Err(e) => {
-                debug!(target: "ifelsestep", "{:?}", e);
+                debug!(target: "ifelsestep", "🐔 {:?}", e);
                 let mut context = context.clone();
                 context.set_status(StepStatus::Failed);
                 Ok(false)
@@ -189,7 +189,7 @@ impl Step for PyStep {
                 Ok(result)
             }
             Err(e) => {
-                debug!(target: "pystep", "{:?}", e);
+                debug!(target: "pystep", "🐔 {:?}", e);
                 let mut context = context.clone();
                 context.set_status(StepStatus::Failed);
                 Ok(context)
@@ -320,14 +320,14 @@ impl Step for ValidateJsonStep {
                 let is_valid = jsonschema::is_valid(&schema_value, &instance);
 
                 if !is_valid {
-                    debug!(target: "validate_json_step", "Failed to validate JSON: {} with schema {}", instance, schema_value);
+                    debug!(target: "validate_json_step", "🐔 Failed to validate JSON: {} with schema {}", instance, schema_value);
                     context.set_status(StepStatus::Failed);
                 }
 
                 Ok(context)
             }
             Err(e) => {
-                debug!(target: "validate_json_step", "Failed to render instance: {}", e);
+                debug!(target: "validate_json_step", "🐔 Failed to render instance: {}", e);
                 context.set_status(StepStatus::Failed);
                 Ok(context)
             }
@@ -440,7 +440,7 @@ impl TextGenerationStep {
         let template = match template {
             Ok(t) => t,
             Err(e) => {
-                debug!(target: "text_generation_step", "Failed to render template: {}", e);
+                debug!(target: "text_generation_step", "🐔 Failed to render template: {}", e);
                 return Ok(None);
             }
         };
@@ -453,7 +453,7 @@ impl TextGenerationStep {
             {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
-                    debug!(target: "text_generation_step", "Failed to generate text: {}", e);
+                    debug!(target: "text_generation_step", "🐔 Failed to generate text: {}", e);
                     None
                 }
             },
@@ -463,7 +463,7 @@ impl TextGenerationStep {
             {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
-                    debug!(target: "text_generation_step", "Failed to generate text: {}", e);
+                    debug!(target: "text_generation_step", "🐔 Failed to generate text: {}", e);
                     None
                 }
             },
@@ -473,7 +473,7 @@ impl TextGenerationStep {
             {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
-                    debug!(target: "text_generation_step", "Failed to generate text: {}", e);
+                    debug!(target: "text_generation_step", "🐔 Failed to generate text: {}", e);
                     None
                 }
             },
@@ -598,10 +598,10 @@ impl Step for JsonGenerationStep {
             })
             .to_string();
 
-            debug!(target: "json_generation_step", "RENDERED SCHEMA: {}", schema);
+            debug!(target: "json_generation_step", "🐔 RENDERED SCHEMA: {}", schema);
             Some(schema)
         } else if let Some(schema) = &self.json_schema {
-            debug!(target: "json_generation_step", "PROVIDED SCHEMA: {}", schema);
+            debug!(target: "json_generation_step", "🐔 PROVIDED SCHEMA: {}", schema);
             Some(schema.clone())
         } else {
             None
@@ -630,11 +630,11 @@ impl Step for JsonGenerationStep {
                         });
                     }
 
-                    debug!(target:"json_generation_step", "Generated VALUE: {}", value);
+                    debug!(target:"json_generation_step", "🐔 Generated VALUE: {}", value);
                     context.data[self.output.clone()] = value;
                 }
                 Err(e) => {
-                    debug!(target:"json_generation_step", "Failed to extract JSON: {}", e);
+                    debug!(target:"json_generation_step", "🐔 Failed to extract JSON: {}", e);
                     context.set_status(StepStatus::Failed);
                 }
             },
@@ -682,7 +682,7 @@ impl Step for JsonlWriterStep {
                 writer.flush()?;
             }
             Err(e) => {
-                debug!(target: "json_writer_step", "Failed to render template: {}", e);
+                debug!(target: "json_writer_step", "🐔 Failed to render template: {}", e);
                 context.set_status(StepStatus::Failed);
             }
         };
