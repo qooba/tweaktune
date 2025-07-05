@@ -3,7 +3,8 @@ use anyhow::{bail, Result};
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
-use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult};
+use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
+use std::ops::Deref;
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
@@ -15,6 +16,7 @@ use tweaktune_core::datasets::{
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::{self, ChunkStep, IfElseStep, RenderStep, ValidateJsonStep};
+use tweaktune_core::templates;
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
@@ -341,16 +343,32 @@ impl PipelineBuilder {
         &mut self,
         name: String,
         condition: PyObject,
-        then_step: PyRef<StepsChain>,
-        else_step: PyRef<StepsChain>,
+        then_steps: PyRef<StepsChain>,
+        else_steps: PyRef<StepsChain>,
     ) {
         info!("Added Ifelse step: {}", &name);
-        println!("Condition: {:?}", condition);
-        println!("Then step: {:?}", then_step);
-        println!("Else step: {:?}", else_step);
-        // self.steps.push(StepType::IfElse(IfElseStep::new(
-        //     name, condition, then_step, else_step,
-        // )));
+
+        let then_steps = then_steps
+            .steps
+            .iter()
+            .map(|step| map_step(step, &mut self.templates))
+            .collect::<Vec<_>>();
+
+        let else_steps = if !else_steps.steps.is_empty() {
+            Some(
+                else_steps
+                    .steps
+                    .iter()
+                    .map(|step| map_step(step, &mut self.templates))
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            None
+        };
+
+        self.steps.push(StepType::IfElse(IfElseStep::new(
+            name, condition, then_steps, else_steps,
+        )));
     }
 
     pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
@@ -1044,6 +1062,7 @@ pub enum Step {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        schema_template: Option<String>,
     },
     Print {
         name: String,
@@ -1115,5 +1134,65 @@ impl<T> Resources<T> {
 
     pub fn remove(&mut self, name: &str) -> Option<T> {
         self.resources.remove(name)
+    }
+}
+
+fn map_step(step: &Step, templates: &mut Templates) -> StepType {
+    match step {
+        Step::Py { name, py_func } => Python::with_gil(|py| {
+            let py_obj: PyObject = py_func.clone_ref(py);
+            StepType::Py(PyStep::new(name.clone(), py_obj))
+        }),
+        Step::TextGeneration {
+            name,
+            template,
+            llm,
+            output,
+            system_template,
+            max_tokens,
+            temperature,
+        } => StepType::TextGeneration(TextGenerationStep::new(
+            name.clone(),
+            template.clone(),
+            llm.clone(),
+            output.clone(),
+            system_template.clone(),
+            *max_tokens,
+            *temperature,
+        )),
+        Step::JsonGeneration {
+            name,
+            template,
+            llm,
+            output,
+            json_path,
+            system_template,
+            json_schema,
+            max_tokens,
+            temperature,
+            schema_template,
+        } => {
+            let schema_key = if let Some(schema) = &schema_template {
+                let schema_key = format!("json_generation_step_{}_{}", name, schema);
+                templates.add(schema_key.clone(), format!("{{{{{}}}}}", schema.clone()));
+                Some(schema_key)
+            } else {
+                None
+            };
+
+            StepType::JsonGeneration(JsonGenerationStep::new(
+                name.clone(),
+                template.clone(),
+                llm.clone(),
+                output.clone(),
+                json_path.clone(),
+                system_template.clone(),
+                json_schema.clone(),
+                *max_tokens,
+                *temperature,
+                schema_key,
+            ))
+        }
+        _ => unimplemented!(), // Handle other step types as needed
     }
 }
