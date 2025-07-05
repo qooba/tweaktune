@@ -281,7 +281,6 @@ class PipelineRunner:
         name = self.__name(name)
         step = type(name.replace("-","_"), (object,), {'check': lambda self, context: condition(context)})()
 
-
         self.builder.add_ifelse_step(name, PyConditionWrapper(step), then_chain.steps_chain, else_chain.steps_chain)
         self.step_index += 1
         return self

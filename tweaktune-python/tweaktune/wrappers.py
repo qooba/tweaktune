@@ -25,7 +25,7 @@ class PyConditionWrapper:
 
     def check(self, context):
         context = json.loads(context)
-        return self.step.check(context)
+        return self.step.check(context["data"])
 
 
 class LLMWrapper:

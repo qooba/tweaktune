@@ -3,7 +3,6 @@ use anyhow::{bail, Result};
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
-use polars::prelude::named_serde;
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
@@ -15,7 +14,7 @@ use tweaktune_core::datasets::{
 };
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
-use tweaktune_core::steps::{self, ChunkStep, IfElseStep, RenderStep, ValidateJsonStep};
+use tweaktune_core::steps::{ChunkStep, IfElseStep, RenderStep, ValidateJsonStep};
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
