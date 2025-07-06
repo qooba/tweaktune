@@ -529,11 +529,13 @@ impl PipelineBuilder {
 
         let schema_key = format!("validatejson_schema_{}_{}", name, schema);
         let instance_key = format!("validatejson_instance_{}_{}", name, instance);
-        self.templates
-            .add(schema_key.clone(), format!("{{{{{}}}}}", schema.clone()));
+        self.templates.add(
+            schema_key.clone(),
+            format!("{{{{{}|tojson}}}}", schema.clone()),
+        );
         self.templates.add(
             instance_key.clone(),
-            format!("{{{{{}}}}}", instance.clone()),
+            format!("{{{{{}|tojson}}}}", instance.clone()),
         );
         self.steps
             .push(StepType::ValidateJson(ValidateJsonStep::new(
