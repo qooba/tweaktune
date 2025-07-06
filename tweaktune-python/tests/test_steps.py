@@ -132,7 +132,7 @@ def test_step_mutate(request, output_dir, data_dir, arrow_dataset):
         .with_template("output", """{"my_random": {{my_random}} }""")
     .iter_range(10)
         .add_column("my_random", lambda data: random.randint(0,9))
-        .mutate("my_random", lambda my_random: 0)
+        .mutate("my_random", lambda my_random: 10)
         .write_jsonl(path=output_file, template="output")
     .run())
 
@@ -140,7 +140,7 @@ def test_step_mutate(request, output_dir, data_dir, arrow_dataset):
     for line in lines:
         item = json.loads(line)
         assert "my_random" in item
-        assert item["my_random"] == 0
+        assert item["my_random"] == 10
 
 def test_step_render(request, output_dir):
     """Test the basic functionality of the pipeline."""
