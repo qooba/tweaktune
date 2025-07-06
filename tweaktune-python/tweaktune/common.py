@@ -26,3 +26,18 @@ class StepStatus(Enum):
     Running = "Running"
     Completed = "Completed"
     Failed = "Failed"
+
+
+class DebugTargets(Enum):
+    """Enum for debug targets."""
+    EXTRACT_JSON = "extract_json"
+    MISTRAL_LLM = "mistral_llm"
+    UNSLOTH_LLM = "unsloth_llm"
+    IFELSE_STEP = "ifelsestep"
+    PYSTEP = "pystep"
+    VALIDATE_JSON_STEP = "validate_json_step"
+    TEXT_GENERATION_STEP = "text_generation_step"
+    JSON_GENERATION_STEP = "json_generation_step"
+    JSON_WRITER_STEP = "json_writer_step"
+    TEMPLATES = "templates"
+    TEMPLATES_ERR = "templates_err"

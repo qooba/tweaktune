@@ -328,6 +328,7 @@ impl Step for ValidateJsonStep {
             }
             Err(e) => {
                 debug!(target: "validate_json_step", "🐔 Failed to render instance: {}", e);
+                debug!(target: "validate_json_step", "🐔 INSTANCE_JSON: {}", &instance_json);
                 context.set_status(StepStatus::Failed);
                 Ok(context)
             }
@@ -598,10 +599,10 @@ impl Step for JsonGenerationStep {
             })
             .to_string();
 
-            debug!(target: "json_generation_step", "🐔 RENDERED SCHEMA: {}", schema);
+            debug!(target: "json_generation_step", "🤗 RENDERED SCHEMA: {}", schema);
             Some(schema)
         } else if let Some(schema) = &self.json_schema {
-            debug!(target: "json_generation_step", "🐔 PROVIDED SCHEMA: {}", schema);
+            debug!(target: "json_generation_step", "🤗 PROVIDED SCHEMA: {}", schema);
             Some(schema.clone())
         } else {
             None
@@ -630,11 +631,11 @@ impl Step for JsonGenerationStep {
                         });
                     }
 
-                    debug!(target:"json_generation_step", "🐔 Generated VALUE: {}", value);
+                    debug!(target:"json_generation_step", "🤗 Generated VALUE: {}", value);
                     context.data[self.output.clone()] = value;
                 }
                 Err(e) => {
-                    debug!(target:"json_generation_step", "🐔 Failed to extract JSON: {}", e);
+                    debug!(target:"json_generation_step", "🤗 Failed to extract JSON: {}", e);
                     context.set_status(StepStatus::Failed);
                 }
             },
