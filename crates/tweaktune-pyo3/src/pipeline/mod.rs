@@ -1,9 +1,13 @@
 use crate::common::ResultExt;
 use anyhow::{bail, Result};
+use chrono::Local;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
+use polars::prelude::file;
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
+use simplelog::*;
+use std::fs::{create_dir_all, File};
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
@@ -549,8 +553,8 @@ impl PipelineBuilder {
         self.templates.compile().unwrap();
     }
 
-    #[pyo3(signature = (level=None, target=None))]
-    pub fn log(&self, level: Option<&str>, target: Option<&str>) {
+    #[pyo3(signature = (level=None, target=None, file=None))]
+    pub fn log(&self, level: Option<&str>, target: Option<&str>, file: Option<&str>) {
         let level = match level {
             Some("debug") => log::LevelFilter::Debug,
             Some("info") => log::LevelFilter::Info,
@@ -558,6 +562,26 @@ impl PipelineBuilder {
             Some("error") => log::LevelFilter::Error,
             _ => log::LevelFilter::Info,
         };
+
+        create_dir_all(".tweaktune").unwrap();
+
+        let now = Local::now();
+        let filename = format!(".tweaktune/log_{}.log", now.format("%Y-%m-%d_%H-%M-%S"));
+
+        CombinedLogger::init(vec![
+            TermLogger::new(
+                LevelFilter::Warn,
+                Config::default(),
+                TerminalMode::Mixed,
+                ColorChoice::Auto,
+            ),
+            WriteLogger::new(
+                LevelFilter::Info,
+                Config::default(),
+                File::create(&filename).unwrap(),
+            ),
+        ])
+        .unwrap();
 
         env_logger::builder().filter(target, level).init();
     }

@@ -4,6 +4,7 @@ from tweaktune.tools import pydantic_to_json_schema, function_to_json_schema
 from tweaktune.wrappers import PyStepWrapper, UnslothWrapper, MistralrsWrapper, PyStepValidatorWrapper, PyConditionWrapper
 from tweaktune.chain import Chain
 import json
+import sys
 from typing import List, Union, Tuple, Callable, Optional
 from pydantic import BaseModel
 
@@ -403,7 +404,8 @@ class PipelineRunner:
         return self
 
     def log(self, level: str = None, target: str = None):
-        self.builder.log(level, target)
+        file = sys.argv[0]
+        self.builder.log(level, target, file)
         return self
     
     def run(self):
