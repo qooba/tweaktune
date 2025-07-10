@@ -80,7 +80,7 @@ class Chain:
     def filter(self, condition: Callable, name: str = "PY-FILTER"):
         def condition_wrapper(context):
             if not condition(context["data"]):
-                context["status"] = StepStatus.Failed.value
+                context["status"] = StepStatus.FAILED.value
             return context
 
         self.map(condition_wrapper, name=name)

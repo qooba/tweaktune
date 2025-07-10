@@ -22,10 +22,24 @@ def package_installation_hint(package_name: str):
 
 class StepStatus(Enum):
     """Enum for step status."""
-    Pending = "Pending"
-    Running = "Running"
-    Completed = "Completed"
-    Failed = "Failed"
+    PENDING = "Pending"
+    RUNNING = "Running"
+    COMPLETED = "Completed"
+    FAILED = "Failed"
+
+    def __str__(self):
+        return self.value
+
+class LogLevel(Enum):
+    """Enum for log levels."""
+    TRACE = "trace"
+    DEBUG = "debug"
+    INFO = "info"
+    WARN = "warn"
+    ERROR = "error"
+
+    def __str__(self):
+        return self.value
 
 
 class DebugTargets(Enum):
@@ -41,3 +55,6 @@ class DebugTargets(Enum):
     JSON_WRITER_STEP = "json_writer_step"
     TEMPLATES = "templates"
     TEMPLATES_ERR = "templates_err"
+
+    def __str__(self):
+        return self.value

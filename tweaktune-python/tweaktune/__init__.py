@@ -308,7 +308,7 @@ class PipelineRunner:
     def filter(self, condition: Callable, name: str = "PY-FILTER"):
         def condition_wrapper(context):
             if not condition(context["data"]):
-                context["status"] = StepStatus.Failed.value
+                context["status"] = StepStatus.FAILED.value
             return context
 
         self.map(condition_wrapper, name=name)
@@ -404,7 +404,7 @@ class PipelineRunner:
         self.log("debug", target)
         return self
 
-    def log(self, level: str = None, target: str = None):
+    def log(self, level: str = "error", target: str = None):
         file = os.path.splitext(os.path.basename(sys.argv[0]))[0]
         self.builder.log(level, target, file)
         return self
