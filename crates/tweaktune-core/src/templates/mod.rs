@@ -1,7 +1,7 @@
 use crate::common::{OptionToResult, ResultExt};
 use crate::steps::StepContextData;
 use anyhow::{bail, Result};
-use log::debug;
+use log::{debug, error, info};
 use minijinja::Environment;
 use rand::rng;
 use rand::seq::SliceRandom;
@@ -38,7 +38,7 @@ impl Templates {
             match val {
                 Ok(v) => v,
                 Err(_) => {
-                    debug!(target: "templates_err", "🐔 Failed to convert to JSON string");
+                    error!(target: "templates_err", "🐔 Failed to convert to JSON string");
                     value
                 }
             }
@@ -53,13 +53,13 @@ impl Templates {
                     match val {
                         Ok(v) => v,
                         Err(_) => {
-                            debug!(target: "templates_err", "🐔 Failed to convert shuffled array to JSON string");
+                            error!(target: "templates_err", "🐔 Failed to convert shuffled array to JSON string");
                             value
                         }
                     }
                 }
                 Err(_) => {
-                    debug!(target: "templates_err", "🐔 Failed to shuffle array");
+                    error!(target: "templates_err", "🐔 Failed to shuffle array");
                     value
                 }
             }
@@ -71,7 +71,7 @@ impl Templates {
             match hash {
                 Ok(hash) => format!("{:x}", hash),
                 Err(_) => {
-                    debug!(target: "templates_err", "🐔 Failed to hash value");
+                    error!(target: "templates_err", "🐔 Failed to hash value");
                     value
                 }
             }
@@ -82,7 +82,7 @@ impl Templates {
             match val {
                 Ok(v) => serde_json::to_string(&v).unwrap(),
                 Err(_) => {
-                    debug!(target: "templates_err", "🐔 Failed to deserialize JSON");
+                    error!(target: "templates_err", "🐔 Failed to deserialize JSON");
                     value
                 }
             }
@@ -112,22 +112,22 @@ impl Templates {
             .ok_or_err("ENVIRONMENT")?;
         let tmpl = match environment.get_template(&name) {
             Ok(t) => {
-                debug!(target:"templates", "🤗 Template found: {}", name);
+                info!(target:"templates", "🤗 Template found: {}", name);
                 t
             }
             Err(e) => {
-                debug!(target:"templates_err", "🐔 Template not found: {}", name);
+                error!(target:"templates_err", "🐔 Template not found: {}", name);
                 bail!("Template not found: {}", e);
             }
         };
         let rendered_template = match tmpl.render(items) {
             Ok(t) => t,
             Err(e) => {
-                debug!(target:"templates_err", "🐔 Failed to render template: {}", e);
+                error!(target:"templates_err", "🐔 Failed to render template: {}", e);
                 bail!("Failed to render template: {}", e);
             }
         };
-        debug!(target:"templates", "-------------------\nRENDERED TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
+        info!(target:"templates", "-------------------\nRENDERED TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
         Ok(rendered_template)
     }
 }

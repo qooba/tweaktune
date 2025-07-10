@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
-use log::debug;
+use log::{debug, error};
 use once_cell::sync::OnceCell;
 use polars::prelude::*;
 use rand::distr::Alphanumeric;
@@ -342,7 +342,7 @@ pub fn extract_json(text: &str) -> Result<Value> {
             Err(_e) => match extract_json_block(&text) {
                 Ok(v) => v,
                 Err(e) => {
-                    debug!(target: "extract_json", "🐔 EXTRACT JSON {}", &text);
+                    error!(target: "extract_json", "🐔 EXTRACT JSON {}", &text);
                     return Err(anyhow!("Failed to extract JSON: {}", e));
                 }
             },

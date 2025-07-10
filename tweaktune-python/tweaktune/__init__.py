@@ -5,6 +5,7 @@ from tweaktune.wrappers import PyStepWrapper, UnslothWrapper, MistralrsWrapper, 
 from tweaktune.chain import Chain
 import json
 import sys
+import os
 from typing import List, Union, Tuple, Callable, Optional
 from pydantic import BaseModel
 
@@ -375,12 +376,12 @@ class PipelineRunner:
         self.builder.add_judge_step(self.__name(name), template, llm)
         self.step_index += 1
         return self
-    
+
     def validate(self, py_func, name: str = "VALIDATE"):
         self.builder.add_py_validator_step(self.__name(name), PyStepValidatorWrapper(py_func))
         self.step_index += 1
         return self
-    
+
     def write_jsonl(self, path: str, template: str, name: str = "WRITE-JSONL"):
         self.builder.add_write_jsonl_step(self.__name(name), path, template)
         return self
@@ -400,11 +401,11 @@ class PipelineRunner:
         return self
 
     def debug(self, target: str = None):
-        self.builder.log("debug", target)
+        self.log("debug", target)
         return self
 
     def log(self, level: str = None, target: str = None):
-        file = sys.argv[0]
+        file = os.path.splitext(os.path.basename(sys.argv[0]))[0]
         self.builder.log(level, target, file)
         return self
     

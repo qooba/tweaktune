@@ -566,24 +566,34 @@ impl PipelineBuilder {
         create_dir_all(".tweaktune").unwrap();
 
         let now = Local::now();
-        let filename = format!(".tweaktune/log_{}.log", now.format("%Y-%m-%d_%H-%M-%S"));
+        let filename = if let Some(f) = file {
+            format!(
+                ".tweaktune/log_{}_{}.log",
+                f,
+                now.format("%Y-%m-%d_%H-%M-%S")
+            )
+        } else {
+            format!(".tweaktune/log_{}.log", now.format("%Y-%m-%d_%H-%M-%S"))
+        };
 
-        CombinedLogger::init(vec![
-            TermLogger::new(
-                LevelFilter::Warn,
-                Config::default(),
-                TerminalMode::Mixed,
-                ColorChoice::Auto,
-            ),
-            WriteLogger::new(
-                LevelFilter::Info,
-                Config::default(),
-                File::create(&filename).unwrap(),
-            ),
-        ])
+        let config = ConfigBuilder::new()
+            .set_level_color(Level::Error, Some(Color::Rgb(191, 0, 0)))
+            .set_level_color(Level::Warn, Some(Color::Rgb(255, 127, 0)))
+            .set_level_color(Level::Info, Some(Color::Rgb(192, 192, 0)))
+            .set_level_color(Level::Debug, Some(Color::Rgb(63, 127, 0)))
+            .set_level_color(Level::Trace, Some(Color::Rgb(127, 127, 255)))
+            .build();
+
+        CombinedLogger::init(vec![WriteLogger::new(
+            level,
+            config,
+            File::create(&filename).unwrap(),
+        )])
         .unwrap();
 
-        env_logger::builder().filter(target, level).init();
+        println!("📑 LOGGING INTO FILE {}", &filename);
+
+        // env_logger::builder().filter(target, level).init();
     }
 
     pub fn run(&self) -> PyResult<()> {

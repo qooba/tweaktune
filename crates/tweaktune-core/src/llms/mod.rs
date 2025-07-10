@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::debug;
+use log::{debug, error};
 use pyo3::prelude::*;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -82,7 +82,7 @@ impl MistralrsLLM {
         match result {
             Ok(result) => Ok(result),
             Err(e) => {
-                debug!(target: "mistralrs_llm", "🐔 {:?}", e);
+                error!(target: "mistralrs_llm", "🐔 {:?}", e);
                 Err(anyhow::anyhow!("Error processing messages: {:?}", e))
             }
         }
@@ -172,7 +172,7 @@ impl UnslothLLM {
         match result {
             Ok(result) => Ok(result),
             Err(e) => {
-                debug!(target: "unsloth_llm", "🐔 {:?}", e);
+                error!(target: "unsloth_llm", "🐔 {:?}", e);
                 Err(anyhow::anyhow!("Error processing messages: {:?}", e))
             }
         }
