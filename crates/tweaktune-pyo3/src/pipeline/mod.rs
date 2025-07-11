@@ -619,6 +619,11 @@ impl PipelineBuilder {
 
                      bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",)
                     .unwrap().progress_chars("#>-"));
+                    let publish = |text: String| {
+                        if let Some(bus) = &bus {
+                            bus.call_method1(py, "put", (text,)).unwrap();
+                        }
+                    };
 
                     let iter_results = stream::iter((*start..*stop).step_by(*step).map(|i| {
                         let bar = &bar;
@@ -626,12 +631,6 @@ impl PipelineBuilder {
                             bar.finish_with_message("Interrupted");
                             std::process::exit(1);
                         }
-
-                        let publish = |text: String| {
-                            if let Some(bus) = &bus {
-                                bus.call_method1(py, "put", (text,)).unwrap();
-                            }
-                        };
 
                         async move {
 
@@ -663,6 +662,11 @@ impl PipelineBuilder {
                     let bar = ProgressBar::new(0);
 
                     bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] ({pos})",).unwrap());
+                    let publish = |text: String| {
+                        if let Some(bus) = &bus {
+                            bus.call_method1(py, "put", (text,)).unwrap();
+                        }
+                    };
 
                     let dataset = self.datasets.get(name).ok_or_err(name)?;
                     match dataset {
@@ -675,6 +679,7 @@ impl PipelineBuilder {
                                         return Err(format!("Error processing step: {} - {}", name ,e));
                                     }
                                     bar.inc(1);
+                                    publish("Processed next item".to_string());
                                     Ok(())
                             }},)).buffered(self.workers).collect:: <Vec<_> >().await;
                             for result in iter_results {
