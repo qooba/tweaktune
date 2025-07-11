@@ -596,7 +596,8 @@ impl PipelineBuilder {
         // env_logger::builder().filter(target, level).init();
     }
 
-    pub fn run(&self) -> PyResult<()> {
+    #[pyo3(signature = (bus=None))]
+    pub fn run(&self, py: Python, bus: Option<PyObject>) -> PyResult<()> {
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
         match ctrlc::set_handler(move || {
@@ -626,6 +627,12 @@ impl PipelineBuilder {
                             std::process::exit(1);
                         }
 
+                        let publish = |text: String| {
+                            if let Some(bus) = &bus {
+                                bus.call_method1(py, "put", (text,)).unwrap();
+                            }
+                        };
+
                         async move {
 
                             let mut context = StepContext::new();
@@ -634,7 +641,10 @@ impl PipelineBuilder {
                             if let Err(e) = process_steps(self, context, None).await {
                                 return Err(format!("Error processing step: {} - {}", i ,e));
                             }
+
                             bar.inc(1);
+                            publish(format!("Processed index: {}", i));
+
                             Ok(())
                         }
                     }))

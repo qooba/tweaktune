@@ -6,9 +6,9 @@ from tweaktune.chain import Chain
 import json
 import sys
 import os
-from typing import List, Union, Tuple, Callable, Optional
+import inspect
+from typing import Dict, List, Union, Tuple, Callable, Optional
 from pydantic import BaseModel
-
 
 class Pipeline:
     def __init__(self):
@@ -270,20 +270,22 @@ class PipelineRunner:
     def __init__(self, builder: PipelineBuilder):
         self.builder = builder
         self.step_index = 0
+        self.graph = []
 
     def __name(self, name: str):
         return f"{name}--{self.step_index}"
 
     def step(self, step, name: str = "PY-STEP"):
         self.builder.add_py_step(self.__name(name), PyStepWrapper(step))
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
     
     def ifelse(self, condition: Callable, then_chain: Chain, else_chain: Chain, name: str = "PY-IFELSE"):
         name = self.__name(name)
         step = type(name.replace("-","_"), (object,), {'check': lambda self, context: condition(context)})()
-
         self.builder.add_ifelse_step(name, PyConditionWrapper(step), then_chain.steps_chain, else_chain.steps_chain)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
     
@@ -291,6 +293,7 @@ class PipelineRunner:
         name = self.__name(name)
         step = type(name.replace("-","_"), (object,), {'process': lambda self, context: func(context)})()
         self.builder.add_py_step(name, PyStepWrapper(step))
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
     
@@ -302,6 +305,7 @@ class PipelineRunner:
             return context
 
         self.map(wrapper, name=name)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
@@ -312,6 +316,7 @@ class PipelineRunner:
             return context
 
         self.map(condition_wrapper, name=name)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
     
@@ -321,11 +326,13 @@ class PipelineRunner:
             return context
 
         self.map(wrapper, name=name)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
     def generate_text(self, template: str, llm: str, output: str, system_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-TEXT"):
         self.builder.add_text_generation_step(self.__name(name), template, llm, output, system_template, max_tokens, temperature)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
@@ -341,6 +348,7 @@ class PipelineRunner:
             schema = json.dumps(schema)
 
         self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template, schema, max_tokens, temperature, schema_template)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
     
@@ -349,45 +357,54 @@ class PipelineRunner:
     
     def sample(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
         self.builder.add_data_sampler_step(self.__name(name), dataset, size, output)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
     def render(self, template: str, output: str, name: str = "RENDER"):
         self.builder.add_render_step(self.__name(name), template, output)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
     
     def validate_json(self, schema: str, instance: str, name: str = "VALIDATE-JSON"):
         self.builder.add_validatejson_step(self.__name(name), schema, instance)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
     def chunk(self, capacity: Tuple[int, int], input: str, output: str, name: str = "CHUNK"):
         self.builder.add_chunk_step(self.__name(name), capacity, input, output)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
     
     def read(self, dataset: str, output: str, name: str = "SAMPLE"):
         self.builder.add_data_read_step(self.__name(name), dataset, output)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
     
     def judge(self, template: str, llm: str, name: str = "JUDGE"):
         self.builder.add_judge_step(self.__name(name), template, llm)
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
     def validate(self, py_func, name: str = "VALIDATE"):
         self.builder.add_py_validator_step(self.__name(name), PyStepValidatorWrapper(py_func))
+        self.graph.append(graph_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
     def write_jsonl(self, path: str, template: str, name: str = "WRITE-JSONL"):
         self.builder.add_write_jsonl_step(self.__name(name), path, template)
+        self.graph.append(graph_item(name=self.__name(name)))
         return self
     
     def write_csv(self, path: str, columns: List[str], delimeter: str, name: str = "WRITE-JSONL"):
         self.builder.add_write_csv_step(self.__name(name), path, columns, delimeter)
+        self.graph.append(graph_item(name=self.__name(name)))
         return self
 
     def print(self, *args, **kwargs):
@@ -398,6 +415,7 @@ class PipelineRunner:
             
         name = "PRINT"
         self.builder.add_print_step(self.__name(name), template=template, columns=columns)
+        self.graph.append(graph_item(name=self.__name(name)))
         return self
 
     def debug(self, target: str = None):
@@ -413,4 +431,31 @@ class PipelineRunner:
         self.builder.compile()
         return self.builder.run()
     
+    def ui(self, host: str = "0.0.0.0", port: int = 8080):
+        self.builder.compile()
+        try:
+            from tweaktune.ui import run_ui
+            run_ui(self.builder, self.graph, host, port)
+        except ModuleNotFoundError:
+            package_installation_hint("nicegui")
+            raise
+        return self
+    
+
+def graph_item(name: str):
+    frame = inspect.currentframe().f_back
+    args_info = {str(k):str(v) for k,v in inspect.getargvalues(frame).locals.items()}
+    return GraphItem(name=name, func=frame.f_code.co_name, args=args_info)
+
+
+class GraphItem(BaseModel):
+    name: str
+    func: str
+    args: Dict[str, str] = {}
+    children: List['GraphItem'] = []
+
+    def add_child(self, child: 'GraphItem'):
+        self.children.append(child)
+
+
 
