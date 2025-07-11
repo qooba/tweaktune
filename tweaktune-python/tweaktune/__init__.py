@@ -1,5 +1,5 @@
 from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings
-from tweaktune.common import StepStatus, record_batches_to_ipc_bytes, package_installation_hint
+from tweaktune.common import LogLevel, StepStatus, record_batches_to_ipc_bytes, package_installation_hint
 from tweaktune.tools import pydantic_to_json_schema, function_to_json_schema
 from tweaktune.wrappers import PyStepWrapper, UnslothWrapper, MistralrsWrapper, PyStepValidatorWrapper, PyConditionWrapper
 from tweaktune.chain import Chain
@@ -401,10 +401,10 @@ class PipelineRunner:
         return self
 
     def debug(self, target: str = None):
-        self.log("debug", target)
+        self.log(LogLevel.DEBUG.value, target)
         return self
 
-    def log(self, level: str = "error", target: str = None):
+    def log(self, level: str = LogLevel.ERROR.value, target: str = None):
         file = os.path.splitext(os.path.basename(sys.argv[0]))[0]
         self.builder.log(level, target, file)
         return self
