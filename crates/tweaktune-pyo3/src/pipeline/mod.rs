@@ -2,12 +2,9 @@ use crate::common::ResultExt;
 use crate::logging::ChannelWriter;
 use anyhow::{bail, Result};
 use chrono::Local;
-use futures::channel;
-use futures::io::Write;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
-use polars::prelude::file;
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
 use simplelog::*;
 use std::fs::{create_dir_all, File};
@@ -602,7 +599,7 @@ impl PipelineBuilder {
     }
 
     #[pyo3(signature = (bus=None))]
-    pub fn run(&self, py: Python, bus: Option<PyObject>) -> PyResult<()> {
+    pub fn run(&self, bus: Option<PyObject>) -> PyResult<()> {
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
         match ctrlc::set_handler(move || {
