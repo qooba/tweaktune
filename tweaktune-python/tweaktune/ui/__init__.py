@@ -22,19 +22,20 @@ graph TD;\n"""
         else:
             graph_str += f'  STEP{ix}["**{step_func}**<br/>{step_args}"] -->'
 
-    print(f"Graph string: {graph_str}")
     return graph_str
 
 def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
 
     bus = queue.Queue()
 
+    log = ui.log(max_lines=10).classes('w-full h-200')
     def check_bus():
         while not bus.empty():
             message = bus.get()
             if message is None:
                 break
-            ui.notify(message)
+            log.push(message)
+            #ui.notify(message)
 
     with ui.dialog() as dialog, ui.card():
         ui.label('Hello world!')

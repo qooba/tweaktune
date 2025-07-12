@@ -1,6 +1,9 @@
 use crate::common::ResultExt;
+use crate::logging::ChannelWriter;
 use anyhow::{bail, Result};
 use chrono::Local;
+use futures::channel;
+use futures::io::Write;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
@@ -9,6 +12,8 @@ use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
 use simplelog::*;
 use std::fs::{create_dir_all, File};
 use std::sync::atomic::AtomicBool;
+use std::sync::mpsc;
+use std::thread;
 use std::{collections::HashMap, sync::Arc};
 use tokio::runtime::Runtime;
 use tweaktune_core::common::{deserialize, SerializationType};
@@ -611,6 +616,43 @@ impl PipelineBuilder {
             }
         }
 
+        let bus_logger = if let Some(bus) = bus {
+            Python::with_gil(|py| {
+                let py_obj: PyObject = bus.clone_ref(py);
+                Some(py_obj)
+            })
+        } else {
+            None
+        };
+
+        // let publish = |text: String| {
+        //     if let Some(bus) = &bus {
+        //         bus.call_method1(py, "put", (text,)).unwrap();
+        //     }
+        // };
+
+        let (log_sender, log_receiver) = mpsc::channel::<String>();
+        let channel_writer = ChannelWriter::new(log_sender);
+
+        WriteLogger::init(
+            log::LevelFilter::Info,
+            ConfigBuilder::new().build(),
+            channel_writer,
+        )
+        .unwrap();
+
+        thread::spawn(move || {
+            for message in log_receiver {
+                Python::with_gil(|py| {
+                    if let Some(bus) = &bus_logger {
+                        bus.call_method1(py, "put", (message,)).unwrap();
+                    } else {
+                        println!("{}", message);
+                    }
+                });
+            }
+        });
+
         let result = Runtime::new()?.block_on(async {
             match &self.iter_by {
                 IterBy::Range { start, stop, step } => {
@@ -619,11 +661,6 @@ impl PipelineBuilder {
 
                      bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",)
                     .unwrap().progress_chars("#>-"));
-                    let publish = |text: String| {
-                        if let Some(bus) = &bus {
-                            bus.call_method1(py, "put", (text,)).unwrap();
-                        }
-                    };
 
                     let iter_results = stream::iter((*start..*stop).step_by(*step).map(|i| {
                         let bar = &bar;
@@ -642,7 +679,7 @@ impl PipelineBuilder {
                             }
 
                             bar.inc(1);
-                            publish(format!("Processed index: {}", i));
+                            info!("Processed index: {}", i);
 
                             Ok(())
                         }
@@ -662,11 +699,6 @@ impl PipelineBuilder {
                     let bar = ProgressBar::new(0);
 
                     bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] ({pos})",).unwrap());
-                    let publish = |text: String| {
-                        if let Some(bus) = &bus {
-                            bus.call_method1(py, "put", (text,)).unwrap();
-                        }
-                    };
 
                     let dataset = self.datasets.get(name).ok_or_err(name)?;
                     match dataset {
@@ -679,7 +711,7 @@ impl PipelineBuilder {
                                         return Err(format!("Error processing step: {} - {}", name ,e));
                                     }
                                     bar.inc(1);
-                                    publish("Processed next item".to_string());
+                                    info!("Processed next item");
                                     Ok(())
                             }},)).buffered(self.workers).collect:: <Vec<_> >().await;
                             for result in iter_results {
