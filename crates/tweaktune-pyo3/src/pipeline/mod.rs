@@ -616,42 +616,30 @@ impl PipelineBuilder {
             }
         }
 
-        let bus_logger = if let Some(bus) = bus {
-            Python::with_gil(|py| {
+        if let Some(bus) = bus {
+            let bus_logger = Python::with_gil(|py| {
                 let py_obj: PyObject = bus.clone_ref(py);
-                Some(py_obj)
-            })
-        } else {
-            None
-        };
+                py_obj
+            });
 
-        // let publish = |text: String| {
-        //     if let Some(bus) = &bus {
-        //         bus.call_method1(py, "put", (text,)).unwrap();
-        //     }
-        // };
+            let (log_sender, log_receiver) = mpsc::channel::<String>();
+            let channel_writer = ChannelWriter::new(log_sender);
 
-        let (log_sender, log_receiver) = mpsc::channel::<String>();
-        let channel_writer = ChannelWriter::new(log_sender);
+            WriteLogger::init(
+                log::LevelFilter::Info,
+                ConfigBuilder::new().build(),
+                channel_writer,
+            )
+            .unwrap();
 
-        WriteLogger::init(
-            log::LevelFilter::Info,
-            ConfigBuilder::new().build(),
-            channel_writer,
-        )
-        .unwrap();
-
-        thread::spawn(move || {
-            for message in log_receiver {
-                Python::with_gil(|py| {
-                    if let Some(bus) = &bus_logger {
-                        bus.call_method1(py, "put", (message,)).unwrap();
-                    } else {
-                        println!("{}", message);
-                    }
-                });
-            }
-        });
+            thread::spawn(move || {
+                for message in log_receiver {
+                    Python::with_gil(|py| {
+                        bus_logger.call_method1(py, "put", (message,)).unwrap();
+                    });
+                }
+            });
+        }
 
         let result = Runtime::new()?.block_on(async {
             match &self.iter_by {
@@ -670,7 +658,6 @@ impl PipelineBuilder {
                         }
 
                         async move {
-
                             let mut context = StepContext::new();
                             context.set("index", i);
                             context.set_status(StepStatus::Running);
@@ -680,7 +667,6 @@ impl PipelineBuilder {
 
                             bar.inc(1);
                             info!("Processed index: {}", i);
-
                             Ok(())
                         }
                     }))
