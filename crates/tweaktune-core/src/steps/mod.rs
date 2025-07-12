@@ -6,7 +6,7 @@ use crate::{
     templates::Templates,
 };
 use anyhow::Result;
-use log::{debug, error, info};
+use log::{debug, error};
 use pyo3::prelude::*;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -599,10 +599,10 @@ impl Step for JsonGenerationStep {
             })
             .to_string();
 
-            info!(target: "json_generation_step", "🤗 RENDERED SCHEMA: {}", schema);
+            debug!(target: "json_generation_step", "🤗 RENDERED SCHEMA: {}", schema);
             Some(schema)
         } else if let Some(schema) = &self.json_schema {
-            info!(target: "json_generation_step", "🤗 PROVIDED SCHEMA: {}", schema);
+            debug!(target: "json_generation_step", "🤗 PROVIDED SCHEMA: {}", schema);
             Some(schema.clone())
         } else {
             None
@@ -631,7 +631,7 @@ impl Step for JsonGenerationStep {
                         });
                     }
 
-                    info!(target:"json_generation_step", "🤗 Generated VALUE: {}", value);
+                    debug!(target:"json_generation_step", "🤗 Generated VALUE: {}", value);
                     context.data[self.output.clone()] = value;
                 }
                 Err(e) => {

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
-use log::{debug, error};
+use log::error;
 use once_cell::sync::OnceCell;
 use polars::prelude::*;
 use rand::distr::Alphanumeric;

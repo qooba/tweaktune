@@ -1,7 +1,7 @@
 use crate::common::{OptionToResult, ResultExt};
 use crate::steps::StepContextData;
 use anyhow::{bail, Result};
-use log::{debug, error, info};
+use log::{debug, error};
 use minijinja::Environment;
 use rand::rng;
 use rand::seq::SliceRandom;
@@ -112,7 +112,7 @@ impl Templates {
             .ok_or_err("ENVIRONMENT")?;
         let tmpl = match environment.get_template(&name) {
             Ok(t) => {
-                info!(target:"templates", "🤗 Template found: {}", name);
+                debug!(target:"templates", "🤗 Template found: {}", name);
                 t
             }
             Err(e) => {
@@ -127,7 +127,7 @@ impl Templates {
                 bail!("Failed to render template: {}", e);
             }
         };
-        info!(target:"templates", "-------------------\nRENDERED TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
+        debug!(target:"templates", "-------------------\nRENDERED TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
         Ok(rendered_template)
     }
 }

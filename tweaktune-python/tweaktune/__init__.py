@@ -10,61 +10,98 @@ import inspect
 from typing import Dict, List, Union, Tuple, Callable, Optional
 from pydantic import BaseModel
 
+def graph_item(name: str):
+    frame = inspect.currentframe().f_back
+    args_info = {str(k):str(v) for k,v in inspect.getargvalues(frame).locals.items() if k != 'self'}
+    return GraphItem(name=name, func=frame.f_code.co_name, args=args_info)
+
+class GraphItem(BaseModel):
+    name: str
+    func: str
+    args: Dict[str, str] = {}
+    children: List['GraphItem'] = []
+
+    def add_child(self, child: 'GraphItem'):
+        self.children.append(child)
+
+def config_item(name: str):
+    frame = inspect.currentframe().f_back
+    args_info = {str(k):str(v).replace('"','') for k,v in inspect.getargvalues(frame).locals.items() if k != 'ipc_data' and k != 'self'}
+    return ConfigItem(name=name, func=frame.f_code.co_name, args=args_info)
+    
+class ConfigItem(BaseModel):
+    name: str
+    func: str
+    args: Dict[str, str] = {}
+
+
+
 class Pipeline:
     def __init__(self):
         self.builder = PipelineBuilder()
+        self.config = []
 
     def with_openapi_dataset(self, name: str, path_or_url: str):
         """Adds an OpenAPI dataset to the pipeline."""
         self.builder.with_openapi_dataset(name, path_or_url)
+        self.config.append(config_item(name))
         return self
 
     def with_tools_dataset(self, name: str, tools: List[callable]):
         """Converts a list of functions to json schema and adds them to the pipeline."""
         json_list = [function_to_json_schema(tool) for tool in tools]
         self.builder.with_json_list_dataset(name, json_list, None)
+        self.config.append(config_item(name))
         return self
     
     def with_pydantic_models_dataset(self, name: str, models: List[BaseModel]):
         """Converts a list of Pydantic models to json schema and adds them to the pipeline."""
         json_list = [pydantic_to_json_schema(model) for model in models]
         self.builder.with_json_list_dataset(name, json_list, None)
+        self.config.append(config_item(name))
         return self
     
     def with_dicts_dataset(self, name: str, dicts: List[dict], sql: str = None):
         """Converts a list of dictionaries to json schema and adds them to the pipeline."""
         json_list = [json.dumps(d) for d in dicts]
         self.builder.with_json_list_dataset(name, json_list, sql)
+        self.config.append(config_item(name))
         return self
 
     def with_jsonl_dataset(self, name: str, path: str, sql: str = None):
         """Adds a jsonl dataset to the pipeline."""
         self.builder.with_jsonl_dataset(name, path, sql)
+        self.config.append(config_item(name))
         return self
     
     def with_json_dataset(self, name: str, path: str, sql: str = None):
         """Adds a json dataset to the pipeline."""
         self.builder.with_json_dataset(name, path, sql)
+        self.config.append(config_item(name))
         return self
 
     def with_mixed_dataset(self, name: str, datasets: List[str]):
         """Adds a mixed dataset to the pipeline."""
         self.builder.with_mixed_dataset(name, datasets)
+        self.config.append(config_item(name))
         return self
 
     def with_polars_dataset(self, name: str, path: str, sql: str):
         """Adds a polars dataset to the pipeline."""
         self.builder.with_polars_dataset(name, path, sql)
+        self.config.append(config_item(name))
         return self
 
     def with_parquet_dataset(self, name: str, path: str, sql: str = None):
         """Adds a parquet dataset to the pipeline."""
         self.builder.with_parquet_dataset(name, path, sql)
+        self.config.append(config_item(name))
         return self
     
     def with_csv_dataset(self, name: str, path: str, delimiter: str, has_header: bool, sql: str = None):
         """Adds a csv dataset to the pipeline."""
         self.builder.with_csv_dataset(name, path, delimiter, has_header, sql)
+        self.config.append(config_item(name))
         return self
 
     def with_db_dataset(self, name: str, conn: str, query: str):
@@ -80,6 +117,7 @@ class Pipeline:
             table  = cx.read_sql(conn, query, return_type="arrow")
             ipc_data = record_batches_to_ipc_bytes(table.to_reader())
             self.builder.with_ipc_dataset(name, ipc_data)
+            self.config.append(config_item(name))
             return self
         except ModuleNotFoundError:
             package_installation_hint("connectorx")
@@ -91,6 +129,7 @@ class Pipeline:
             dataset = load_dataset(dataset_path, name=dataset_name, split=dataset_split)
             ipc_data = record_batches_to_ipc_bytes(dataset.data.to_reader())
             self.builder.with_ipc_dataset(name, ipc_data, sql)
+            self.config.append(config_item(name))
             return self
         except ModuleNotFoundError:
             package_installation_hint("datasets")
@@ -110,7 +149,8 @@ class Pipeline:
                 self.builder.with_ipc_dataset(name, ipc_data, sql)
             else:
                 raise ValueError("Invalid dataset type")
-
+            
+            self.config.append(config_item(name))
             return self
 
         except ModuleNotFoundError:
@@ -121,24 +161,28 @@ class Pipeline:
     def with_template(self, name: str, template: str):
         """Adds a template to the pipeline."""
         self.builder.with_jinja_template(name, template)
+        self.config.append(config_item(name))
         return self
     
     def with_j2_template(self, name: str, path: str, op_config: Optional[dict] = None):
         """Adds a template from file to the pipeline."""
         op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
         self.builder.with_j2_template(name, path, op_config)
+        self.config.append(config_item(name))
         return self
     
     def with_j2_templates(self, path: str, op_config: Optional[dict] = None):
         """Adds a template from file to the pipeline."""
         op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
         self.builder.with_j2_templates(path, op_config)
+        self.config.append(config_item("J2-TEMPLATES"))
         return self
     
     def with_llm(self, llm: LLM):
         """Adds a LLM to the pipeline."""
         if llm.__class__ == LLM.OpenAI:
             self.builder.with_llm_api(llm.name, llm.base_url, llm.api_key, llm.model, llm.max_tokens)
+            self.config.append(config_item(llm.name))
         else:
             raise ValueError("Invalid LLM type")
         
@@ -147,16 +191,19 @@ class Pipeline:
     def with_llm_api(self, name: str, base_url: str, api_key: str, model: str, max_tokens: int = 2048, temperature: float = 0.7):
         """Adds an OpenAI LLM to the pipeline."""
         self.builder.with_llm_api(name, base_url, api_key, model, max_tokens, temperature)
+        self.config.append(config_item(name))
         return self
     
     def with_llm_openai(self, name: str, api_key: str, model: str, max_tokens: int = 2048, temperature: float = 0.7):
         """Adds an OpenAI LLM to the pipeline."""
         self.builder.with_llm_openai(name, api_key, model, max_tokens, temperature)
+        self.config.append(config_item(name))
         return self
 
     def with_llm_azure_openai(self, name: str, api_key: str, endpoint: str, deployment_name: str, api_version: str, max_tokens: int = 2048, temperature: float = 0.7):
         """Adds an OpenAI LLM to the pipeline."""
         self.builder.with_llm_azure_openai(name, api_key, endpoint, deployment_name, api_version, max_tokens, temperature)
+        self.config.append(config_item(name))
         return self
     
     def with_llm_mistralrs(self, name: str, 
@@ -170,7 +217,7 @@ class Pipeline:
                 in_situ_quant=in_situ_quant,
             )
             self.builder.with_llm_mistralrs(name, MistralrsWrapper(runner))
-
+            self.config.append(config_item(name))
             return self
         except ModuleNotFoundError:
             package_installation_hint("mistralrs")
@@ -210,6 +257,7 @@ class Pipeline:
             )
             FastLanguageModel.for_inference(model)
             self.builder.with_llm_unsloth(name, UnslothWrapper(model, tokenizer))
+            self.config.append(config_item(name))
 
             return self
         except ModuleNotFoundError:
@@ -219,6 +267,7 @@ class Pipeline:
     def with_embedings(self, embeddings: Embeddings):
         if embeddings.__class__ == Embeddings.OpenAI:
             self.builder.with_embeddings_api(embeddings.name, embeddings.model, embeddings.base_url, embeddings.api_key)
+            self.config.append(config_item("EMBEDDINGS"))
         else:
             raise ValueError("Invalid Embeddings type")
         
@@ -226,6 +275,7 @@ class Pipeline:
     
     def with_workers(self, workers: int):
         self.builder.with_workers(workers)
+        self.config.append(config_item("WORKERS"))
         return self
     
     def from_yaml(self, path_or_url: str):
@@ -235,8 +285,10 @@ class Pipeline:
     def iter(self, iter_by: IterBy):
         if iter_by.__class__ == IterBy.Range:
             self.builder.iter_by_range(iter_by.start, iter_by.stop, iter_by.step)
+            self.config.append(config_item("ITER-RANGE"))
         elif iter_by.__class__ == IterBy.Dataset:
             self.builder.iter_by_dataset(iter_by.name)
+            self.config.append(config_item("ITER-DATASET"))
         else:
             raise ValueError("Invalid IterBy type")
         
@@ -244,6 +296,7 @@ class Pipeline:
     
     def iter_dataset(self, name: str):
         self.builder.iter_by_dataset(name)
+        self.config.append(config_item("ITER-DATASET"))
         return PipelineRunner(self.builder)
     
     def iter_range(self, *args, **kwargs):
@@ -262,15 +315,17 @@ class Pipeline:
             step = args[2]
 
         self.builder.iter_by_range(start, stop, step)
-        return PipelineRunner(self.builder)
+        self.config.append(config_item("ITER-RANGE"))
+        return PipelineRunner(self.builder, self.config)
 
 
 class PipelineRunner:
 
-    def __init__(self, builder: PipelineBuilder):
+    def __init__(self, builder: PipelineBuilder, config: List[ConfigItem] = None):
         self.builder = builder
         self.step_index = 0
         self.graph = []
+        self.config = config if config else []
 
     def __name(self, name: str):
         return f"{name}--{self.step_index}"
@@ -435,27 +490,10 @@ class PipelineRunner:
         self.builder.compile()
         try:
             from tweaktune.ui import run_ui
-            run_ui(self.builder, self.graph, host, port)
+            run_ui(self.builder, self.graph, self.config, host, port)
         except ModuleNotFoundError:
             package_installation_hint("nicegui")
             raise
         return self
     
-
-def graph_item(name: str):
-    frame = inspect.currentframe().f_back
-    args_info = {str(k):str(v) for k,v in inspect.getargvalues(frame).locals.items()}
-    return GraphItem(name=name, func=frame.f_code.co_name, args=args_info)
-
-
-class GraphItem(BaseModel):
-    name: str
-    func: str
-    args: Dict[str, str] = {}
-    children: List['GraphItem'] = []
-
-    def add_child(self, child: 'GraphItem'):
-        self.children.append(child)
-
-
 

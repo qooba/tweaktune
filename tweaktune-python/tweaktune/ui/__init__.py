@@ -14,8 +14,13 @@ graph TD;\n"""
         step_name = step.name
         step_func = step.func
         step_args = step.args
-        del step_args['self']
-        del step_args['name']
+        if "self" in step_args:
+            del step_args['self']
+
+        if "name" in step_args:
+            del step_args['name']
+
+        print("STEP ARGS", step_args)
 
         if ix == len(graph) - 1:
             graph_str += f'  STEP{ix}["**{step_func}**<br/>{step_args}"]'
@@ -24,7 +29,7 @@ graph TD;\n"""
 
     return graph_str
 
-def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
+def run_ui(builder, graph, config, host: str="0.0.0.0", port: int=8080):
 
     bus = queue.Queue()
 
@@ -37,18 +42,25 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
             log.push(message)
             #ui.notify(message)
 
-    with ui.dialog() as dialog, ui.card():
-        ui.label('Hello world!')
-        ui.button('Close', on_click=dialog.close)
-        ui.mermaid(render_graph(graph))
+#    with ui.dialog() as dialog_graph, ui.card():
+#        ui.button('Close', on_click=dialog_graph.close)
+#        ui.mermaid(render_graph(graph))
 
-    ui.button('Graph', on_click=dialog.open)
+#    ui.button('Graph', on_click=dialog_graph.open)
+
+    with ui.dialog() as dialog_config, ui.card():
+        ui.button('Close', on_click=dialog_config.close)
+        ui.mermaid(render_graph(config))
+
+    ui.button('Graph', on_click=dialog_config.open)
+
 
     with ui.header(elevated=True).style('background-color: #3874c8').classes('items-center justify-between'):
         ui.label('HEADER')
         ui.button(on_click=lambda: right_drawer.toggle(), icon='menu').props('flat color=white')
-    with ui.right_drawer(fixed=False).style('background-color: #ebf1fa').props('bordered') as right_drawer:
-        ui.label('RIGHT DRAWER')
+    with ui.right_drawer(fixed=False).props('bordered') as right_drawer:
+        ui.label('Right Drawer')
+        #ui.mermaid(render_graph(graph))
     with ui.footer().style('background-color: #3874c8'):
         ui.label('FOOTER')
 
