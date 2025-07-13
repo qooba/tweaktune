@@ -69,6 +69,11 @@ def run_ui(builder, graph, config, host: str="0.0.0.0", port: int=8080):
         spinner.visible = True
         threading.Thread(target=lambda: run_builder_thread(bus), daemon=False).start()
 
+    def stop_builder():
+        ui.notify('Stopping builder !')
+        spinner.visible = False
+        builder.stop()
+
     #with ui.footer().classes('bg-dark'), ui.column().classes('w-full max-w-3xl mx-auto my-6'):
 
     with ui.column().classes('h-10'):
@@ -86,7 +91,7 @@ def run_ui(builder, graph, config, host: str="0.0.0.0", port: int=8080):
     with ui.page_sticky(x_offset=18, y_offset=18, position="bottom"):
         with ui.row().classes('items-center w-full'):
             ui.button(icon='play_arrow', on_click=run_builder).props('fab color=green')
-            ui.button(icon='stop', on_click=run_builder).props('fab color=red')
+            ui.button(icon='stop', on_click=stop_builder).props('fab color=red')
             spinner = ui.spinner('audio', size='lg', color='green')
             spinner.visible = False
 

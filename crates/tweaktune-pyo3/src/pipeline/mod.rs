@@ -8,7 +8,7 @@ use log::info;
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
 use simplelog::*;
 use std::fs::{create_dir_all, File};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use std::{collections::HashMap, sync::Arc};
@@ -42,6 +42,7 @@ pub struct PipelineBuilder {
     embeddings: Resources<EmbeddingsType>,
     steps: Vec<StepType>,
     iter_by: IterBy,
+    running: Arc<AtomicBool>,
 }
 
 #[pymethods]
@@ -66,6 +67,7 @@ impl PipelineBuilder {
                 stop: 0,
                 step: 1,
             },
+            running: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -598,10 +600,15 @@ impl PipelineBuilder {
         // env_logger::builder().filter(target, level).init();
     }
 
+    pub fn stop(&self) -> PyResult<()> {
+        self.running.store(false, Ordering::SeqCst);
+        Ok(())
+    }
+
     #[pyo3(signature = (bus=None))]
     pub fn run(&self, bus: Option<PyObject>) -> PyResult<()> {
-        let running = Arc::new(AtomicBool::new(true));
-        let r = running.clone();
+        self.running.store(true, Ordering::SeqCst);
+        let r = self.running.clone();
         match ctrlc::set_handler(move || {
             r.store(false, std::sync::atomic::Ordering::SeqCst);
         }) {
@@ -649,7 +656,7 @@ impl PipelineBuilder {
 
                     let iter_results = stream::iter((*start..*stop).step_by(*step).map(|i| {
                         let bar = &bar;
-                        if !running.load(std::sync::atomic::Ordering::SeqCst) {
+                        if !self.running.load(std::sync::atomic::Ordering::SeqCst) {
                             bar.finish_with_message("Interrupted");
                             std::process::exit(1);
                         }
@@ -688,7 +695,7 @@ impl PipelineBuilder {
                         DatasetType::Jsonl(dataset) => {
                             let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
-                                process_progress_bar(bar, &running);
+                                process_progress_bar(bar, &self.running);
                                 async move {
                                     if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
                                         return Err(format!("Error processing step: {} - {}", name ,e));
@@ -707,7 +714,7 @@ impl PipelineBuilder {
                         DatasetType::Json(dataset) => {
                             let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
-                                process_progress_bar(bar, &running);
+                                process_progress_bar(bar, &self.running);
                                 async move {
                                     if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
                                         return Err(format!("Error processing step: {} - {}", name ,e));
@@ -725,7 +732,7 @@ impl PipelineBuilder {
                         DatasetType::JsonList(dataset) => {
                             let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
-                                process_progress_bar(bar, &running);
+                                process_progress_bar(bar, &self.running);
                                 async move {
                                     if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
                                         return Err(format!("Error processing step: {} - {}", name ,e));
@@ -743,7 +750,7 @@ impl PipelineBuilder {
                         DatasetType::OpenApi(dataset) => {
                             let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
-                                process_progress_bar(bar, &running);
+                                process_progress_bar(bar, &self.running);
                                 async move {
                                     if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
                                         return Err(format!("Error processing step: {} - {}", name ,e));
@@ -761,7 +768,7 @@ impl PipelineBuilder {
                         DatasetType::Polars(dataset) => {
                             let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
-                                process_progress_bar(bar, &running);
+                                process_progress_bar(bar, &self.running);
                                 async move {
                                     if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
                                         return Err(format!("Error processing step: {} - {}", name ,e));
@@ -779,7 +786,7 @@ impl PipelineBuilder {
                         DatasetType::Ipc(dataset) => {
                             let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
-                                process_progress_bar(bar, &running);
+                                process_progress_bar(bar, &self.running);
                                 async move {
                                     if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
                                         return Err(format!("Error processing step: {} - {}", name ,e));
@@ -797,7 +804,7 @@ impl PipelineBuilder {
                         DatasetType::Csv(dataset) => {
                             let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
-                                process_progress_bar(bar, &running);
+                                process_progress_bar(bar, &self.running);
                                 async move {
                                     if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
                                         return Err(format!("Error processing step: {} - {}", name ,e));
@@ -815,7 +822,7 @@ impl PipelineBuilder {
                         DatasetType::Parquet(dataset) => {
                             let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
                                 let bar= &bar;
-                                process_progress_bar(bar, &running);
+                                process_progress_bar(bar, &self.running);
                                 async move {
                                     if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
                                         return Err(format!("Error processing step: {} - {}", name ,e));
@@ -833,7 +840,7 @@ impl PipelineBuilder {
                         DatasetType::Mixed(dataset) => {
                             let iter_results = stream::iter(dataset.stream_mix(&self.datasets.resources)?.map(|json_row|{
                                 let bar= &bar;
-                                process_progress_bar(bar, &running);
+                                process_progress_bar(bar, &self.running);
                                 async move {
                                     if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
                                         return Err(format!("Error processing step: {} - {}", name ,e));
