@@ -7,18 +7,18 @@ import json
 import sys
 import os
 import inspect
-from typing import Dict, List, Union, Tuple, Callable, Optional
+from typing import Dict, List, Union, Tuple, Callable, Optional, Any
 from pydantic import BaseModel
 
 def step_item(name: str):
     frame = inspect.currentframe().f_back
-    args_info = {str(k):str(v) for k,v in inspect.getargvalues(frame).locals.items() if k != 'self'}
+    args_info = {str(k):v for k,v in inspect.getargvalues(frame).locals.items() if k != 'self'}
     return StepItem(name=name, func=frame.f_code.co_name, args=args_info)
 
 class StepItem(BaseModel):
     name: str
     func: str
-    args: Dict[str, str] = {}
+    args: Dict[str, Any] = {}
     children: List['StepItem'] = []
 
     def add_child(self, child: 'StepItem'):
@@ -374,6 +374,7 @@ class PipelineRunner:
             return context
 
         self.map(wrapper, name=name)
+        del self.graph.steps[-1]
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self

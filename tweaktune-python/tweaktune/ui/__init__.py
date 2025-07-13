@@ -1,5 +1,7 @@
 import queue
+import json
 import threading
+import inspect
 from nicegui import ui
 
 def render_graph(graph):
@@ -31,7 +33,7 @@ graph TD;\n"""
     for ix,step in enumerate(graph.steps):
         step_name = step.name
         step_func = step.func
-        step_args = step.args.copy()
+        step_args = {k:str(v) for k,v in config_step.args.items()}.copy()
         if "self" in step_args:
             del step_args['self']
 
@@ -39,11 +41,11 @@ graph TD;\n"""
             del step_args["name"]
 
         if ix == 0:
-            graph_str += f'  START[**{graph.start.func}**] --> STEP{ix}["**{step_func}**<br/>{step_args}"] -->'
+            graph_str += f'  START[**{graph.start.func}**] --> STEP{ix}["**{step_func}**"] -->'
         elif ix == len(graph.steps) - 1:
-            graph_str += f'  STEP{ix}["**{step_func}**<br/>{step_args}"]'
+            graph_str += f'  STEP{ix}["**{step_func}**"]'
         else:
-            graph_str += f'  STEP{ix}["**{step_func}**<br/>{step_args}"] -->'
+            graph_str += f'  STEP{ix}["**{step_func}**"] -->'
 
         callback_str += f'\n  click STEP{ix} call emitEvent("mermaid_click", "STEP@{ix}")'
 
@@ -81,6 +83,12 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
         .q-drawer__content::-webkit-scrollbar {
             display: none !important;
         }
+                     
+        .mermaid-center svg{
+            display: block !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+        }
     </style>
     """)
 
@@ -90,6 +98,7 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
     def run_builder():
         ui.notify('Running builder !')
         spinner.visible = True
+        tab_panels.value = two
         threading.Thread(target=lambda: run_builder_thread(bus), daemon=False).start()
 
     def stop_builder():
@@ -97,8 +106,13 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
         spinner.visible = False
         builder.stop()
 
-    with ui.dialog() as dialog_mermaid, ui.card():
-        mermaid = md = ui.markdown("")
+    with ui.dialog() as dialog_graph, ui.card().style('width:auto; max-width: none;'): 
+        graph_header = ui.markdown("")
+        ui.separator()
+        graph_code = ui.code('', language='json')
+        graph_py = ui.code('', language='python')
+        graph_template = ui.code('', language='jinja')
+            
         #ui.button('Close', on_click=dialog_mermaid.close)
 
     def run_mermaid_dialog(node):
@@ -106,18 +120,54 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
         if node[0] == 'CONFIG':
             node = int(node[1])
             config_step = graph.config[node]
-            mermaid.content = f"**`{config_step.func}`**<br/>Args: `{config_step.args}`"
+            func = config_step.func
+            graph_header.content = f"**`{func}`**"
+            if func == 'with_template':
+                graph_code.visible = False
+                graph_header.content += f" **(\"{config_step.args.get('name')}\")**"
+                graph_template.visible = True
+                graph_py.visible = False
+                graph_template.content = config_step.args.get("template")
+            else:
+                graph_template.content = ""
+                graph_template.visible = False
+                graph_py.visible = False
+                graph_code.visible = True
+                graph_code.content = json.dumps(config_step.args, indent=2)
+
         elif node[0] == 'STEP':
             node = int(node[1])
             step = graph.steps[node]
-            mermaid.content = f"**`{step.func}`**<br/>Args: `{step.args}`"
+            func = step.func
+            if func in ['map', 'add_column', 'mutate']:
+                py_func = step.args.get("func")
+                if inspect.isfunction(py_func):
+                    graph_py.content = inspect.getsource(py_func)
+                    graph_py.visible = True
+
+                graph_header.content = f"**`{func}`**"
+                if "output" in step.args:
+                    graph_header.content += f" **(\"{step.args.get('output')}\")**"
+
+                graph_code.visible = False
+                graph_template.visible = False
+            else:
+                graph_template.visible = False
+                graph_header.content = f"**`{func}`**"
+                graph_code.content = json.dumps(step.args, indent=2)
+                graph_template.visible = False
+                graph_py.visible = False
         elif node[0] == 'START':
-            mermaid.content = f"**`{graph.start.func}`**<br/>Args: `{graph.start.args}`"
+            graph_header.content = f"**`{graph.start.func}`**"
+            graph_code.content = json.dumps(graph.start.args, indent=2)
+            graph_template.visible = False
+            graph_code.visible = True
+            graph_py.visible = False
+
             
         
         #mermaid.content = f"**TEST {node}**"
-
-        dialog_mermaid.open()
+        dialog_graph.open()
         #ui.notify(f'Node {node} clicked !')
 
     #ui.button('Graph', on_click=dialog_graph.open)
@@ -132,10 +182,10 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
     with ui.tabs().classes('w-full') as tabs:
         one = ui.tab('Graph')
         two = ui.tab('Logs')
-    with ui.tab_panels(tabs, value=one).classes('w-full'):
+    with ui.tab_panels(tabs, value=one).classes('w-full') as tab_panels:
         with ui.tab_panel(one).classes('flex flex-col items-center justify-center'):
             with ui.element('div').style('width: 80vw; height: 60vh; display: flex !important; justify-content: center !important; align-items: center !important;'):
-                ui.mermaid(render_graph(graph), config={'securityLevel': 'loose'} ).style('width: 50vw; height: 50vh; margin-left: 16vw; display: block;')
+                ui.mermaid(render_graph(graph), config={'securityLevel': 'loose'} ).classes("mermaid-center").style('width: 70vw; height: 50vh; display: block;')
         with ui.tab_panel(two):
             log = ui.log(max_lines=10).classes('w-full h-200')
 
