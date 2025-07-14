@@ -44,8 +44,14 @@ class StartItem(BaseModel):
     func: str
     args: Dict[str, str] = {}
 
+class GraphConfig(BaseModel):
+    llms: List[ConfigItem] = []
+    datasets: List[ConfigItem] = []
+    templates: List[ConfigItem] = []
+    workers: int = 1
+
 class Graph(BaseModel):
-    config: List[ConfigItem] = []
+    config: GraphConfig = GraphConfig()
     steps: List[StepItem] = []
     start: Optional[StartItem] = None
 
@@ -59,64 +65,64 @@ class Pipeline:
     def with_openapi_dataset(self, name: str, path_or_url: str):
         """Adds an OpenAPI dataset to the pipeline."""
         self.builder.with_openapi_dataset(name, path_or_url)
-        self.graph.config.append(config_item(name))
+        self.graph.config.datasets.append(config_item(name))
         return self
 
     def with_tools_dataset(self, name: str, tools: List[callable]):
         """Converts a list of functions to json schema and adds them to the pipeline."""
         json_list = [function_to_json_schema(tool) for tool in tools]
         self.builder.with_json_list_dataset(name, json_list, None)
-        self.graph.config.append(config_item(name))
+        self.graph.config.datasets.append(config_item(name))
         return self
     
     def with_pydantic_models_dataset(self, name: str, models: List[BaseModel]):
         """Converts a list of Pydantic models to json schema and adds them to the pipeline."""
         json_list = [pydantic_to_json_schema(model) for model in models]
         self.builder.with_json_list_dataset(name, json_list, None)
-        self.graph.config.append(config_item(name))
+        self.graph.config.datasets.append(config_item(name))
         return self
     
     def with_dicts_dataset(self, name: str, dicts: List[dict], sql: str = None):
         """Converts a list of dictionaries to json schema and adds them to the pipeline."""
         json_list = [json.dumps(d) for d in dicts]
         self.builder.with_json_list_dataset(name, json_list, sql)
-        self.graph.config.append(config_item(name))
+        self.graph.config.datasets.append(config_item(name))
         return self
 
     def with_jsonl_dataset(self, name: str, path: str, sql: str = None):
         """Adds a jsonl dataset to the pipeline."""
         self.builder.with_jsonl_dataset(name, path, sql)
-        self.graph.config.append(config_item(name))
+        self.graph.config.datasets.append(config_item(name))
         return self
     
     def with_json_dataset(self, name: str, path: str, sql: str = None):
         """Adds a json dataset to the pipeline."""
         self.builder.with_json_dataset(name, path, sql)
-        self.graph.config.append(config_item(name))
+        self.graph.config.datasets.append(config_item(name))
         return self
 
     def with_mixed_dataset(self, name: str, datasets: List[str]):
         """Adds a mixed dataset to the pipeline."""
         self.builder.with_mixed_dataset(name, datasets)
-        self.graph.config.append(config_item(name))
+        self.graph.config.datasets.append(config_item(name))
         return self
 
     def with_polars_dataset(self, name: str, path: str, sql: str):
         """Adds a polars dataset to the pipeline."""
         self.builder.with_polars_dataset(name, path, sql)
-        self.graph.config.append(config_item(name))
+        self.graph.config.datasets.append(config_item(name))
         return self
 
     def with_parquet_dataset(self, name: str, path: str, sql: str = None):
         """Adds a parquet dataset to the pipeline."""
         self.builder.with_parquet_dataset(name, path, sql)
-        self.graph.config.append(config_item(name))
+        self.graph.config.datasets.append(config_item(name))
         return self
     
     def with_csv_dataset(self, name: str, path: str, delimiter: str, has_header: bool, sql: str = None):
         """Adds a csv dataset to the pipeline."""
         self.builder.with_csv_dataset(name, path, delimiter, has_header, sql)
-        self.graph.config.append(config_item(name))
+        self.graph.config.datasets.append(config_item(name))
         return self
 
     def with_db_dataset(self, name: str, conn: str, query: str):
@@ -132,7 +138,7 @@ class Pipeline:
             table  = cx.read_sql(conn, query, return_type="arrow")
             ipc_data = record_batches_to_ipc_bytes(table.to_reader())
             self.builder.with_ipc_dataset(name, ipc_data)
-            self.graph.config.append(config_item(name))
+            self.graph.config.datasets.append(config_item(name))
             return self
         except ModuleNotFoundError:
             package_installation_hint("connectorx")
@@ -144,7 +150,7 @@ class Pipeline:
             dataset = load_dataset(dataset_path, name=dataset_name, split=dataset_split)
             ipc_data = record_batches_to_ipc_bytes(dataset.data.to_reader())
             self.builder.with_ipc_dataset(name, ipc_data, sql)
-            self.graph.config.append(config_item(name))
+            self.graph.config.datasets.append(config_item(name))
             return self
         except ModuleNotFoundError:
             package_installation_hint("datasets")
@@ -165,7 +171,7 @@ class Pipeline:
             else:
                 raise ValueError("Invalid dataset type")
             
-            self.graph.config.append(config_item(name))
+            self.graph.config.datasets.append(config_item(name))
             return self
 
         except ModuleNotFoundError:
@@ -176,28 +182,28 @@ class Pipeline:
     def with_template(self, name: str, template: str):
         """Adds a template to the pipeline."""
         self.builder.with_jinja_template(name, template)
-        self.graph.config.append(config_item(name))
+        self.graph.config.templates.append(config_item(name))
         return self
     
     def with_j2_template(self, name: str, path: str, op_config: Optional[dict] = None):
         """Adds a template from file to the pipeline."""
         op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
         self.builder.with_j2_template(name, path, op_config)
-        self.graph.config.append(config_item(name))
+        self.graph.config.templates.append(config_item(name))
         return self
     
     def with_j2_templates(self, path: str, op_config: Optional[dict] = None):
         """Adds a template from file to the pipeline."""
         op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
         self.builder.with_j2_templates(path, op_config)
-        self.graph.config.append(config_item("J2-TEMPLATES"))
+        self.graph.config.templates.append(config_item("J2-TEMPLATES"))
         return self
     
     def with_llm(self, llm: LLM):
         """Adds a LLM to the pipeline."""
         if llm.__class__ == LLM.OpenAI:
             self.builder.with_llm_api(llm.name, llm.base_url, llm.api_key, llm.model, llm.max_tokens)
-            self.graph.config.append(config_item(llm.name))
+            self.graph.config.llms.append(config_item(llm.name))
         else:
             raise ValueError("Invalid LLM type")
         
@@ -206,19 +212,19 @@ class Pipeline:
     def with_llm_api(self, name: str, base_url: str, api_key: str, model: str, max_tokens: int = 2048, temperature: float = 0.7):
         """Adds an OpenAI LLM to the pipeline."""
         self.builder.with_llm_api(name, base_url, api_key, model, max_tokens, temperature)
-        self.graph.config.append(config_item(name))
+        self.graph.config.llms.append(config_item(name))
         return self
     
     def with_llm_openai(self, name: str, api_key: str, model: str, max_tokens: int = 2048, temperature: float = 0.7):
         """Adds an OpenAI LLM to the pipeline."""
         self.builder.with_llm_openai(name, api_key, model, max_tokens, temperature)
-        self.graph.config.append(config_item(name))
+        self.graph.config.llms.append(config_item(name))
         return self
 
     def with_llm_azure_openai(self, name: str, api_key: str, endpoint: str, deployment_name: str, api_version: str, max_tokens: int = 2048, temperature: float = 0.7):
         """Adds an OpenAI LLM to the pipeline."""
         self.builder.with_llm_azure_openai(name, api_key, endpoint, deployment_name, api_version, max_tokens, temperature)
-        self.graph.config.append(config_item(name))
+        self.graph.config.llms.append(config_item(name))
         return self
     
     def with_llm_mistralrs(self, name: str, 
@@ -232,7 +238,7 @@ class Pipeline:
                 in_situ_quant=in_situ_quant,
             )
             self.builder.with_llm_mistralrs(name, MistralrsWrapper(runner))
-            self.graph.config.append(config_item(name))
+            self.graph.config.llms.append(config_item(name))
             return self
         except ModuleNotFoundError:
             package_installation_hint("mistralrs")
@@ -272,7 +278,7 @@ class Pipeline:
             )
             FastLanguageModel.for_inference(model)
             self.builder.with_llm_unsloth(name, UnslothWrapper(model, tokenizer))
-            self.graph.config.append(config_item(name))
+            self.graph.config.llms.append(config_item(name))
 
             return self
         except ModuleNotFoundError:
@@ -282,7 +288,7 @@ class Pipeline:
     def with_embedings(self, embeddings: Embeddings):
         if embeddings.__class__ == Embeddings.OpenAI:
             self.builder.with_embeddings_api(embeddings.name, embeddings.model, embeddings.base_url, embeddings.api_key)
-            self.graph.config.append(config_item("EMBEDDINGS"))
+            self.graph.config.llms.append(config_item("EMBEDDINGS"))
         else:
             raise ValueError("Invalid Embeddings type")
         
@@ -290,7 +296,7 @@ class Pipeline:
     
     def with_workers(self, workers: int):
         self.builder.with_workers(workers)
-        self.graph.config.append(config_item("WORKERS"))
+        self.graph.config.workers = workers
         return self
     
     def from_yaml(self, path_or_url: str):
@@ -307,12 +313,12 @@ class Pipeline:
         else:
             raise ValueError("Invalid IterBy type")
         
-        return PipelineRunner(self.builder)
+        return PipelineRunner(self.builder, self.graph)
     
     def iter_dataset(self, name: str):
         self.builder.iter_by_dataset(name)
         self.graph.start = start_item("ITER-DATASET")
-        return PipelineRunner(self.builder)
+        return PipelineRunner(self.builder, self.graph)
     
     def iter_range(self, *args, **kwargs):
         start = kwargs.get('start', 0)

@@ -3,18 +3,13 @@ import json
 import threading
 import inspect
 from nicegui import ui
+from tweaktune import Graph
 
-def render_graph(graph):
-    graph_str = """---
-config:
-  layout: elk
-  look: handDrawn
-  theme: dark  
-  securityLevel: loose
----
-graph TD;\n"""
+def renger_graph_section(graph, section: str) -> str:
+
     callback_str = ""
-    for ix,config_step in enumerate(graph.config):
+    section_str = f'  subgraph {section.upper()} [**{section}**]\n    direction TB\n  '
+    for ix, config_step in enumerate(getattr(graph.config, section)):
         step_name = config_step.name
         step_func = config_step.func
         step_args = config_step.args
@@ -23,9 +18,37 @@ graph TD;\n"""
 
         name = step_args.get("name") or step_args.get("workers") or ""
 
-        graph_str += f'  CONFIG{ix}["**{step_func}**<br/>{name}"] --> START[**{graph.start.func}**]\n'
+        if ix == len(getattr(graph.config, section)) - 1:
+            section_str += f'  {section.upper()}{ix}["**{step_func}**<br/>{name}"]\n'
+        else:
+            section_str += f'  {section.upper()}{ix}["**{step_func}**<br/>{name}"] -->'
 
-        callback_str += f'\n  click CONFIG{ix} call emitEvent("mermaid_click", "CONFIG@{ix}")'
+
+        callback_str += f'\n  click {section.upper()}{ix} call emitEvent("mermaid_click", "{section.upper()}@{ix}")'
+
+    section_str += f'  end\n  {section.upper()} --> START\n'
+    return section_str, callback_str
+
+def render_graph(graph: Graph) -> str:
+    graph_str = """---
+config:
+  layout: elk
+  look: handDrawn
+  theme: dark  
+  securityLevel: loose
+---
+graph TD;\n"""
+    graph_str += f'  START[**{graph.start.func}**<br/>workers: {graph.config.workers}]\n'
+    callback_str = ""
+    gr,cb = renger_graph_section(graph, 'llms')
+    graph_str += gr
+    callback_str += cb
+    gr, cb = renger_graph_section(graph, 'datasets')
+    graph_str += gr
+    callback_str += cb
+    gr, cb = renger_graph_section(graph, 'templates')
+    graph_str += gr
+    callback_str += cb
 
     callback_str += f'\n  click START call emitEvent("mermaid_click", "START@0")'
     graph_str += "\n\n"
@@ -33,7 +56,7 @@ graph TD;\n"""
     for ix,step in enumerate(graph.steps):
         step_name = step.name
         step_func = step.func
-        step_args = {k:str(v) for k,v in config_step.args.items()}.copy()
+        step_args = {k:str(v) for k,v in step.args.items()}.copy()
         if "self" in step_args:
             del step_args['self']
 
@@ -41,7 +64,7 @@ graph TD;\n"""
             del step_args["name"]
 
         if ix == 0:
-            graph_str += f'  START[**{graph.start.func}**] --> STEP{ix}["**{step_func}**"] -->'
+            graph_str += f'  START[**{graph.start.func}**<br/>workers: {graph.config.workers}] --> STEP{ix}["**{step_func}**"] -->'
         elif ix == len(graph.steps) - 1:
             graph_str += f'  STEP{ix}["**{step_func}**"]'
         else:
@@ -117,9 +140,9 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
 
     def run_mermaid_dialog(node):
         node = node.split('@')
-        if node[0] == 'CONFIG':
-            node = int(node[1])
-            config_step = graph.config[node]
+        if node[0] in ['LLMS', 'DATASETS', 'TEMPLATES']:
+            node_ix = int(node[1])
+            config_step = getattr(graph.config, node[0].lower())[node_ix]
             func = config_step.func
             graph_header.content = f"**`{func}`**"
             if func == 'with_template':
@@ -136,8 +159,8 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
                 graph_code.content = json.dumps(config_step.args, indent=2)
 
         elif node[0] == 'STEP':
-            node = int(node[1])
-            step = graph.steps[node]
+            node_ix = int(node[1])
+            step = graph.steps[node_ix]
             func = step.func
             if func in ['map', 'add_column', 'mutate']:
                 py_func = step.args.get("func")
@@ -155,6 +178,7 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
                 graph_template.visible = False
                 graph_header.content = f"**`{func}`**"
                 graph_code.content = json.dumps(step.args, indent=2)
+                graph_code.visible = True
                 graph_template.visible = False
                 graph_py.visible = False
         elif node[0] == 'START':
