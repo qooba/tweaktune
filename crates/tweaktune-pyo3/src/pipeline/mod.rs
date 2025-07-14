@@ -631,7 +631,6 @@ impl PipelineBuilder {
             let sender = Arc::new(log_sender);
             let channel_writer = ChannelWriter::new(sender.clone());
 
-
             WriteLogger::init(
                 log::LevelFilter::Info,
                 ConfigBuilder::new().build(),
@@ -683,7 +682,6 @@ impl PipelineBuilder {
                             if let Some(sender) = &sender {
                                 sender.send(BusEvent::build("progress", json!({"index": i, "total": (stop - start) / step}))).unwrap();
                             }
-                        
                             Ok(())
                         }
                     }))
@@ -905,10 +903,7 @@ impl PipelineBuilder {
     }
 }
 
-fn send_progress_event(
-    sender: &Option<Arc<mpsc::Sender<String>>>,
-    inc: i32,
-) {
+fn send_progress_event(sender: &Option<Arc<mpsc::Sender<String>>>, inc: i32) {
     if let Some(sender) = sender {
         let event = BusEvent::build("progress", json!({"inc": inc,}));
         if let Err(e) = sender.send(event) {
