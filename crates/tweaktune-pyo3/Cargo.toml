@@ -25,6 +25,7 @@ tweaktune-abstractions= { workspace = true}
 tweaktune-core= { workspace = true }
 polars = { workspace = true}
 pyo3 = { workspace = true}
+serde = { workspace = true }
 serde_arrow = { workspace = true, features = ["arrow-54"]}
 serde_json = { workspace = true }
 simplelog = { workspace = true }

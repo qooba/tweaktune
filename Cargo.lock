@@ -4804,6 +4804,7 @@ dependencies = [
  "minijinja",
  "polars",
  "pyo3",
+ "serde",
  "serde_arrow",
  "serde_json",
  "simplelog",

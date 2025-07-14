@@ -203,7 +203,9 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
             message = bus.get()
             if message is None:
                 break
-            log.push(message)
+            m = json.loads(message)
+            if m['event_type'] == 'log':
+                log.push(m['data'])
             #ui.notify(message)
 
     #ui.dark_mode().enable()

@@ -1,5 +1,23 @@
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::io::Write;
 use std::sync::{mpsc, Mutex};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BusEvent {
+    pub event_type: String,
+    pub data: Value,
+}
+
+impl BusEvent {
+    pub fn build(event_type: &str, data: Value) -> String {
+        serde_json::to_string(&BusEvent {
+            event_type: event_type.to_string(),
+            data,
+        })
+        .unwrap()
+    }
+}
 
 pub struct ChannelWriter {
     pub sender: mpsc::Sender<String>,
@@ -21,6 +39,7 @@ impl Write for ChannelWriter {
         buffer.push_str(&String::from_utf8_lossy(buf));
         while let Some(pos) = buffer.find('\n') {
             let line = buffer.drain(..=pos).collect::<String>();
+            let line = BusEvent::build("log", Value::String(line));
             self.sender
                 .send(line)
                 .map_err(|_| std::io::Error::other("Failed to send message"))?;
