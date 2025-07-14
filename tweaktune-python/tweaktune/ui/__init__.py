@@ -206,6 +206,8 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
             m = json.loads(message)
             if m['event_type'] == 'log':
                 log.push(m['data'])
+            else:
+                log.push(m['data'])
             #ui.notify(message)
 
     #ui.dark_mode().enable()

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::Write;
-use std::sync::{mpsc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BusEvent {
@@ -20,12 +20,12 @@ impl BusEvent {
 }
 
 pub struct ChannelWriter {
-    pub sender: mpsc::Sender<String>,
+    pub sender: Arc<mpsc::Sender<String>>,
     buffer: Mutex<String>,
 }
 
 impl ChannelWriter {
-    pub fn new(sender: mpsc::Sender<String>) -> Self {
+    pub fn new(sender: Arc<mpsc::Sender<String>>) -> Self {
         ChannelWriter {
             sender,
             buffer: Mutex::new(String::new()),
