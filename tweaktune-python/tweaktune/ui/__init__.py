@@ -122,14 +122,14 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
         builder.run(bus)
 
     def run_builder():
-        ui.notify('Running builder !')
-        spinner.visible = True
-        tab_panels.value = two
+        ui.notify('Starting builder ...')
+        progress.visible = True
+        #tab_panels.value = two
         threading.Thread(target=lambda: run_builder_thread(bus), daemon=False).start()
 
     def stop_builder():
         ui.notify('Stopping builder !')
-        spinner.visible = False
+        progress.visible = False
         builder.stop()
 
     with ui.dialog() as dialog_graph, ui.card().style('width:auto; max-width: none;'): 
@@ -217,10 +217,8 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
         with ui.row().classes('items-center w-full'):
             ui.button(icon='play_arrow', on_click=run_builder).props('fab color=green')
             ui.button(icon='stop', on_click=stop_builder).props('fab color=red')
-            spinner = ui.spinner('audio', size='lg', color='green')
-            spinner.visible = False
-
-
+            progress = ui.circular_progress()
+            progress.visible = False
 
     def check_bus():
         while not bus.empty():
@@ -230,8 +228,16 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
             m = json.loads(message)
             if m['event_type'] == 'log':
                 log.push(m['data'])
-            else:
-                log.push(m['data'])
+            elif m['event_type'] == 'progress':
+                data = m['data']
+                progress.value = data['index']+1
+                progress.props(f"max={data['total']}")
+            elif m['event_type'] == 'finished':
+                ui.notify(m['data']['message'])
+                data = m['data']
+                progress.props(f"color=blue")
+                progress.props(':thickness=1')
+
             #ui.notify(message)
 
     #ui.dark_mode().enable()

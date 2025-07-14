@@ -896,6 +896,10 @@ impl PipelineBuilder {
                 }
             }
 
+            if let Some(sender) = &sender {
+                sender.send(BusEvent::build("finished", json!({"message": "Finished"}))).unwrap();
+            }
+
             Ok::<_, anyhow::Error>(())
         });
 
