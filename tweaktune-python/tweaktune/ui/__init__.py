@@ -40,15 +40,18 @@ config:
 graph TD;\n"""
     graph_str += f'  START[**{graph.start.func}**<br/>workers: {graph.config.workers}]\n'
     callback_str = ""
-    gr,cb = renger_graph_section(graph, 'llms')
-    graph_str += gr
-    callback_str += cb
-    gr, cb = renger_graph_section(graph, 'datasets')
-    graph_str += gr
-    callback_str += cb
-    gr, cb = renger_graph_section(graph, 'templates')
-    graph_str += gr
-    callback_str += cb
+    if graph.config.llms:
+        gr,cb = renger_graph_section(graph, 'llms')
+        graph_str += gr
+        callback_str += cb
+    if graph.config.datasets:
+        gr, cb = renger_graph_section(graph, 'datasets')
+        graph_str += gr
+        callback_str += cb
+    if graph.config.templates:
+        gr, cb = renger_graph_section(graph, 'templates')
+        graph_str += gr
+        callback_str += cb
 
     callback_str += f'\n  click START call emitEvent("mermaid_click", "START@0")'
     graph_str += "\n\n"
@@ -64,11 +67,11 @@ graph TD;\n"""
             del step_args["name"]
 
         if ix == 0:
-            graph_str += f'  START[**{graph.start.func}**<br/>workers: {graph.config.workers}] --> STEP{ix}["**{step_func}**"] -->'
+            graph_str += f'  START[**{graph.start.func}**<br/>workers: {graph.config.workers}] --> STEP{ix}["**{step_func}**<br/>{step_args}"] -->'
         elif ix == len(graph.steps) - 1:
-            graph_str += f'  STEP{ix}["**{step_func}**"]'
+            graph_str += f'  STEP{ix}["**{step_func}**<br/>{step_args}"]'
         else:
-            graph_str += f'  STEP{ix}["**{step_func}**"] -->'
+            graph_str += f'  STEP{ix}["**{step_func}**<br/>{step_args}"] -->'
 
         callback_str += f'\n  click STEP{ix} call emitEvent("mermaid_click", "STEP@{ix}")'
 
@@ -200,13 +203,10 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
 
     #with ui.footer().classes('bg-dark'), ui.column().classes('w-full max-w-3xl mx-auto my-6'):
 
-    with ui.column().classes('h-10'):
-        ui.space()
-
     with ui.tabs().classes('w-full') as tabs:
         one = ui.tab('Graph')
         two = ui.tab('Logs')
-    with ui.tab_panels(tabs, value=one).classes('w-full') as tab_panels:
+    with ui.tab_panels(tabs, value=one).classes('w-full').style("height: 80vh;") as tab_panels:
         with ui.tab_panel(one).classes('flex flex-col items-center justify-center'):
             with ui.element('div').style('width: 80vw; height: 60vh; display: flex !important; justify-content: center !important; align-items: center !important;'):
                 ui.mermaid(render_graph(graph), config={'securityLevel': 'loose'} ).classes("mermaid-center").style('width: 70vw; height: 50vh; display: block;')
