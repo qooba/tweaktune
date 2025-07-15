@@ -4,6 +4,7 @@ import threading
 import inspect
 from nicegui import ui
 from tweaktune import Graph
+from collections import deque
 
 def renger_graph_section(graph, section: str) -> str:
 
@@ -131,13 +132,43 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
         ui.notify('Stopping builder !')
         progress.visible = False
         builder.stop()
-
+    
+    dialog_data = ui.dialog()
+    data_file = {"filename": ""}
+    
     with ui.dialog() as dialog_graph, ui.card().style('width:auto; max-width: none;'): 
         graph_header = ui.markdown("")
         ui.separator()
         graph_code = ui.code('', language='json')
         graph_py = ui.code('', language='python')
         graph_template = ui.code('', language='jinja')
+        data_range = ui.range(min=0, max=100, value={'min': 30, 'max': 70}).props('label-always')
+
+        def run_data_range():
+            file_data = []
+            with open(data_file["filename"], 'r') as f:
+                for i, line in enumerate(f):
+                    if i < data_range.value['min']:
+                        continue
+                    if i > data_range.value['max']:
+                        break
+                    file_data.append(json.loads(line))
+                #last_lines = deque(f, maxlen=10)
+            json_data = {'content': {'json': file_data}}
+            dialog_data.clear()
+            with dialog_data:
+                data_editor = ui.json_editor(json_data)
+            dialog_data.open()
+
+        data_button = ui.button('SHOW DATA RANGE', on_click=run_data_range)
+
+    def hide_dialog_graph_elements():
+        graph_template.visible = False
+        graph_code.visible = False
+        graph_template.visible = False
+        graph_py.visible = False
+        data_button.visible = False
+        data_range.visible = False
             
         #ui.button('Close', on_click=dialog_mermaid.close)
 
@@ -149,15 +180,13 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
             func = config_step.func
             graph_header.content = f"**`{func}`**"
             if func == 'with_template':
-                graph_code.visible = False
+                hide_dialog_graph_elements()
                 graph_header.content += f" **(\"{config_step.args.get('name')}\")**"
                 graph_template.visible = True
-                graph_py.visible = False
                 graph_template.content = config_step.args.get("template")
             else:
+                hide_dialog_graph_elements()
                 graph_template.content = ""
-                graph_template.visible = False
-                graph_py.visible = False
                 graph_code.visible = True
                 graph_code.content = json.dumps(config_step.args, indent=2)
 
@@ -166,6 +195,7 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
             step = graph.steps[node_ix]
             func = step.func
             if func in ['map', 'add_column', 'mutate']:
+                hide_dialog_graph_elements()
                 py_func = step.args.get("func")
                 if inspect.isfunction(py_func):
                     graph_py.content = inspect.getsource(py_func)
@@ -175,23 +205,30 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
                 if "output" in step.args:
                     graph_header.content += f" **(\"{step.args.get('output')}\")**"
 
-                graph_code.visible = False
-                graph_template.visible = False
-            else:
-                graph_template.visible = False
+            elif func in ['write_jsonl', 'write_csv', 'write_parquet']:
+                hide_dialog_graph_elements()
                 graph_header.content = f"**`{func}`**"
                 graph_code.content = json.dumps(step.args, indent=2)
                 graph_code.visible = True
-                graph_template.visible = False
-                graph_py.visible = False
+                data_button.visible = True
+                data_range.visible = True
+                
+                with open(step.args.get('path'), 'r') as f:
+                    num_lines = sum(1 for _ in f)
+
+                data_range.props(f'max={num_lines}')
+                data_range.value = {'min': num_lines-20, 'max': num_lines}
+                data_file["filename"]=step.args.get('path')
+            else:
+                hide_dialog_graph_elements()
+                graph_header.content = f"**`{func}`**"
+                graph_code.content = json.dumps(step.args, indent=2)
+                graph_code.visible = True
         elif node[0] == 'START':
+            hide_dialog_graph_elements()
             graph_header.content = f"**`{graph.start.func}`**"
             graph_code.content = json.dumps(graph.start.args, indent=2)
-            graph_template.visible = False
             graph_code.visible = True
-            graph_py.visible = False
-
-            
         
         #mermaid.content = f"**TEST {node}**"
         dialog_graph.open()
@@ -220,6 +257,7 @@ def run_ui(builder, graph, host: str="0.0.0.0", port: int=8080):
             progress = ui.circular_progress()
             progress.visible = False
 
+        
     def check_bus():
         while not bus.empty():
             message = bus.get()
