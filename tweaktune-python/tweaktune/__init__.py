@@ -184,6 +184,13 @@ class Pipeline:
         self.builder.with_jinja_template(name, template)
         self.graph.config.templates.append(config_item(name))
         return self
+
+    def with_templates(self, path: str = "templates", op_config: Optional[dict] = None):
+        """Adds a templates from dir to the pipeline."""
+        op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
+        self.builder.with_dir_templates(path, op_config)
+        self.graph.config.templates.append(config_item("DIR-TEMPLATES"))
+        return self
     
     def with_j2_template(self, name: str, path: str, op_config: Optional[dict] = None):
         """Adds a template from file to the pipeline."""

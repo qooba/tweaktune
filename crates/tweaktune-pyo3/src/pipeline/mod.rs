@@ -311,6 +311,36 @@ impl PipelineBuilder {
         self.templates.add(name, template);
     }
 
+    #[pyo3(signature = (path, op_config=None))]
+    pub fn with_dir_templates(&mut self, path: String, op_config: Option<String>) {
+        if let Ok(entries) = std::fs::read_dir(&path) {
+            for entry in entries.flatten() {
+                if let Some(name) = entry.file_name().to_str() {
+                    if name.ends_with(".j2") || name.ends_with(".jinja") {
+                        let template_path = entry.path();
+                        if let Some(template_path_str) = template_path.to_str() {
+                            if let Ok(template) =
+                                read_to_string(template_path_str, op_config.clone())
+                            {
+                                info!("Added Jinja template: {}", &name);
+                                self.templates.add(name.to_string(), template);
+                            } else {
+                                error!("Failed to read template file: {}", template_path.display());
+                            }
+                        } else {
+                            error!(
+                                "Failed to convert template path to string: {}",
+                                template_path.display()
+                            );
+                        }
+                    }
+                }
+            }
+        } else {
+            error!("Failed to read directory: {}", path);
+        }
+    }
+
     #[pyo3(signature = (name, path, op_config=None))]
     pub fn with_j2_template(&mut self, name: String, path: String, op_config: Option<String>) {
         info!("Added Jinja template: {}", &name);
@@ -322,8 +352,11 @@ impl PipelineBuilder {
     pub fn with_j2_templates(&mut self, path: String, op_config: Option<String>) {
         let serialization_type = if path.ends_with(".json") {
             SerializationType::JSON
-        } else {
+        } else if path.ends_with(".yaml") || path.ends_with(".yml") {
             SerializationType::YAML
+        } else {
+            error!("Unsupported template file format. Supported formats are .json and .yaml/.yml");
+            return;
         };
         let template = read_to_string(&path, op_config).unwrap();
         let templates = deserialize::<Templates>(&template, serialization_type).unwrap();

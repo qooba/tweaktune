@@ -130,6 +130,20 @@ def j2_file():
     shutil.rmtree(output_j2_dir)
 
 @pytest.fixture(scope="session")
+def j2_dir():
+    """Prepare an example j2 template directory."""
+
+
+    output_j2_dir = tempfile.mkdtemp()
+    j2_file = f"{output_j2_dir}/example.j2"
+    with open(j2_file, "w") as f:
+        f.write("""{"hello": "{{value}}"}""")
+
+    yield output_j2_dir
+    shutil.rmtree(output_j2_dir)
+
+
+@pytest.fixture(scope="session")
 def j2_file_yaml():
     """Prepare an example j2 template file."""
 

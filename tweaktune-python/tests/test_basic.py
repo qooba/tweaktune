@@ -35,6 +35,25 @@ def test_basic_j2(request, output_dir, j2_file):
     item = json.loads(lines[0])
     assert item["hello"] == "world"
 
+def test_basic_j2_dir(request, output_dir, j2_dir):
+    """Test the basic functionality of the pipeline."""
+    number = 5
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline()
+        .with_workers(1)
+        .with_templates(j2_dir)
+    .iter_range(number)
+        .add_column("value", lambda data: "world")
+        .write_jsonl(path=output_file, template="example.j2")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    assert len(lines) == number
+    item = json.loads(lines[0])
+    assert item["hello"] == "world"
+
+
 def test_basic_j2_yaml(request, output_dir, j2_file_yaml):
     """Test the basic functionality of the pipeline."""
     number = 5
