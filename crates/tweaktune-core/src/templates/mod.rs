@@ -44,6 +44,39 @@ impl Templates {
             }
         });
 
+        e.add_filter("tool_call", |value: String| {
+            let val = serde_json::to_string(&value);
+            match val {
+                Ok(v) => format!(
+                    "\"<tool_call>{}</tool_call>\"",
+                    v.strip_prefix('"')
+                        .unwrap_or(&v)
+                        .strip_suffix('"')
+                        .unwrap_or(&v)
+                ),
+                Err(_) => {
+                    error!(target: "templates_err", "🐔 Failed to convert to JSON string");
+                    value
+                }
+            }
+        });
+
+        e.add_filter("tool_call_args", |value: String| {
+            let val = serde_json::to_string(&value);
+            match val {
+                Ok(v) => v
+                    .strip_prefix('"')
+                    .unwrap_or(&v)
+                    .strip_suffix('"')
+                    .unwrap_or(&v)
+                    .to_string(),
+                Err(_) => {
+                    error!(target: "templates_err", "🐔 Failed to convert to JSON string");
+                    value
+                }
+            }
+        });
+
         e.add_filter("shuffle", |value: String| {
             match serde_json::from_str::<Vec<serde_json::Value>>(&value) {
                 Ok(arr) => {
