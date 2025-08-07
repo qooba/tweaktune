@@ -563,7 +563,32 @@ class ChatTemplate:
     def __init__(self, builder: _ChatTemplateBuilder):
         self.builder = builder
 
-    def render(self, messages: dict):
+    def render(self, messages: List[dict]):
         """Renders the chat template with the given context."""
         messages = json.dumps(messages, ensure_ascii=False)
         return self.builder.render(messages)
+
+
+class FineTuneDataset:
+    def __init__(self, chat_template: ChatTemplate):
+        self.chat_template = chat_template
+
+    def load(self, path: str):
+        """Loads the dataset from the specified path."""
+        try:
+            from datasets import Dataset
+        except ModuleNotFoundError:
+            package_installation_hint("datasets")
+            raise
+
+        with open(path, 'r', encoding='utf-8') as f:
+            data = f.readlines()
+
+        messages = [json.loads(line) for line in data]
+        dataset = {"text": []}
+        for message in messages:
+            rendered_message = self.chat_template.render(message)
+            dataset["text"].append(rendered_message)
+
+        dataset = Dataset.from_dict(data)
+        return dataset
