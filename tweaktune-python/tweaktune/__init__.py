@@ -527,7 +527,20 @@ class PipelineRunner:
     
 
 class ChatTemplateBuilder:
-    def __init__(self, template: str):
+    def __init__(self, path: str = None, template: str = None):
+        if not path and not template:
+            raise ValueError("Either path or template must be provided.")
+        if path and template:
+            raise ValueError("Only one of path or template can be provided.")
+        if path:
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"Template file not found: {path}")
+            with open(path, 'r', encoding='utf-8') as f:
+                template = f.read()
+        if not template:
+            raise ValueError("Template cannot be None or empty.")
+        if not isinstance(template, str):
+            raise TypeError("Template must be a string.")
         self.builder = _ChatTemplateBuilder(template)
 
     def with_tools_json(self, tools):
@@ -536,7 +549,9 @@ class ChatTemplateBuilder:
     
     def with_tools(self, tools: List[callable]):
         """Converts a list of functions to json schema and adds them to the pipeline."""
-        json_list = [function_to_json_schema(tool) for tool in tools]
+        json_list = [json.loads(function_to_json_schema(tool)) for tool in tools]
+        for tool in json_list:
+            tool["parameters"]["properties"] = json.loads(tool["parameters"]["properties"])
         return self.with_tools_json(json_list)
     
     def build(self):
