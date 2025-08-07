@@ -13,6 +13,8 @@ use std::sync::{OnceLock, RwLock};
 
 static ENVIRONMENT: RwLock<OnceLock<Environment>> = RwLock::new(OnceLock::new());
 
+static CHATTEMPLATE_ENVIRONMENT: RwLock<OnceLock<Environment>> = RwLock::new(OnceLock::new());
+
 #[derive(Default, Clone, Deserialize)]
 pub struct Templates {
     pub templates: HashMap<String, String>,
@@ -161,6 +163,82 @@ impl Templates {
             }
         };
         debug!(target:"templates", "-------------------\nRENDERED TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
+        Ok(rendered_template)
+    }
+}
+
+pub type ChatTemplateContext = serde_json::Value;
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ChatTemplate {
+    context: ChatTemplateContext,
+}
+
+impl ChatTemplate {
+    pub fn new(template: String) -> Self {
+        let mut env = CHATTEMPLATE_ENVIRONMENT.write().unwrap();
+        if let Some(e) = env.get_mut() {
+            e.add_template_owned("chat_template".to_string(), template)
+                .map_anyhow_err()
+                .unwrap();
+        } else {
+            let mut e = Environment::new();
+            e.add_template_owned("chat_template".to_string(), template)
+                .map_anyhow_err()
+                .unwrap();
+            env.set(e).map_anyhow_err().unwrap();
+        }
+
+        ChatTemplate {
+            context: serde_json::Value::Object(serde_json::Map::new()),
+        }
+    }
+
+    pub fn with_tools(mut self, tools: String) -> Self {
+        let tools = serde_json::from_str(&tools).unwrap();
+        self.add_data("tools", tools);
+        self
+    }
+
+    fn add_data(&mut self, key: &str, value: serde_json::Value) {
+        if let serde_json::Value::Object(ref mut map) = self.context {
+            map.insert(key.to_string(), value);
+        } else {
+            error!(target:"templates_err", "🐔 Context is not an object");
+        }
+    }
+
+    pub fn render(&self, messages: String) -> Result<String> {
+        let messages = serde_json::from_str(&messages).unwrap();
+        let env = CHATTEMPLATE_ENVIRONMENT
+            .read()
+            .map_anyhow_err()?
+            .get()
+            .cloned()
+            .ok_or_err("CHATTEMPLATE_ENVIRONMENT")?;
+        let tmpl = match env.get_template("chat_template") {
+            Ok(t) => t,
+            Err(e) => {
+                error!(target:"templates_err", "🐔 Chat template not found: {}", e);
+                bail!("Chat template not found: {}", e);
+            }
+        };
+
+        let mut context = self.context.clone();
+        if let serde_json::Value::Object(ref mut map) = context {
+            map.insert("messages".to_string(), messages);
+        } else {
+            error!(target:"templates_err", "🐔 Context is not an object");
+        }
+
+        let rendered_template = match tmpl.render(context) {
+            Ok(t) => t,
+            Err(e) => {
+                error!(target:"templates_err", "🐔 Failed to render chat template: {}", e);
+                bail!("Failed to render chat template: {}", e);
+            }
+        };
+        debug!(target:"templates", "-------------------\nRENDERED CHAT TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
         Ok(rendered_template)
     }
 }

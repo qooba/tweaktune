@@ -1,4 +1,5 @@
 from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings
+from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
 from tweaktune.common import LogLevel, StepStatus, record_batches_to_ipc_bytes, package_installation_hint
 from tweaktune.tools import pydantic_to_json_schema, function_to_json_schema
 from tweaktune.wrappers import PyStepWrapper, UnslothWrapper, MistralrsWrapper, PyStepValidatorWrapper, PyConditionWrapper
@@ -525,3 +526,29 @@ class PipelineRunner:
         return self
     
 
+class ChatTemplateBuilder:
+    def __init__(self, template: str):
+        self.builder = _ChatTemplateBuilder(template)
+
+    def with_tools_json(self, tools):
+        self.builder.with_tools(json.dumps(tools, ensure_ascii=False))
+        return self
+    
+    def with_tools(self, tools: List[callable]):
+        """Converts a list of functions to json schema and adds them to the pipeline."""
+        json_list = [function_to_json_schema(tool) for tool in tools]
+        return self.with_tools_json(json_list)
+    
+    def build(self):
+        """Builds the chat template."""
+        self.builder.build()
+        return ChatTemplate(self.builder)
+
+class ChatTemplate:
+    def __init__(self, builder: _ChatTemplateBuilder):
+        self.builder = builder
+
+    def render(self, messages: dict):
+        """Renders the chat template with the given context."""
+        messages = json.dumps(messages, ensure_ascii=False)
+        return self.builder.render(messages)
