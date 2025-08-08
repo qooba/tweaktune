@@ -49,4 +49,17 @@ impl ChatTemplateBuilder {
                 ))
             })
     }
+
+    pub fn render_jsonl(&mut self, path: &str, op_config: Option<String>) -> PyResult<Vec<String>> {
+        if self.chat_template.is_none() {
+            self.build();
+        }
+
+        Ok(self
+            .chat_template
+            .as_mut()
+            .expect("Chat template not built")
+            .render_jsonl(path, op_config)
+            .unwrap())
+    }
 }

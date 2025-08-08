@@ -567,28 +567,15 @@ class ChatTemplate:
         """Renders the chat template with the given context."""
         messages = json.dumps(messages, ensure_ascii=False)
         return self.builder.render(messages)
-
-
-class FineTuneDataset:
-    def __init__(self, chat_template: ChatTemplate):
-        self.chat_template = chat_template
-
-    def load(self, path: str):
-        """Loads the dataset from the specified path."""
+    
+    def render_jsonl(self, path: str, op_config: Optional[dict] = None):
+        """Renders the chat template with the given context from a JSONL file."""
         try:
             from datasets import Dataset
         except ModuleNotFoundError:
             package_installation_hint("datasets")
             raise
-
-        with open(path, 'r', encoding='utf-8') as f:
-            data = f.readlines()
-
-        messages = [json.loads(line) for line in data]
-        dataset = {"text": []}
-        for message in messages:
-            rendered_message = self.chat_template.render(message)
-            dataset["text"].append(rendered_message)
-
-        dataset = Dataset.from_dict(data)
+        op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
+        dataset = {"text": self.builder.render_jsonl(path, op_config)}
+        dataset = Dataset.from_dict(dataset)
         return dataset

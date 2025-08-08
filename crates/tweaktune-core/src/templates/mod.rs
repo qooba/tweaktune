@@ -1,4 +1,5 @@
 use crate::common::{OptionToResult, ResultExt};
+use crate::readers::build_reader;
 use crate::steps::StepContextData;
 use anyhow::{bail, Result};
 use log::{debug, error};
@@ -8,7 +9,9 @@ use rand::seq::SliceRandom;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fs::File;
 use std::io::Cursor;
+use std::io::{BufRead, BufReader};
 use std::sync::{OnceLock, RwLock};
 
 static ENVIRONMENT: RwLock<OnceLock<Environment>> = RwLock::new(OnceLock::new());
@@ -209,7 +212,13 @@ impl ChatTemplate {
     }
 
     pub fn render(&self, messages: String) -> Result<String> {
-        let messages = serde_json::from_str(&messages).unwrap();
+        let mut messages = serde_json::from_str(&messages).unwrap();
+        let messages = if let serde_json::Value::Object(ref mut map) = messages {
+            map["messages"].clone()
+        } else {
+            messages
+        };
+
         let env = CHATTEMPLATE_ENVIRONMENT
             .read()
             .map_anyhow_err()?
@@ -240,5 +249,23 @@ impl ChatTemplate {
         };
         debug!(target:"templates", "-------------------\nRENDERED CHAT TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
         Ok(rendered_template)
+    }
+
+    pub fn render_jsonl(&self, path: &str, op_config: Option<String>) -> Result<Vec<String>> {
+        let mut reader = build_reader(path, op_config)?;
+        let mut output = vec![];
+
+        let mut buf = String::new();
+        while reader.inner.read_line(&mut buf)? != 0 {
+            let line = buf.trim_end().to_string();
+            buf.clear();
+            if line.trim().is_empty() {
+                continue;
+            }
+            let rendered = self.render(line)?;
+            output.push(rendered);
+        }
+
+        Ok(output)
     }
 }
