@@ -111,7 +111,7 @@ tweaktune-abstractions = { path = "crates/tweaktune-abstractions" }
 tweaktune-core = { path = "crates/tweaktune-core" }
 tweaktune-pyo3 = { path = "crates/tweaktune-pyo3" }
 url = "2.3"
-uuid = "1.17.0"
+uuid = "1.18.0"
 xz2 = "0.1"
 #accelerate-src = { version = "0.3.2", optional = true }
 #intel-mkl-src = { version = "0.8.1", features = ["mkl-static-lp64-iomp"], optional = true }
