@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 use tweaktune_pyo3::{
-    pipeline::{Dataset, Embeddings, IterBy, PipelineBuilder, Step, Template, LLM},
+    chat_template::ChatTemplateBuilder,
+    pipeline::{Dataset, Embeddings, IterBy, PipelineBuilder, Step, StepsChain, Template, LLM},
     steps::{Lang, StepConfigTest, StepTest},
 };
 
@@ -22,6 +23,8 @@ fn tweaktune(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Embeddings>()?;
     m.add_class::<Template>()?;
     m.add_class::<Step>()?;
+    m.add_class::<StepsChain>()?;
+    m.add_class::<ChatTemplateBuilder>()?;
 
     // let llms_module = PyModule::new_bound(py, "llms")?;
     // llms_module.add_class::<Quantized>()?;

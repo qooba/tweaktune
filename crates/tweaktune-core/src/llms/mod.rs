@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::debug;
+use log::{debug, error};
 use pyo3::prelude::*;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -27,9 +27,27 @@ pub trait LLM {
 }
 
 pub enum LLMType {
-    OpenAI(OpenAILLM),
+    Api(ApiLLM),
     Unsloth(UnslothLLM),
     Mistralrs(MistralrsLLM),
+}
+
+pub enum ApiLLMMode {
+    Api {
+        api_key: String,
+        model: String,
+        base_url: String,
+    },
+    OpenAI {
+        api_key: String,
+        model: String,
+    },
+    AzureOpenAI {
+        api_key: String,
+        endpoint: String,
+        deployment_name: String,
+        api_version: String,
+    },
 }
 
 pub struct MistralrsLLM {
@@ -64,7 +82,7 @@ impl MistralrsLLM {
         match result {
             Ok(result) => Ok(result),
             Err(e) => {
-                debug!(target: "mistralrs_llm", "{:?}", e);
+                error!(target: "mistralrs_llm", "🐔 {:?}", e);
                 Err(anyhow::anyhow!("Error processing messages: {:?}", e))
             }
         }
@@ -154,7 +172,7 @@ impl UnslothLLM {
         match result {
             Ok(result) => Ok(result),
             Err(e) => {
-                debug!(target: "unsloth_llm", "{:?}", e);
+                error!(target: "unsloth_llm", "🐔 {:?}", e);
                 Err(anyhow::anyhow!("Error processing messages: {:?}", e))
             }
         }
@@ -213,29 +231,53 @@ impl LLM for UnslothLLM {
 }
 
 #[derive(Clone)]
-pub struct OpenAILLM {
+pub struct ApiLLM {
     pub name: String,
-    pub base_url: String,
-    pub api_key: String,
-    pub model: String,
+    pub url: String,
+    pub api_key_header: (String, String),
+    pub model: Option<String>,
     pub max_tokens: u32,
     pub temperature: f32,
 }
 
-impl OpenAILLM {
-    pub fn new(
-        name: String,
-        base_url: String,
-        api_key: String,
-        model: String,
-        max_tokens: u32,
-        temperature: f32,
-    ) -> Self {
+impl ApiLLM {
+    pub fn new(name: String, mode: ApiLLMMode, max_tokens: u32, temperature: f32) -> Self {
         HTTP_CLIENT.get_or_init(Client::new);
+
+        let (url, api_key_header, model) = match mode {
+            ApiLLMMode::Api {
+                api_key,
+                model,
+                base_url,
+            } => (
+                format!("{}/v1/chat/completions", base_url),
+                ("Authorization".to_string(), format!("Bearer {}", api_key)),
+                Some(model),
+            ),
+            ApiLLMMode::OpenAI { api_key, model } => (
+                "https://api.openai.com/v1/chat/completions".to_string(),
+                ("Authorization".to_string(), format!("Bearer {}", api_key)),
+                Some(model),
+            ),
+            ApiLLMMode::AzureOpenAI {
+                api_key,
+                endpoint,
+                deployment_name,
+                api_version,
+            } => (
+                format!(
+                    "{}/openai/deployments/{}?api-version={}",
+                    endpoint, deployment_name, api_version
+                ),
+                ("api-key".to_string(), api_key),
+                None,
+            ),
+        };
+
         Self {
             name,
-            base_url,
-            api_key,
+            url,
+            api_key_header,
             model,
             max_tokens,
             temperature,
@@ -243,7 +285,7 @@ impl OpenAILLM {
     }
 }
 
-impl LLM for OpenAILLM {
+impl LLM for ApiLLM {
     async fn chat_completion(
         &self,
         messages: Vec<ChatMessage>,
@@ -251,7 +293,6 @@ impl LLM for OpenAILLM {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<ChatCompletionResponse> {
-        let url = format!("{}/v1/chat/completions", self.base_url);
         let request = ChatCompletionRequest {
             model: self.model.clone(),
             messages,
@@ -279,8 +320,8 @@ impl LLM for OpenAILLM {
         let response = HTTP_CLIENT
             .get()
             .expect("HTTP client not initialized")
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .post(&self.url)
+            .header(&self.api_key_header.0, &self.api_key_header.1)
             .json(&request)
             .send()
             .await?
@@ -310,7 +351,7 @@ impl LLM for OpenAILLM {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatCompletionRequest {
-    pub model: String,
+    pub model: Option<String>,
     pub messages: Vec<ChatMessage>,
     pub max_tokens: u32,
     pub stream: Option<bool>,

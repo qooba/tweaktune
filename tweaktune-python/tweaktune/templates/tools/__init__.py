@@ -9,5 +9,15 @@ def __getattr__(name):
         return f.read()
     
 
-output_template: str
+output: str
 """Output template for function calling."""
+
+tool_call: str
+"""Output template for function calling."""
+
+
+output_raw: str
+"""Output raw template for function calling."""
+
+output_legacy: str
+"""Output legacy template for function calling."""

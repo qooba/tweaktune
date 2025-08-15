@@ -6,7 +6,7 @@ use crate::{
     templates::Templates,
 };
 use anyhow::Result;
-use log::debug;
+use log::{debug, error};
 use pyo3::prelude::*;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -74,6 +74,7 @@ pub trait Step {
 }
 
 pub enum StepType {
+    IfElse(IfElseStep),
     Py(PyStep),
     PyValidator(PyValidator),
     TextGeneration(TextGenerationStep),
@@ -85,6 +86,71 @@ pub enum StepType {
     Chunk(ChunkStep),
     Render(RenderStep),
     ValidateJson(ValidateJsonStep),
+}
+
+pub struct IfElseStep {
+    pub name: String,
+    pub condition: PyObject,
+    pub then_steps: Vec<StepType>,
+    pub else_steps: Option<Vec<StepType>>,
+}
+
+impl IfElseStep {
+    pub fn new(
+        name: String,
+        condition: PyObject,
+        then_steps: Vec<StepType>,
+        else_steps: Option<Vec<StepType>>,
+    ) -> Self {
+        Self {
+            name,
+            condition,
+            then_steps,
+            else_steps,
+        }
+    }
+
+    pub async fn check(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, LLMType>,
+        _embeddings: &HashMap<String, EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<bool> {
+        let json = serde_json::to_string(context)?;
+
+        let result: PyResult<bool> = Python::with_gil(|py| {
+            let result: bool = self
+                .condition
+                .call_method1(py, "check", (json,))?
+                .extract(py)?;
+            Ok(result)
+        });
+
+        match result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!(target: "ifelsestep", "🐔 {:?}", e);
+                let mut context = context.clone();
+                context.set_status(StepStatus::Failed);
+                Ok(false)
+            }
+        }
+    }
+}
+
+impl Step for IfElseStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, LLMType>,
+        _embeddings: &HashMap<String, EmbeddingsType>,
+        _context: &StepContext,
+    ) -> Result<StepContext> {
+        unreachable!("Use check method to evaluate condition");
+    }
 }
 
 pub struct PyStep {
@@ -123,7 +189,7 @@ impl Step for PyStep {
                 Ok(result)
             }
             Err(e) => {
-                debug!(target: "pystep", "{:?}", e);
+                error!(target: "pystep", "🐔 {:?}", e);
                 let mut context = context.clone();
                 context.set_status(StepStatus::Failed);
                 Ok(context)
@@ -254,14 +320,15 @@ impl Step for ValidateJsonStep {
                 let is_valid = jsonschema::is_valid(&schema_value, &instance);
 
                 if !is_valid {
-                    debug!(target: "validate_json_step", "Failed to validate JSON: {} with schema {}", instance, schema_value);
+                    error!(target: "validate_json_step", "🐔 Failed to validate JSON: {} with schema {}", instance, schema_value);
                     context.set_status(StepStatus::Failed);
                 }
 
                 Ok(context)
             }
             Err(e) => {
-                debug!(target: "validate_json_step", "Failed to render instance: {}", e);
+                error!(target: "validate_json_step", "🐔 Failed to render instance: {}", e);
+                error!(target: "validate_json_step", "🐔 INSTANCE_JSON: {}", &instance_json);
                 context.set_status(StepStatus::Failed);
                 Ok(context)
             }
@@ -374,20 +441,20 @@ impl TextGenerationStep {
         let template = match template {
             Ok(t) => t,
             Err(e) => {
-                debug!(target: "text_generation_step", "Failed to render template: {}", e);
+                error!(target: "text_generation_step", "🐔 Failed to render template: {}", e);
                 return Ok(None);
             }
         };
 
         let llm = llms.get(&self.llm).expect("LLM");
         let result = match llm {
-            llms::LLMType::OpenAI(llm) => match llm
+            llms::LLMType::Api(llm) => match llm
                 .call(template, json_schema, max_tokens, temperature)
                 .await
             {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
-                    debug!(target: "text_generation_step", "Failed to generate text: {}", e);
+                    error!(target: "text_generation_step", "🐔 Failed to generate text: {}", e);
                     None
                 }
             },
@@ -397,7 +464,7 @@ impl TextGenerationStep {
             {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
-                    debug!(target: "text_generation_step", "Failed to generate text: {}", e);
+                    error!(target: "text_generation_step", "🐔 Failed to generate text: {}", e);
                     None
                 }
             },
@@ -407,7 +474,7 @@ impl TextGenerationStep {
             {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
                 Err(e) => {
-                    debug!(target: "text_generation_step", "Failed to generate text: {}", e);
+                    error!(target: "text_generation_step", "🐔 Failed to generate text: {}", e);
                     None
                 }
             },
@@ -532,10 +599,10 @@ impl Step for JsonGenerationStep {
             })
             .to_string();
 
-            debug!(target: "json_generation_step", "RENDERED SCHEMA: {}", schema);
+            debug!(target: "json_generation_step", "🤗 RENDERED SCHEMA: {}", schema);
             Some(schema)
         } else if let Some(schema) = &self.json_schema {
-            debug!(target: "json_generation_step", "PROVIDED SCHEMA: {}", schema);
+            debug!(target: "json_generation_step", "🤗 PROVIDED SCHEMA: {}", schema);
             Some(schema.clone())
         } else {
             None
@@ -564,11 +631,11 @@ impl Step for JsonGenerationStep {
                         });
                     }
 
-                    debug!(target:"json_generation_step", "Generated VALUE: {}", value);
+                    debug!(target:"json_generation_step", "🤗 Generated VALUE: {}", value);
                     context.data[self.output.clone()] = value;
                 }
                 Err(e) => {
-                    debug!(target:"json_generation_step", "Failed to extract JSON: {}", e);
+                    error!(target:"json_generation_step", "🐔 Failed to extract JSON: {}", e);
                     context.set_status(StepStatus::Failed);
                 }
             },
@@ -612,11 +679,12 @@ impl Step for JsonlWriterStep {
         let mut context = context.clone();
         match row {
             Ok(r) => {
+                let r = r.replace("\\n", "\n").replace('\n', "\\n");
                 writeln!(writer, "{}", r)?;
                 writer.flush()?;
             }
             Err(e) => {
-                debug!(target: "json_writer_step", "Failed to render template: {}", e);
+                error!(target: "json_writer_step", "🐔 Failed to render template: {}", e);
                 context.set_status(StepStatus::Failed);
             }
         };
@@ -664,6 +732,7 @@ impl Step for CsvWriterStep {
             }
         }
 
+        let row = row.replace("\\n", "\n").replace('\n', "\\n");
         writeln!(writer, "{}", row)?;
         writer.flush()?;
 

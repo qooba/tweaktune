@@ -13,6 +13,7 @@ license.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+chrono = { workspace = true }
 console = { workspace = true }
 ctrlc = { workspace = true }
 env_logger = { workspace = true }
@@ -24,7 +25,9 @@ tweaktune-abstractions= { workspace = true}
 tweaktune-core= { workspace = true }
 polars = { workspace = true}
 pyo3 = { workspace = true}
+serde = { workspace = true }
 serde_arrow = { workspace = true, features = ["arrow-54"]}
 serde_json = { workspace = true }
+simplelog = { workspace = true }
 # pyo3-async = { version = "0.3.2" }
 tokio = { workspace = true }

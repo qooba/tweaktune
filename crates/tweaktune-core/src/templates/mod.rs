@@ -1,20 +1,26 @@
 use crate::common::{OptionToResult, ResultExt};
+use crate::readers::build_reader;
 use crate::steps::StepContextData;
 use anyhow::{bail, Result};
-use log::debug;
+use log::{debug, error};
 use minijinja::Environment;
 use rand::rng;
 use rand::seq::SliceRandom;
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fs::File;
 use std::io::Cursor;
+use std::io::{BufRead, BufReader};
 use std::sync::{OnceLock, RwLock};
 
 static ENVIRONMENT: RwLock<OnceLock<Environment>> = RwLock::new(OnceLock::new());
 
-#[derive(Default, Clone)]
+static CHATTEMPLATE_ENVIRONMENT: RwLock<OnceLock<Environment>> = RwLock::new(OnceLock::new());
+
+#[derive(Default, Clone, Deserialize)]
 pub struct Templates {
-    templates: HashMap<String, String>,
+    pub templates: HashMap<String, String>,
 }
 
 impl Templates {
@@ -37,7 +43,40 @@ impl Templates {
             match val {
                 Ok(v) => v,
                 Err(_) => {
-                    debug!(target: "templates", "Failed to convert to JSON string");
+                    error!(target: "templates_err", "🐔 Failed to convert to JSON string");
+                    value
+                }
+            }
+        });
+
+        e.add_filter("tool_call", |value: String| {
+            let val = serde_json::to_string(&value);
+            match val {
+                Ok(v) => format!(
+                    "\"<tool_call>{}</tool_call>\"",
+                    v.strip_prefix('"')
+                        .unwrap_or(&v)
+                        .strip_suffix('"')
+                        .unwrap_or(&v)
+                ),
+                Err(_) => {
+                    error!(target: "templates_err", "🐔 Failed to convert to JSON string");
+                    value
+                }
+            }
+        });
+
+        e.add_filter("tool_call_args", |value: String| {
+            let val = serde_json::to_string(&value);
+            match val {
+                Ok(v) => v
+                    .strip_prefix('"')
+                    .unwrap_or(&v)
+                    .strip_suffix('"')
+                    .unwrap_or(&v)
+                    .to_string(),
+                Err(_) => {
+                    error!(target: "templates_err", "🐔 Failed to convert to JSON string");
                     value
                 }
             }
@@ -52,13 +91,13 @@ impl Templates {
                     match val {
                         Ok(v) => v,
                         Err(_) => {
-                            debug!(target: "templates", "Failed to convert shuffled array to JSON string");
+                            error!(target: "templates_err", "🐔 Failed to convert shuffled array to JSON string");
                             value
                         }
                     }
                 }
                 Err(_) => {
-                    debug!(target: "templates", "Failed to shuffle array");
+                    error!(target: "templates_err", "🐔 Failed to shuffle array");
                     value
                 }
             }
@@ -70,7 +109,7 @@ impl Templates {
             match hash {
                 Ok(hash) => format!("{:x}", hash),
                 Err(_) => {
-                    debug!(target: "templates", "Failed to hash value");
+                    error!(target: "templates_err", "🐔 Failed to hash value");
                     value
                 }
             }
@@ -81,7 +120,7 @@ impl Templates {
             match val {
                 Ok(v) => serde_json::to_string(&v).unwrap(),
                 Err(_) => {
-                    debug!(target: "templates", "Failed to deserialize JSON");
+                    error!(target: "templates_err", "🐔 Failed to deserialize JSON");
                     value
                 }
             }
@@ -111,22 +150,122 @@ impl Templates {
             .ok_or_err("ENVIRONMENT")?;
         let tmpl = match environment.get_template(&name) {
             Ok(t) => {
-                debug!(target:"templates", "Template found: {}", name);
+                debug!(target:"templates", "🤗 Template found: {}", name);
                 t
             }
             Err(e) => {
-                debug!(target:"templates", "Template not found: {}", name);
+                error!(target:"templates_err", "🐔 Template not found: {}", name);
                 bail!("Template not found: {}", e);
             }
         };
         let rendered_template = match tmpl.render(items) {
             Ok(t) => t,
             Err(e) => {
-                debug!(target:"templates", "Failed to render template: {}", e);
+                error!(target:"templates_err", "🐔 Failed to render template: {}", e);
                 bail!("Failed to render template: {}", e);
             }
         };
         debug!(target:"templates", "-------------------\nRENDERED TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
         Ok(rendered_template)
+    }
+}
+
+pub type ChatTemplateContext = serde_json::Value;
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ChatTemplate {
+    context: ChatTemplateContext,
+}
+
+impl ChatTemplate {
+    pub fn new(template: String) -> Self {
+        let mut env = CHATTEMPLATE_ENVIRONMENT.write().unwrap();
+        if let Some(e) = env.get_mut() {
+            e.add_template_owned("chat_template".to_string(), template)
+                .map_anyhow_err()
+                .unwrap();
+        } else {
+            let mut e = Environment::new();
+            e.add_template_owned("chat_template".to_string(), template)
+                .map_anyhow_err()
+                .unwrap();
+            env.set(e).map_anyhow_err().unwrap();
+        }
+
+        ChatTemplate {
+            context: serde_json::Value::Object(serde_json::Map::new()),
+        }
+    }
+
+    pub fn with_tools(mut self, tools: String) -> Self {
+        let tools = serde_json::from_str(&tools).unwrap();
+        self.add_data("tools", tools);
+        self
+    }
+
+    fn add_data(&mut self, key: &str, value: serde_json::Value) {
+        if let serde_json::Value::Object(ref mut map) = self.context {
+            map.insert(key.to_string(), value);
+        } else {
+            error!(target:"templates_err", "🐔 Context is not an object");
+        }
+    }
+
+    pub fn render(&self, messages: String) -> Result<String> {
+        let mut messages = serde_json::from_str(&messages).unwrap();
+        let messages = if let serde_json::Value::Object(ref mut map) = messages {
+            map["messages"].clone()
+        } else {
+            messages
+        };
+
+        let env = CHATTEMPLATE_ENVIRONMENT
+            .read()
+            .map_anyhow_err()?
+            .get()
+            .cloned()
+            .ok_or_err("CHATTEMPLATE_ENVIRONMENT")?;
+        let tmpl = match env.get_template("chat_template") {
+            Ok(t) => t,
+            Err(e) => {
+                error!(target:"templates_err", "🐔 Chat template not found: {}", e);
+                bail!("Chat template not found: {}", e);
+            }
+        };
+
+        let mut context = self.context.clone();
+        if let serde_json::Value::Object(ref mut map) = context {
+            map.insert("messages".to_string(), messages);
+        } else {
+            error!(target:"templates_err", "🐔 Context is not an object");
+        }
+
+        let rendered_template = match tmpl.render(context) {
+            Ok(t) => t,
+            Err(e) => {
+                error!(target:"templates_err", "🐔 Failed to render chat template: {}", e);
+                bail!("Failed to render chat template: {}", e);
+            }
+        };
+        debug!(target:"templates", "-------------------\nRENDERED CHAT TEMPLATE 📝:\n-------------------\n{}\n-------------------\n", rendered_template);
+        Ok(rendered_template)
+    }
+
+    pub fn render_jsonl(&self, path: &str, op_config: Option<String>) -> Result<Vec<String>> {
+        let mut reader = build_reader(path, op_config)?;
+        let mut output = vec![];
+
+        let mut buf = String::new();
+        while reader.inner.read_line(&mut buf)? != 0 {
+            let line = buf.trim_end().to_string();
+            buf.clear();
+            if line.trim().is_empty() {
+                continue;
+            }
+            let rendered = self.render(line)?;
+            output.push(rendered);
+        }
+
+        Ok(output)
     }
 }
