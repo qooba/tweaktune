@@ -679,6 +679,7 @@ impl Step for JsonlWriterStep {
         let mut context = context.clone();
         match row {
             Ok(r) => {
+                let r = r.replace("\\n", "\n").replace('\n', "\\n");
                 writeln!(writer, "{}", r)?;
                 writer.flush()?;
             }
@@ -731,6 +732,7 @@ impl Step for CsvWriterStep {
             }
         }
 
+        let row = row.replace("\\n", "\n").replace('\n', "\\n");
         writeln!(writer, "{}", row)?;
         writer.flush()?;
 
