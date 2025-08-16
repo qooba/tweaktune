@@ -30,9 +30,9 @@ actix-rt = "2.9"
 actix-session = { version = "0.10.1", features = ["cookie-session"] }
 actix-telepathy = "0.6.1"
 actix-web = { version = "4", features = ["rustls"]  }
-anyhow = { version = "1.0.98", features = ["backtrace"] }
+anyhow = { version = "1.0.99", features = ["backtrace"] }
 async-stream = "0.3.3"
-async-trait = "0.1.88"
+async-trait = "0.1.89"
 base64 = "0.22.1"
 byteorder = "1.4.3"
 bytes = "1.10.1"
@@ -91,7 +91,7 @@ schemars = "1.0.4"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 serde_yaml = "0.9.33"
-serde_arrow = { version="0.13.3", features=["arrow-55"] }
+serde_arrow = { version="0.13.5", features=["arrow-55"] }
 simplelog = {version = "0.12.2"}
 murmur3 = { version="0.5" }
 tar = "0.4"

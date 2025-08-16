@@ -140,9 +140,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.98"
+version = "1.0.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
+checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
 dependencies = [
  "backtrace",
 ]
@@ -300,9 +300,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.88"
+version = "0.1.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e539d3fca749fcee5236ab05e93a52867dd549cc157c8cb7f99595f3cedffdb5"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2141,9 +2141,9 @@ dependencies = [
 
 [[package]]
 name = "marrow"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3641f6a55539a8b6e5349b3bdfb5b315714fbceda3253815838f49e40e3ea757"
+checksum = "64369333feea08a4c974cc5d7bad82197999624d0c9508bec4b97ea9fc0e3f63"
 dependencies = [
  "arrow-array 54.3.1",
  "arrow-array 55.0.0",
@@ -4028,9 +4028,9 @@ dependencies = [
 
 [[package]]
 name = "serde_arrow"
-version = "0.13.3"
+version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0462b8e06478cd310e8de11ea2e64c214522275a0b537b3879dbed24a9e01b5"
+checksum = "55af245b3a27a1fed12634542d4e193b98b40aa69a7956c23cd9f8902c408463"
 dependencies = [
  "arrow-array 54.3.1",
  "arrow-array 55.0.0",
