@@ -64,13 +64,13 @@ indicatif = "0.18"
 image = "0.25.2"
 jsonwebtoken = "9.3.0"
 jsonschema = { version = "0.32.1" }
-kube = { version = "0.99.0", features = ["runtime", "derive"] }
-k8s-openapi = { version = "0.24.0", features = ["latest"] }
+#kube = { version = "0.99.0", features = ["runtime", "derive"] }
+#k8s-openapi = { version = "0.24.0", features = ["latest"] }
 #lancedb = { version = "0.5.2", default-features = false, features=["polars"] }
-lancedb = { version = "0.19.0", default-features = false }
+#lancedb = { version = "0.19.0", default-features = false }
 log = "0.4.27"
 minijinja = {version="2.11.0", features=["loader", "json"]}
-mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs.git", rev="ddc63f1e0433356789cd875c3e39df16df0d0a43" }
+#mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs.git", rev="ddc63f1e0433356789cd875c3e39df16df0d0a43" }
 #mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs.git", rev="09d2e2596d9b0aa728749cf5614e40dd1a112b3b" }
 #mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs.git", rev="32e894510696e9aa3c11db79268ee031a3ecefa6" }
 #mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs.git", rev="9dfbab1a1f3f260f130680f6c4f02f8656ea28ed" }
@@ -97,16 +97,16 @@ murmur3 = { version="0.5" }
 tar = "0.4"
 toml = "0.9.4"
 # tauri = { version = "1", features = ["shell-open", "http-all"] }
-tauri = { version = "2.0.0-beta", features = [] }
-tauri-build = { version = "2.0.0-beta", features = [] }
-tauri-plugin-shell = "2.0.0-beta"
+#tauri = { version = "2.0.0-beta", features = [] }
+#tauri-build = { version = "2.0.0-beta", features = [] }
+#tauri-plugin-shell = "2.0.0-beta"
 text-splitter = "0.27.0"
 thiserror = "2.0.14"
 tokenizers = { version = "0.21.1", features = [
     "unstable_wasm",
 ], default-features = false }
-tokio = { version = "1.45.1", features = ["full"]}
-tokio-util = "0.7.15"
+tokio = { version = "1.47.1", features = ["full"]}
+tokio-util = "0.7.16"
 tweaktune-abstractions = { path = "crates/tweaktune-abstractions" }
 tweaktune-core = { path = "crates/tweaktune-core" }
 tweaktune-pyo3 = { path = "crates/tweaktune-pyo3" }
