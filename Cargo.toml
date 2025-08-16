@@ -89,8 +89,8 @@ rustls = { version = "0.23.27" }
 safetensors = "0.5.3"
 schemars = "0.9.0"
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
-serde_yaml = "0.9"
+serde_json = "1.0.142"
+serde_yaml = "0.9.33"
 serde_arrow = { version="0.13.3", features=["arrow-55"] }
 simplelog = {version = "0.12.2"}
 murmur3 = { version="0.5" }
@@ -101,7 +101,7 @@ tauri = { version = "2.0.0-beta", features = [] }
 tauri-build = { version = "2.0.0-beta", features = [] }
 tauri-plugin-shell = "2.0.0-beta"
 text-splitter = "0.27.0"
-thiserror = "2.0.12"
+thiserror = "2.0.14"
 tokenizers = { version = "0.21.1", features = [
     "unstable_wasm",
 ], default-features = false }
