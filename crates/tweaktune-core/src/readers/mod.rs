@@ -1,3 +1,5 @@
+use crate::common::enter_runtime;
+use crate::config::read_config_str;
 use anyhow::Result;
 use opendal::blocking::{Operator, StdReader};
 use opendal::services::{AzblobConfig, FsConfig, GcsConfig, HttpConfig, S3Config};
@@ -5,8 +7,6 @@ use opendal::Operator as AsyncOperator;
 use serde::Deserialize;
 use std::io::Read;
 use std::path::Path;
-
-use crate::config::read_config_str;
 
 pub struct OpReader {
     pub inner: StdReader,
@@ -109,6 +109,7 @@ pub fn build_reader(path: &str, op_config: Option<String>) -> Result<OpReader> {
         }
     };
 
+    let _guard = enter_runtime();
     let op = Operator::new(operator)?;
     // let content_length = op.stat(file_name)?.content_length();
     let reader = op.reader(file_name)?.into_std_read(..)?;

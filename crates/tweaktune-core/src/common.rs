@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
 use log::error;
+use once_cell::sync::Lazy;
 use once_cell::sync::OnceCell;
 use polars::prelude::*;
 use rand::distr::Alphanumeric;
@@ -10,6 +11,17 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::io::{self, Result as IoResult};
 use std::{env, fs, path::PathBuf};
+use tokio::runtime::Runtime;
+
+static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::new().unwrap());
+
+pub fn enter_runtime() -> tokio::runtime::EnterGuard<'static> {
+    RUNTIME.enter()
+}
+
+pub fn run_async<T: std::future::Future>(fut: T) -> T::Output {
+    RUNTIME.block_on(fut)
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum CommonError {
