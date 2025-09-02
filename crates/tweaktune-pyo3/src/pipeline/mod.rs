@@ -1235,6 +1235,17 @@ async fn process_steps(
                     )
                     .await?;
             }
+            StepType::ValidateTools(tools_validate_step) => {
+                context = tools_validate_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
         }
     }
 

@@ -10,7 +10,7 @@ use crate::{
     steps::{
         generators::{JsonGenerationStep, TextGenerationStep},
         py::{PyStep, PyValidator},
-        validators::ValidateJsonStep,
+        validators::{ToolsValidateStep, ValidateJsonStep},
         writers::{CsvWriterStep, JsonlWriterStep},
     },
     templates::Templates,
@@ -95,6 +95,7 @@ pub enum StepType {
     Chunk(ChunkStep),
     Render(RenderStep),
     ValidateJson(ValidateJsonStep),
+    ValidateTools(ToolsValidateStep),
 }
 
 pub struct IfElseStep {
