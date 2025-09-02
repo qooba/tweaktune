@@ -8,7 +8,7 @@ use rand::distr::Alphanumeric;
 use rand::{Rng, RngCore};
 use regex::Regex;
 use serde::de::DeserializeOwned;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::io::{self, Result as IoResult};
 use std::{env, fs, path::PathBuf};
 use tokio::runtime::Runtime;
@@ -392,9 +392,324 @@ pub fn create_rows_stream(df: &DataFrame) -> Result<impl Iterator<Item = Result<
     }))
 }
 
+// Parse simple python function definitions from a string and convert them to
+// JSON-schema-like objects compatible with the `function_to_schema` output
+// used on the Python side. This implementation is intentionally conservative
+// and only understands simple annotated parameters and Field(..., description=..)
+// style defaults. It returns a JSON array where each item represents a
+// function with `type`, `name`, `description`, `parameters`, and `strict`.
+pub fn python_functions_to_schemas(code: &str) -> Result<Value> {
+    // Simple line-based parser: find lines starting with `def `, extract the
+    // parameter block (handles parentheses across lines), and optionally the
+    // following docstring (triple quotes). This is more robust than a single
+    // regex for inputs with embedded commas in defaults.
+    let mut functions = Vec::new();
+    let lines: Vec<&str> = code.lines().collect();
+    let mut i = 0usize;
+    while i < lines.len() {
+        let line = lines[i];
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("def ") {
+            // capture function name
+            if let Some(name_end) = trimmed[4..].find('(') {
+                let name = trimmed[4..4 + name_end]
+                    .trim()
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .to_string();
+
+                // capture params across lines until matching ')'
+                // include parentheses in the captured string so nested
+                // parentheses are visible to the later depth-aware splitter
+                let mut params = String::new();
+                let mut depth = 0i32;
+                let mut started = false;
+                // iterate characters from current line pos
+                let start_idx = trimmed.find('(').unwrap_or(0);
+                for ch in trimmed.chars().skip(start_idx) {
+                    if ch == '(' {
+                        depth += 1;
+                        started = true;
+                        // keep the '('
+                        params.push(ch);
+                        continue;
+                    }
+                    if ch == ')' {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                        // keep the ')'
+                        params.push(ch);
+                        continue;
+                    }
+                    if started {
+                        params.push(ch);
+                    }
+                }
+                // if depth still > 0, continue across following lines
+                if depth > 0 {
+                    let mut j = i + 1;
+                    while j < lines.len() && depth > 0 {
+                        for ch in lines[j].chars() {
+                            if ch == '(' {
+                                depth += 1;
+                            }
+                            if ch == ')' {
+                                depth -= 1;
+                                if depth == 0 {
+                                    break;
+                                }
+                            }
+                            params.push(ch);
+                        }
+                        j += 1;
+                    }
+                }
+
+                // attempt to capture docstring on following non-empty line
+                let mut doc = String::new();
+                let mut k = i + 1;
+                while k < lines.len() && lines[k].trim().is_empty() {
+                    k += 1;
+                }
+                if k < lines.len() {
+                    let s = lines[k].trim_start();
+                    if s.starts_with("\"\"\"") || s.starts_with("'''") {
+                        let quote = &s[..3];
+                        // capture until closing quote occurs
+                        let mut collected = String::new();
+                        // include the rest of the line after opening quotes
+                        collected.push_str(&s[3..]);
+                        let mut closed = s[3..].contains(quote);
+                        let mut l = k + 1;
+                        while l < lines.len() && !closed {
+                            let ln = lines[l];
+                            if ln.contains(quote) {
+                                let idx = ln.find(quote).unwrap();
+                                collected.push_str(&ln[..idx]);
+                                closed = true;
+                                break;
+                            } else {
+                                collected.push_str(ln);
+                                collected.push('\n');
+                            }
+                            l += 1;
+                        }
+                        doc = collected;
+                    }
+                }
+
+                // build properties map
+                let mut properties = serde_json::Map::new();
+                let mut required = Vec::new();
+
+                // split params by commas at the outermost parameter level
+                // we included the outer '(' so the function parameter level is depth==1
+                let mut parts = Vec::new();
+                let mut cur = String::new();
+                let mut d = 0i32;
+                for ch in params.chars() {
+                    match ch {
+                        '(' => {
+                            d += 1;
+                            cur.push(ch);
+                        }
+                        ')' => {
+                            d -= 1;
+                            cur.push(ch);
+                        }
+                        ',' if d == 1 => {
+                            parts.push(cur.trim().to_string());
+                            cur.clear();
+                        }
+                        c => cur.push(c),
+                    }
+                }
+                if !cur.trim().is_empty() {
+                    parts.push(cur.trim().to_string());
+                }
+
+                for part in parts.iter() {
+                    if part.trim().is_empty() {
+                        continue;
+                    }
+                    // trim surrounding parentheses that may remain from the outer capture
+                    let part = part
+                        .trim()
+                        .trim_start_matches('(')
+                        .trim_end_matches(')')
+                        .trim();
+                    // parse name:type = default
+                    let (left, default_opt) = match part.find('=') {
+                        Some(idx) => (part[..idx].trim(), Some(part[idx + 1..].trim())),
+                        None => (part.trim(), None),
+                    };
+                    let (pname, ptype) = match left.find(':') {
+                        Some(idx) => (left[..idx].trim().to_string(), left[idx + 1..].trim()),
+                        None => (left.trim().to_string(), "Any"),
+                    };
+
+                    let mut prop = serde_json::Map::new();
+                    let p_json_type = match ptype {
+                        "int" => json!("integer"),
+                        "float" => json!("number"),
+                        "str" | "string" => json!("string"),
+                        "bool" => json!("boolean"),
+                        "dict" | "Dict" => json!({"type":"object"}),
+                        "list" | "List" | "[]" => json!({"type":"array"}),
+                        _ => json!("string"),
+                    };
+                    if p_json_type.is_object() {
+                        if let Some(map) = p_json_type.as_object() {
+                            for (k, v) in map.iter() {
+                                prop.insert(k.clone(), v.clone());
+                            }
+                        }
+                    } else {
+                        prop.insert("type".to_string(), p_json_type);
+                    }
+
+                    if let Some(def) = default_opt {
+                        if def.contains("description") {
+                            if let Some(c) = Regex::new(r#"description\s*=\s*"([^"]*)""#)
+                                .ok()
+                                .and_then(|re| re.captures(def))
+                            {
+                                if let Some(m) = c.get(1) {
+                                    prop.insert("description".to_string(), json!(m.as_str()));
+                                }
+                            } else if let Some(c) = Regex::new(r#"description\s*=\s*'([^']*)'"#)
+                                .ok()
+                                .and_then(|re| re.captures(def))
+                            {
+                                if let Some(m) = c.get(1) {
+                                    prop.insert("description".to_string(), json!(m.as_str()));
+                                }
+                            }
+                        }
+                        let def_trim = def.trim();
+                        if def_trim.starts_with("Field(") && def_trim.contains("...") {
+                            required.push(pname.clone());
+                        }
+                    } else {
+                        required.push(pname.clone());
+                    }
+
+                    properties.insert(pname, Value::Object(prop));
+                }
+
+                let mut params_obj = serde_json::Map::new();
+                params_obj.insert("type".to_string(), json!("json_schema"));
+                params_obj.insert("name".to_string(), json!(format!("{}_parameters", name)));
+                let mut schema_obj = serde_json::Map::new();
+                schema_obj.insert("type".to_string(), json!("object"));
+                schema_obj.insert("properties".to_string(), Value::Object(properties));
+                schema_obj.insert("additionalProperties".to_string(), json!(false));
+                if !required.is_empty() {
+                    schema_obj.insert(
+                        "required".to_string(),
+                        Value::Array(required.into_iter().map(|r| json!(r)).collect()),
+                    );
+                }
+                params_obj.insert("schema".to_string(), Value::Object(schema_obj));
+
+                let func_obj = json!({
+                    "type": "function",
+                    "name": name,
+                    "description": if doc.is_empty() { Value::Null } else { json!(doc.trim()) },
+                    "parameters": Value::Object(params_obj),
+                    "strict": true
+                });
+                functions.push(func_obj);
+            }
+        }
+        i += 1;
+    }
+
+    Ok(Value::Array(functions))
+}
+
+// ...existing code...
+
 #[allow(dead_code)]
 fn arrow_data_type_to_polars_data_type(
     arrow_data_type: &polars_arrow::datatypes::ArrowDataType,
 ) -> polars::prelude::DataType {
     polars::prelude::DataType::from_arrow(arrow_data_type, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_simple_function() {
+        let code = r#"
+def add(a: int, b: int):
+    """Add two integers"""
+    return a + b
+"#;
+
+        let res = python_functions_to_schemas(code).unwrap();
+        // expect one function in array
+        let arr = res.as_array().expect("expected array");
+        assert_eq!(arr.len(), 1);
+        let func = &arr[0];
+        assert_eq!(func["type"], "function");
+        assert_eq!(func["name"], "add");
+        // description should be present
+        assert!(func.get("description").is_some());
+        // parameters schema
+        let params = &func["parameters"];
+        assert_eq!(params["type"], "json_schema");
+        let schema = &params["schema"];
+        assert_eq!(schema["type"], "object");
+        let props = schema["properties"].as_object().unwrap();
+        assert!(props.contains_key("a"));
+        assert!(props.contains_key("b"));
+        // required contains both
+        let required = schema["required"].as_array().unwrap();
+        let reqs: Vec<String> = required
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        assert!(reqs.contains(&"a".to_string()) && reqs.contains(&"b".to_string()));
+    }
+
+    #[test]
+    fn test_field_description_and_default() {
+        let code = r#"
+def greet(name: str = Field(..., description="user name"), excited: bool = False):
+    '''Greet a user'''
+    pass
+"#;
+
+        let res = python_functions_to_schemas(code).unwrap();
+        let arr = res.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        let func = &arr[0];
+
+        assert_eq!(func["name"], "greet");
+        let params = &func["parameters"];
+        let schema = &params["schema"];
+
+        let props = schema["properties"].as_object().unwrap();
+        // name should have description
+        let name_prop = props.get("name").unwrap();
+        assert_eq!(name_prop["type"], "string");
+        assert_eq!(name_prop["description"], "user name");
+        // name used Field(..., ...) -> should be required; excited has default -> not required
+        let required = schema.get("required").and_then(|v| v.as_array());
+        let reqs: Vec<String> = required
+            .map(|arr| {
+                arr.iter()
+                    .map(|v| v.as_str().unwrap().to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert!(reqs.contains(&"name".to_string()));
+        assert!(!reqs.contains(&"excited".to_string()));
+    }
 }
