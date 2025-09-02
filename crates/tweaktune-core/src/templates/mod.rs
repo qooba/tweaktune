@@ -9,9 +9,8 @@ use rand::seq::SliceRandom;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::fs::File;
+use std::io::BufRead;
 use std::io::Cursor;
-use std::io::{BufRead, BufReader};
 use std::sync::{OnceLock, RwLock};
 
 static ENVIRONMENT: RwLock<OnceLock<Environment>> = RwLock::new(OnceLock::new());

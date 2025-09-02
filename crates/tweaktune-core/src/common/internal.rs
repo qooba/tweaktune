@@ -487,14 +487,14 @@ pub fn python_functions_to_schemas(code: &str) -> Result<Value> {
                         let mut collected = String::new();
                         // include the rest of the line after opening quotes
                         collected.push_str(&s[3..]);
-                        let mut closed = s[3..].contains(quote);
+                        let mut _closed = s[3..].contains(quote);
                         let mut l = k + 1;
-                        while l < lines.len() && !closed {
+                        while l < lines.len() && !_closed {
                             let ln = lines[l];
                             if ln.contains(quote) {
                                 let idx = ln.find(quote).unwrap();
                                 collected.push_str(&ln[..idx]);
-                                closed = true;
+                                _closed = true;
                                 break;
                             } else {
                                 collected.push_str(ln);

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::{debug, error};
+use log::error;
 use pyo3::prelude::*;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
