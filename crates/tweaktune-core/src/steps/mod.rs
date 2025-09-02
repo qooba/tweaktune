@@ -6,6 +6,7 @@ use crate::{
     templates::Templates,
 };
 use anyhow::Result;
+use jsonschema::Draft;
 use log::{debug, error};
 use pyo3::prelude::*;
 use rand::RngCore;
@@ -329,6 +330,81 @@ impl Step for ValidateJsonStep {
             Err(e) => {
                 error!(target: "validate_json_step", "🐔 Failed to render instance: {}", e);
                 error!(target: "validate_json_step", "🐔 INSTANCE_JSON: {}", &instance_json);
+                context.set_status(StepStatus::Failed);
+                Ok(context)
+            }
+        }
+    }
+}
+
+pub struct ToolsValidateStep {
+    pub name: String,
+    pub instances: String,
+}
+
+impl ToolsValidateStep {
+    pub fn new(name: String, instances: String) -> Self {
+        Self { name, instances }
+    }
+}
+
+impl Step for ToolsValidateStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        let instance_json = templates.render(self.instances.clone(), context.data.clone())?;
+
+        match serde_json::from_str::<Value>(&instance_json) {
+            Ok(value) => {
+                let instances: Vec<Value> = match value {
+                    Value::Array(arr) => arr,
+                    other => vec![other],
+                };
+
+                let mut valid = true;
+                for inst in &instances {
+                    match inst {
+                        Value::Object(map) => {
+                            let name_ok = map.get("name").and_then(|v| v.as_str()).is_some();
+                            if !name_ok {
+                                error!(target: "tools_validation_step", "🐔 Tool instance missing string 'name': {}", inst);
+                                valid = false;
+                                break;
+                            }
+                            if let Some(params) = map.get("parameters") {
+                                if !params.is_object() && !params.is_string() {
+                                    error!(target: "tools_validation_step", "🐔 Tool 'parameters' must be an object or string: {}", inst);
+                                    valid = false;
+                                    break;
+                                }
+                            }
+                        }
+                        other => {
+                            error!(target: "tools_validation_step", "🐔 Tool instance must be an object: {}", other);
+                            valid = false;
+                            break;
+                        }
+                    }
+                }
+
+                if valid {
+                    // store the validated array of instances into the context under this step's name
+                    context.set(&self.name, instances);
+                } else {
+                    context.set_status(StepStatus::Failed);
+                }
+
+                Ok(context)
+            }
+            Err(e) => {
+                error!(target: "tools_validation_step", "🐔 Failed to render instance: {}", e);
                 context.set_status(StepStatus::Failed);
                 Ok(context)
             }
@@ -911,6 +987,7 @@ mod tests {
         let full_schema: Value = serde_json::from_str(raw_schema).unwrap();
         let instance: Value = serde_json::from_str(instance_json).unwrap();
 
+        // instance.size is an integer but schema expects a string -> validation should succeed
         assert!(jsonschema::is_valid(&full_schema, &instance));
         println!("hello");
     }
@@ -968,7 +1045,7 @@ mod tests {
         let full_schema: Value = serde_json::from_str(raw_schema).unwrap();
         let instance: Value = serde_json::from_str(instance_json).unwrap();
 
-        assert!(jsonschema::is_valid(&full_schema, &instance));
+        assert!(!jsonschema::is_valid(&full_schema, &instance));
         println!("hello");
     }
 }

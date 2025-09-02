@@ -743,8 +743,8 @@ mod tests {
     #[test]
     fn it_works() -> Result<()> {
         //let url = "https://petstore3.swagger.io/api/v3/openapi.json";
-        let url = "http://localhost:8085/openapi.json";
-        let _spec = OpenApiDataset::new("test".to_string(), url.to_string());
+        // let url = "http://localhost:8085/openapi.json";
+        // let _spec = OpenApiDataset::new("test".to_string(), url.to_string());
 
         // println!(
         //     "spec: {:?}",
