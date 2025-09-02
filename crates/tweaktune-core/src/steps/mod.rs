@@ -1,24 +1,26 @@
 pub mod generators;
+pub mod py;
 pub mod validators;
 pub mod writers;
 use crate::{
-    common::{df_to_values, extract_json, OptionToResult, ResultExt},
+    common::{df_to_values, OptionToResult},
     datasets::{Dataset, DatasetType},
     embeddings::{self, EmbeddingsType},
-    llms::{self, LLMType, LLM},
+    llms::{self, LLMType},
     steps::{
         generators::{JsonGenerationStep, TextGenerationStep},
+        py::{PyStep, PyValidator},
         validators::ValidateJsonStep,
         writers::{CsvWriterStep, JsonlWriterStep},
     },
     templates::Templates,
 };
 use anyhow::Result;
-use log::{debug, error};
+use log::error;
 use pyo3::prelude::*;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::collections::HashMap;
 use text_splitter::{Characters, TextSplitter};
 
@@ -157,91 +159,6 @@ impl Step for IfElseStep {
         _context: &StepContext,
     ) -> Result<StepContext> {
         unreachable!("Use check method to evaluate condition");
-    }
-}
-
-pub struct PyStep {
-    pub name: String,
-    pub py_func: PyObject,
-}
-
-impl PyStep {
-    pub fn new(name: String, py_func: PyObject) -> Self {
-        Self { name, py_func }
-    }
-}
-
-impl Step for PyStep {
-    async fn process(
-        &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, LLMType>,
-        _embeddings: &HashMap<String, EmbeddingsType>,
-        context: &StepContext,
-    ) -> Result<StepContext> {
-        let json = serde_json::to_string(context)?;
-
-        let result: PyResult<String> = Python::with_gil(|py| {
-            let result: String = self
-                .py_func
-                .call_method1(py, "process", (json,))?
-                .extract(py)?;
-            Ok(result)
-        });
-
-        match result {
-            Ok(result) => {
-                let result: StepContext = serde_json::from_str(&result)?;
-                Ok(result)
-            }
-            Err(e) => {
-                error!(target: "pystep", "🐔 {:?}", e);
-                let mut context = context.clone();
-                context.set_status(StepStatus::Failed);
-                Ok(context)
-            }
-        }
-    }
-}
-
-pub struct PyValidator {
-    pub name: String,
-    pub py_func: PyObject,
-}
-
-impl PyValidator {
-    pub fn new(name: String, py_func: PyObject) -> Self {
-        Self { name, py_func }
-    }
-}
-
-impl Step for PyValidator {
-    async fn process(
-        &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, LLMType>,
-        _embeddings: &HashMap<String, EmbeddingsType>,
-        context: &StepContext,
-    ) -> Result<StepContext> {
-        let json = serde_json::to_string(context)?;
-
-        let result: PyResult<bool> = Python::with_gil(|py| {
-            let result: bool = self
-                .py_func
-                .call_method1(py, "process", (json,))?
-                .extract(py)?;
-            Ok(result)
-        });
-
-        let result = result.map_tt_err("VALIDATOR MUST RETURN BOOL")?;
-        let mut context = context.clone();
-        if !result {
-            context.set_status(StepStatus::Failed);
-        }
-
-        Ok(context)
     }
 }
 
