@@ -20,6 +20,7 @@ use tweaktune_core::datasets::{
 };
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
+use tweaktune_core::steps::validators::ToolsValidateStep;
 use tweaktune_core::steps::{validators::ValidateJsonStep, ChunkStep, IfElseStep, RenderStep};
 use tweaktune_core::{
     common::OptionToResult,
@@ -585,6 +586,21 @@ impl PipelineBuilder {
                 name,
                 schema_key,
                 instance_key,
+            )));
+    }
+
+    pub fn add_validatetools_step(&mut self, name: String, instances: String) {
+        info!("Added render step");
+
+        let instances_key = format!("validatetools_instance_{}_{}", name, instances);
+        self.templates.add(
+            instances_key.clone(),
+            format!("{{{{{}|tojson}}}}", instances.clone()),
+        );
+        self.steps
+            .push(StepType::ValidateTools(ToolsValidateStep::new(
+                name,
+                instances_key,
             )));
     }
 

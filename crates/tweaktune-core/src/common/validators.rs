@@ -79,10 +79,23 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
         // Detect and extract that case so the `required` validation below can use it.
         let mut required_from_props: Option<Vec<String>> = None;
         if let Some(props_val) = params.get("properties") {
-            if !props_val.is_object() {
-                return Err(anyhow!("🐔 'parameters.properties' must be an object"));
-            }
-            let props = props_val.as_object().unwrap();
+            // Accept either an object or a JSON string encoding an object for properties.
+            let props_map: serde_json::Map<String, Value> = if props_val.is_object() {
+                props_val.as_object().unwrap().clone()
+            } else if props_val.is_string() {
+                let s = props_val.as_str().unwrap();
+                let parsed = serde_json::from_str::<Value>(s)
+                    .map_err(|_| anyhow!("🐔 'parameters.properties' string is not valid JSON"))?;
+                if !parsed.is_object() {
+                    return Err(anyhow!(
+                        "🐔 'parameters.properties' string must decode to a JSON object"
+                    ));
+                }
+                parsed.as_object().unwrap().clone()
+            } else {
+                return Err(anyhow!("🐔 'parameters.properties' must be an object or a JSON string encoding an object"));
+            };
+            let props = props_map;
 
             // If a `required` key was accidentally put inside `properties` and it's an array,
             // extract it and treat it as parameters.required.
@@ -96,6 +109,9 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
                         vec.push(s.to_string());
                     }
                     required_from_props = Some(vec);
+                } else if req_in_props.is_null() {
+                    // Treat a null `required` inside properties as an empty array
+                    required_from_props = Some(Vec::new());
                 }
             }
 
@@ -229,11 +245,16 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
         // Validate `required` if present: must be array of strings and subset of properties
         let mut required_list: Option<Vec<String>> = None;
         if let Some(req_val) = params.get("required") {
-            if !req_val.is_array() {
+            // Treat null as an empty array; otherwise ensure it's an array.
+            let req_val = if req_val.is_null() {
+                Value::Array(Vec::new())
+            } else if req_val.is_array() {
+                req_val.clone()
+            } else {
                 return Err(anyhow!(
                     "🐔 'parameters.required' must be an array of strings"
                 ));
-            }
+            };
             let mut vec = Vec::new();
             for item in req_val.as_array().unwrap().iter() {
                 let s = item.as_str().ok_or_else(|| {
