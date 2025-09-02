@@ -12,7 +12,6 @@ use serde_json::{json, Value};
 use std::io::{self, Result as IoResult};
 use std::{env, fs, path::PathBuf};
 use tokio::runtime::Runtime;
-
 static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::new().unwrap());
 
 pub fn enter_runtime() -> tokio::runtime::EnterGuard<'static> {
@@ -396,8 +395,6 @@ pub fn create_rows_stream(df: &DataFrame) -> Result<impl Iterator<Item = Result<
 // JSON-schema-like objects compatible with the `function_to_schema` output
 // used on the Python side. This implementation is intentionally conservative
 // and only understands simple annotated parameters and Field(..., description=..)
-// style defaults. It returns a JSON array where each item represents a
-// function with `type`, `name`, `description`, `parameters`, and `strict`.
 pub fn python_functions_to_schemas(code: &str) -> Result<Value> {
     // Simple line-based parser: find lines starting with `def `, extract the
     // parameter block (handles parentheses across lines), and optionally the
@@ -425,6 +422,9 @@ pub fn python_functions_to_schemas(code: &str) -> Result<Value> {
                 let mut params = String::new();
                 let mut depth = 0i32;
                 let mut started = false;
+                // track which line ends the parameter list so we can look for
+                // the docstring after that line for multi-line signatures
+                let mut end_line = i;
                 // iterate characters from current line pos
                 let start_idx = trimmed.find('(').unwrap_or(0);
                 for ch in trimmed.chars().skip(start_idx) {
@@ -438,6 +438,8 @@ pub fn python_functions_to_schemas(code: &str) -> Result<Value> {
                     if ch == ')' {
                         depth -= 1;
                         if depth == 0 {
+                            // params ended on this same line
+                            end_line = i;
                             break;
                         }
                         // keep the ')'
@@ -459,6 +461,8 @@ pub fn python_functions_to_schemas(code: &str) -> Result<Value> {
                             if ch == ')' {
                                 depth -= 1;
                                 if depth == 0 {
+                                    // params ended on this line
+                                    end_line = j;
                                     break;
                                 }
                             }
@@ -468,9 +472,10 @@ pub fn python_functions_to_schemas(code: &str) -> Result<Value> {
                     }
                 }
 
-                // attempt to capture docstring on following non-empty line
+                // attempt to capture docstring on the first non-empty line after the
+                // line where the parameters ended
                 let mut doc = String::new();
-                let mut k = i + 1;
+                let mut k = end_line + 1;
                 while k < lines.len() && lines[k].trim().is_empty() {
                     k += 1;
                 }
@@ -497,7 +502,7 @@ pub fn python_functions_to_schemas(code: &str) -> Result<Value> {
                             }
                             l += 1;
                         }
-                        doc = collected;
+                        doc = collected.trim_end_matches(quote).to_string();
                     }
                 }
 
@@ -507,24 +512,75 @@ pub fn python_functions_to_schemas(code: &str) -> Result<Value> {
 
                 // split params by commas at the outermost parameter level
                 // we included the outer '(' so the function parameter level is depth==1
+                // be robust: track parentheses, brackets, braces and quoted strings
                 let mut parts = Vec::new();
                 let mut cur = String::new();
-                let mut d = 0i32;
+                let mut paren = 0i32;
+                let mut square = 0i32;
+                let mut curly = 0i32;
+                let mut in_single = false;
+                let mut in_double = false;
+                let mut escape = false;
                 for ch in params.chars() {
-                    match ch {
-                        '(' => {
-                            d += 1;
+                    if escape {
+                        escape = false;
+                        cur.push(ch);
+                        continue;
+                    }
+                    if ch == '\\' {
+                        // enter escape mode inside strings
+                        if in_single || in_double {
+                            escape = true;
                             cur.push(ch);
+                            continue;
                         }
-                        ')' => {
-                            d -= 1;
-                            cur.push(ch);
+                    }
+                    if ch == '\'' && !in_double {
+                        in_single = !in_single;
+                        cur.push(ch);
+                        continue;
+                    }
+                    if ch == '"' && !in_single {
+                        in_double = !in_double;
+                        cur.push(ch);
+                        continue;
+                    }
+                    if !in_single && !in_double {
+                        match ch {
+                            '(' => {
+                                paren += 1;
+                                cur.push(ch);
+                            }
+                            ')' => {
+                                paren -= 1;
+                                cur.push(ch);
+                            }
+                            '[' => {
+                                square += 1;
+                                cur.push(ch);
+                            }
+                            ']' => {
+                                square -= 1;
+                                cur.push(ch);
+                            }
+                            '{' => {
+                                curly += 1;
+                                cur.push(ch);
+                            }
+                            '}' => {
+                                curly -= 1;
+                                cur.push(ch);
+                            }
+                            ',' if paren == 1 && square == 0 && curly == 0 => {
+                                parts.push(cur.trim().to_string());
+                                cur.clear();
+                            }
+                            c => {
+                                cur.push(c);
+                            }
                         }
-                        ',' if d == 1 => {
-                            parts.push(cur.trim().to_string());
-                            cur.clear();
-                        }
-                        c => cur.push(c),
+                    } else {
+                        cur.push(ch);
                     }
                 }
                 if !cur.trim().is_empty() {
@@ -711,5 +767,65 @@ def greet(name: str = Field(..., description="user name"), excited: bool = False
             .unwrap_or_default();
         assert!(reqs.contains(&"name".to_string()));
         assert!(!reqs.contains(&"excited".to_string()));
+    }
+
+    #[test]
+    fn test_complex_function_parsing() {
+        let code = r#"
+def complex_func(
+    ids: List[int],
+    config: dict = Field(default_factory=dict, description='config map'),
+    threshold: float = 0.75,
+    label: str | None = None,
+    flags: List[str] = Field(default_factory=lambda: ['a','b'], description="list of flags"),
+    active: bool = True,
+) -> dict:
+    """Complex function for testing multi-line signatures and defaults"""
+    pass
+"#;
+
+        let res = python_functions_to_schemas(code).unwrap();
+        let arr = res.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        let func = &arr[0];
+        assert_eq!(func["name"], "complex_func");
+        // description should be captured from docstring
+        assert_eq!(
+            func["description"].as_str().unwrap(),
+            "Complex function for testing multi-line signatures and defaults"
+        );
+
+        let schema = &func["parameters"]["schema"];
+        let props = schema["properties"].as_object().unwrap();
+
+        // check presence and types (basic mapping)
+        assert!(props.contains_key("ids"));
+        assert!(props.contains_key("config"));
+        assert!(props.contains_key("threshold"));
+        assert!(props.contains_key("label"));
+        assert!(props.contains_key("flags"));
+        assert!(props.contains_key("active"));
+
+        // config should have description from Field(...)
+        let config_prop = props.get("config").unwrap();
+        assert_eq!(config_prop["description"].as_str().unwrap(), "config map");
+
+        // flags should have description too
+        let flags_prop = props.get("flags").unwrap();
+        assert_eq!(flags_prop["description"].as_str().unwrap(), "list of flags");
+
+        // required: ids should be required (no default), config has default -> not required
+        let required = schema
+            .get("required")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let reqs: Vec<String> = required
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        assert!(reqs.contains(&"ids".to_string()));
+        assert!(!reqs.contains(&"config".to_string()));
+        assert!(!reqs.contains(&"label".to_string()));
     }
 }
