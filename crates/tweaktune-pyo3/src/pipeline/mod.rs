@@ -27,8 +27,9 @@ use tweaktune_core::{
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{ApiLLM, LLMType},
     steps::{
-        CsvWriterStep, DataSamplerStep, JsonGenerationStep, JsonlWriterStep, PrintStep, PyStep,
-        PyValidator, Step as StepCore, StepContext, StepStatus, StepType, TextGenerationStep,
+        writers::{CsvWriterStep, JsonlWriterStep},
+        DataSamplerStep, JsonGenerationStep, PrintStep, PyStep, PyValidator, Step as StepCore,
+        StepContext, StepStatus, StepType, TextGenerationStep,
     },
     templates::Templates,
 };
