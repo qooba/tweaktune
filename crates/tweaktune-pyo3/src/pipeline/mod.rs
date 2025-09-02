@@ -20,16 +20,17 @@ use tweaktune_core::datasets::{
 };
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
-use tweaktune_core::steps::{ChunkStep, IfElseStep, RenderStep, ValidateJsonStep};
+use tweaktune_core::steps::{validators::ValidateJsonStep, ChunkStep, IfElseStep, RenderStep};
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{ApiLLM, LLMType},
     steps::{
+        generators::{JsonGenerationStep, TextGenerationStep},
         writers::{CsvWriterStep, JsonlWriterStep},
-        DataSamplerStep, JsonGenerationStep, PrintStep, PyStep, PyValidator, Step as StepCore,
-        StepContext, StepStatus, StepType, TextGenerationStep,
+        DataSamplerStep, PrintStep, PyStep, PyValidator, Step as StepCore, StepContext, StepStatus,
+        StepType,
     },
     templates::Templates,
 };
