@@ -33,7 +33,6 @@ def test_write_json_render(request, output_dir):
     .run())
 
     lines = open(output_file, "r").readlines()
-    print("DUPA", lines)
     hello = json.loads(lines[0])["hello"]
 
     assert hello == "world"
