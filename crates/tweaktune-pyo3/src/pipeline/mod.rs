@@ -542,6 +542,17 @@ impl PipelineBuilder {
         )));
     }
 
+    pub fn add_tool_sampler_step(
+        &mut self,
+        name: String,
+        dataset: String,
+        size: usize,
+        output: String,
+    ) {
+        self.add_data_sampler_step(name.clone(), dataset, size, output.clone());
+        self.add_validatetools_step(name.clone(), output);
+    }
+
     pub fn add_data_read_step(&mut self, name: String, dataset: String, output: String) {
         info!("Added data read on dataset: {}", &dataset);
         self.steps.push(StepType::DataSampler(DataSamplerStep::new(
