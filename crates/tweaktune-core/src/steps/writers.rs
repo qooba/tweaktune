@@ -13,15 +13,22 @@ use std::{collections::HashMap, fs::File};
 pub struct JsonlWriterStep {
     pub name: String,
     pub path: String,
-    pub template: String,
+    pub template: Option<String>,
+    pub value: Option<String>,
 }
 
 impl JsonlWriterStep {
-    pub fn new(name: String, path: String, template: String) -> Self {
+    pub fn new(
+        name: String,
+        path: String,
+        template: Option<String>,
+        value: Option<String>,
+    ) -> Self {
         Self {
             name,
             path,
             template,
+            value,
         }
     }
 }
@@ -37,7 +44,31 @@ impl Step for JsonlWriterStep {
     ) -> Result<StepContext> {
         let file = File::options().append(true).create(true).open(&self.path)?;
         let mut writer = std::io::BufWriter::new(file);
-        let row = templates.render(self.template.clone(), context.data.clone());
+        let row = if let Some(template) = &self.template {
+            templates.render(template.clone(), context.data.clone())
+        } else if let Some(value) = &self.value {
+            if let Some(v) = context.get(value) {
+                if let Some(inner) = v.as_str() {
+                    Ok(inner.to_string())
+                } else {
+                    error!(target: "json_writer_step", "🐔 Value must be a string");
+                    let mut context = context.clone();
+                    context.set_status(StepStatus::Failed);
+                    return Ok(context);
+                }
+            } else {
+                error!(target: "json_writer_step", "🐔 Value '{}' not found in context for JsonlWriterStep", value);
+                let mut context = context.clone();
+                context.set_status(StepStatus::Failed);
+                return Ok(context);
+            }
+        } else {
+            error!(target: "json_writer_step", "🐔 You must set either a template or a value");
+            let mut context = context.clone();
+            context.set_status(StepStatus::Failed);
+            return Ok(context);
+        };
+
         let mut context = context.clone();
         match row {
             Ok(r) => {

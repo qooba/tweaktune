@@ -124,7 +124,6 @@ def test_tools_sample_2(request, output_dir, data_dir, arrow_dataset):
     .iter_range(10)
         .sample_tool("functions", 2, "all_functions")
         .write_jsonl(path=output_file, template="output")
-        .debug()
         .run())
 
     lines = open(output_file, "r").readlines()

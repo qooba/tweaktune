@@ -491,10 +491,17 @@ impl PipelineBuilder {
             )));
     }
 
-    pub fn add_write_jsonl_step(&mut self, name: String, path: String, template: String) {
+    #[pyo3(signature = (name, path, template=None, value=None))]
+    pub fn add_write_jsonl_step(
+        &mut self,
+        name: String,
+        path: String,
+        template: Option<String>,
+        value: Option<String>,
+    ) {
         info!("Added JSONL writer step: {}", &name);
         self.steps.push(StepType::JsonWriter(JsonlWriterStep::new(
-            name, path, template,
+            name, path, template, value,
         )));
     }
 
