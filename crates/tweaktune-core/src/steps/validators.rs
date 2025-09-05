@@ -1,5 +1,6 @@
 use crate::common::validators::{
     normalize_tool, validate_function_call_conversation, validate_function_call_format,
+    validate_tool_format_messages,
 };
 use crate::{
     datasets::DatasetType,
@@ -94,42 +95,36 @@ impl Step for ToolsValidateStep {
     async fn process(
         &self,
         _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
+        _templates: &Templates,
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
-        let instance_json = templates.render(self.instances.clone(), context.data.clone())?;
+        let value = context
+            .data
+            .get(self.instances.clone())
+            .expect("Failed to get instances");
 
-        match serde_json::from_str::<Value>(&instance_json) {
-            Ok(value) => {
-                let instances: Vec<Value> = match value {
-                    Value::Array(arr) => arr,
-                    other => vec![other],
-                };
+        let instances: Vec<Value> = match value {
+            Value::Array(arr) => arr.clone(),
+            other => vec![other.clone()],
+        };
 
-                // Validate each instance using the centralized validator. Fail on any error.
-                for inst in &instances {
-                    if let Err(e) = validate_function_call_format(inst) {
-                        error!(target: "tools_validation_step", "🐔 Tool instance failed validation: {} - error: {}", inst, e);
-                        context.set_status(StepStatus::Failed);
-                        return Ok(context);
-                    }
-                }
-
-                // All instances validated successfully; store them in context.
-                context.set(&self.name, instances);
-
-                Ok(context)
-            }
-            Err(e) => {
-                error!(target: "tools_validation_step", "🐔 Failed to render instance: {}", e);
+        // Validate each instance using the centralized validator. Fail on any error.
+        for inst in &instances {
+            if let Err(e) = validate_function_call_format(inst) {
+                error!(target: "tools_validation_step", "🐔 Tool instance failed validation: {} - error: {}", inst, e);
                 context.set_status(StepStatus::Failed);
-                Ok(context)
+                return Ok(context);
             }
         }
+
+        // All instances validated successfully; store them in context.
+        context.set(&self.name, instances);
+
+        Ok(context)
     }
 }
 
@@ -153,46 +148,39 @@ impl Step for ToolsNormalizeStep {
     async fn process(
         &self,
         _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
+        _templates: &Templates,
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
-        let instance_json = templates.render(self.instances.clone(), context.data.clone())?;
+        let value = context
+            .data
+            .get(self.instances.clone())
+            .expect("Failed to get instances");
+        let instances = match value {
+            Value::Array(arr) => arr.clone(),
+            other => vec![other.clone()],
+        };
 
-        match serde_json::from_str::<Value>(&instance_json) {
-            Ok(value) => {
-                let instances: Vec<Value> = match value {
-                    Value::Array(arr) => arr,
-                    other => vec![other],
-                };
-
-                // Validate each instance using the centralized validator. Fail on any error.
-                let mut normalized: Vec<Value> = Vec::new();
-                for inst in &instances {
-                    match normalize_tool(inst) {
-                        Ok(norm) => normalized.push(norm),
-                        Err(e) => {
-                            error!(target: "tools_normalize_step", "🐔 Tool instance failed normalization: {} - error: {}", inst, e);
-                            context.set_status(StepStatus::Failed);
-                            return Ok(context);
-                        }
-                    }
+        // Validate each instance using the centralized validator. Fail on any error.
+        let mut normalized: Vec<Value> = Vec::new();
+        for inst in &instances {
+            match normalize_tool(inst) {
+                Ok(norm) => normalized.push(norm),
+                Err(e) => {
+                    error!(target: "tools_normalize_step", "🐔 Tool instance failed normalization: {} - error: {}", inst, e);
+                    context.set_status(StepStatus::Failed);
+                    return Ok(context);
                 }
-                let instances = normalized;
-
-                context.set(&self.output, instances);
-
-                Ok(context)
-            }
-            Err(e) => {
-                error!(target: "tools_normalize_step", "🐔 Failed to render instance: {}", e);
-                context.set_status(StepStatus::Failed);
-                Ok(context)
             }
         }
+        let instances = normalized;
+
+        context.set(&self.output, instances);
+
+        Ok(context)
     }
 }
 
@@ -211,43 +199,36 @@ impl Step for ConversationValidateStep {
     async fn process(
         &self,
         _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
+        _templates: &Templates,
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
-        let conversation_json =
-            templates.render(self.conversation.clone(), context.data.clone())?;
+        let value = context
+            .data
+            .get(self.conversation.clone())
+            .expect("Failed to get conversation");
 
-        match serde_json::from_str::<Value>(&conversation_json) {
-            Ok(value) => {
-                if let Some(_conv) = value.get("conversation") {
-                    if let Err(e) = validate_function_call_conversation(&conversation_json) {
-                        error!(target: "conversation_validation_step", "🐔 Conversation validation failed: {}", e);
-                        context.set_status(StepStatus::Failed);
-                        return Ok(context);
-                    }
-                } else if let Some(_messages) = value.get("messages") {
-                    if let Err(e) = validate_function_call_conversation(&conversation_json) {
-                        error!(target: "conversation_validation_step", "🐔 Conversation validation failed: {}", e);
-                        context.set_status(StepStatus::Failed);
-                        return Ok(context);
-                    }
-                } else {
-                    error!(target: "conversation_validation_step", "🐔 Conversation does not contain 'conversation' or 'messages' field");
-                    context.set_status(StepStatus::Failed);
-                    return Ok(context);
-                }
-
-                Ok(context)
-            }
-            Err(e) => {
-                error!(target: "conversation_validation_step", "🐔 Failed to render instance: {}", e);
+        if let Some(_conv) = value.get("conversation") {
+            if let Err(e) = validate_function_call_conversation(value) {
+                error!(target: "conversation_validation_step", "🐔 Conversation validation failed: {}", e);
                 context.set_status(StepStatus::Failed);
-                Ok(context)
+                return Ok(context);
             }
+        } else if let Some(_messages) = value.get("messages") {
+            if let Err(e) = validate_tool_format_messages(value) {
+                error!(target: "conversation_validation_step", "🐔 Conversation validation failed: {}", e);
+                context.set_status(StepStatus::Failed);
+                return Ok(context);
+            }
+        } else {
+            error!(target: "conversation_validation_step", "🐔 Conversation does not contain 'conversation' or 'messages' field");
+            context.set_status(StepStatus::Failed);
+            return Ok(context);
         }
+
+        Ok(context)
     }
 }

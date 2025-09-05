@@ -383,9 +383,7 @@ pub fn normalize_tool(value: &Value) -> Result<Value> {
     Ok(Value::Object(out))
 }
 
-pub fn validate_function_call_conversation(value: &str) -> Result<()> {
-    let value = serde_json::from_str::<Value>(value)
-        .map_err(|_| anyhow!("🐔 conversation is not valid JSON"))?;
+pub fn validate_function_call_conversation(value: &Value) -> Result<()> {
     let obj = match value {
         Value::Object(m) => m,
         _ => return Err(anyhow!("🐔 conversation root must be a JSON object")),
@@ -574,9 +572,7 @@ pub fn validate_function_call_conversation(value: &str) -> Result<()> {
 
 /// Validate alternate conversation format that uses `role`, `content`, `tool_calls`, and `tools`.
 /// `value` is a JSON string for convenience (many callers produce string payloads).
-pub fn validate_tool_format_messages(value: &str) -> Result<()> {
-    let value = serde_json::from_str::<Value>(value)
-        .map_err(|_| anyhow!("🐔 messages is not valid JSON"))?;
+pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
     let obj = match value {
         Value::Object(m) => m,
         _ => return Err(anyhow!("🐔 messages root must be a JSON object")),
@@ -1025,7 +1021,7 @@ mod tests {
             ]
         });
 
-        validate_function_call_conversation(&v.to_string())?;
+        validate_function_call_conversation(&v)?;
         Ok(())
     }
 
@@ -1044,14 +1040,14 @@ mod tests {
             ]
         });
 
-        let res = validate_function_call_conversation(&v.to_string());
+        let res = validate_function_call_conversation(&v);
         assert!(res.is_err());
         Ok(())
     }
 
     #[tokio::test]
     async fn test_validate_tool_format_conversation_valid() -> Result<()> {
-        let s = r#"
+        let s = json!(
         {
             "messages": [
                         { "role": "user", "content": "Ile wyniesie indywidualna kwota napiwku...?" },
@@ -1070,24 +1066,24 @@ mod tests {
                         }
                     ]
                 }
-                "#;
+            );
 
-        validate_tool_format_messages(s)?;
+        validate_tool_format_messages(&s)?;
         Ok(())
     }
 
     #[tokio::test]
     async fn test_validate_tool_format_conversation_invalid_unknown_tool() -> Result<()> {
-        let s = r#"
-                {
-                    "messages": [
-                        { "role": "assistant", "tool_calls": [ { "function": { "name": "unknown_tool", "arguments": { } } } ] }
-                    ],
-                    "tools": []
-                }
-                "#;
+        let s = json!(
+            {
+                "messages": [
+                    { "role": "assistant", "tool_calls": [ { "function": { "name": "unknown_tool", "arguments": { } } } ] }
+                ],
+                "tools": []
+            }
+        );
 
-        let res = validate_tool_format_messages(s);
+        let res = validate_tool_format_messages(&s);
         assert!(res.is_err());
         Ok(())
     }

@@ -626,31 +626,18 @@ impl PipelineBuilder {
     pub fn add_validatetools_step(&mut self, name: String, instances: String) {
         info!("Added render step");
 
-        let instances_key = format!("validatetools_instance_{}_{}", name, instances);
-        self.templates.add(
-            instances_key.clone(),
-            format!("{{{{{}|tojson}}}}", instances.clone()),
-        );
         self.steps
             .push(StepType::ValidateTools(ToolsValidateStep::new(
-                name,
-                instances_key,
+                name, instances,
             )));
     }
 
     pub fn add_normalizetools_step(&mut self, name: String, instances: String, output: String) {
         info!("Added normalize tools step");
 
-        let instances_key = format!("normalizetools_instance_{}_{}", name, instances);
-        self.templates.add(
-            instances_key.clone(),
-            format!("{{{{{}|tojson}}}}", instances.clone()),
-        );
         self.steps
             .push(StepType::NormalizeTools(ToolsNormalizeStep::new(
-                name,
-                instances_key,
-                output,
+                name, instances, output,
             )));
     }
 
