@@ -56,10 +56,10 @@ def function_to_schema(func: callable, include_response: bool = False) -> BaseMo
     schema = normalize_schema(schema)
     schema.pop("title", None)
 
+    response_schema = None
     if include_response:
         # Detect if the function has a Pydantic return type and attach its schema
         return_type = func_params.get("return", sig.return_annotation)
-        response_schema = None
         try:
             if return_type is not inspect._empty and isinstance(return_type, type) and issubclass(return_type, BaseModel):
                 # pass the class; class_to_schema works with Pydantic classes

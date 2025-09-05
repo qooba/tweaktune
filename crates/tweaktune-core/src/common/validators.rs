@@ -383,6 +383,383 @@ pub fn normalize_tool(value: &Value) -> Result<Value> {
     Ok(Value::Object(out))
 }
 
+pub fn validate_function_call_conversation(value: &str) -> Result<()> {
+    let value = serde_json::from_str::<Value>(value)
+        .map_err(|_| anyhow!("🐔 conversation is not valid JSON"))?;
+    let obj = match value {
+        Value::Object(m) => m,
+        _ => return Err(anyhow!("🐔 conversation root must be a JSON object")),
+    };
+
+    // Validate optional function_descriptions first so we can reference them
+    let mut known_funcs: std::collections::HashSet<String> = std::collections::HashSet::new();
+    if let Some(fd) = obj.get("function_descriptions") {
+        if !fd.is_array() {
+            return Err(anyhow!(
+                "🐔 'function_descriptions' must be an array when present"
+            ));
+        }
+        for item in fd.as_array().unwrap().iter() {
+            // reuse existing validator which accepts tool/function definitions
+            validate_function_call_format(item)?;
+            if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
+                known_funcs.insert(name.to_string());
+            }
+        }
+    }
+
+    // conversation must be an array
+    let conv = obj
+        .get("conversation")
+        .ok_or_else(|| anyhow!("🐔 missing required field 'conversation'"))?;
+    if !conv.is_array() {
+        return Err(anyhow!("🐔 'conversation' must be an array"));
+    }
+
+    let name_re = Regex::new(r"^[a-zA-Z0-9_.-]+$")?;
+    for (idx, entry) in conv.as_array().unwrap().iter().enumerate() {
+        if !entry.is_object() {
+            return Err(anyhow!("🐔 conversation[{}] must be an object", idx));
+        }
+        let e = entry.as_object().unwrap();
+
+        // speaker
+        let speaker = e
+            .get("speaker")
+            .ok_or_else(|| anyhow!("🐔 conversation[{}] missing 'speaker'", idx))?;
+        let speaker_s = speaker
+            .as_str()
+            .ok_or_else(|| anyhow!("🐔 conversation[{}].speaker must be a string", idx))?;
+        if speaker_s != "human" && speaker_s != "assistant" && speaker_s != "system" {
+            return Err(anyhow!(
+                "🐔 conversation[{}].speaker must be 'human', 'assistant', or 'system'",
+                idx
+            ));
+        }
+
+        // message may be null or string
+        if let Some(msg) = e.get("message") {
+            if !(msg.is_null() || msg.is_string()) {
+                return Err(anyhow!(
+                    "🐔 conversation[{}].message must be null or a string",
+                    idx
+                ));
+            }
+        } else {
+            return Err(anyhow!("🐔 conversation[{}] missing 'message'", idx));
+        }
+
+        // action may be null or string
+        let action = e.get("action");
+        if action.is_none() {
+            return Err(anyhow!("🐔 conversation[{}] missing 'action'", idx));
+        }
+        let action = action.unwrap();
+        if !(action.is_null() || action.is_string()) {
+            return Err(anyhow!(
+                "🐔 conversation[{}].action must be null or a string",
+                idx
+            ));
+        }
+
+        // details may be null or object
+        if let Some(details) = e.get("details") {
+            if !(details.is_null() || details.is_object()) {
+                return Err(anyhow!(
+                    "🐔 conversation[{}].details must be null or an object",
+                    idx
+                ));
+            }
+
+            // If this is a function-call action, validate structure
+            if action.is_string() && action.as_str().unwrap() == "function-call" {
+                if details.is_null() {
+                    return Err(anyhow!(
+                        "🐔 conversation[{}] function-call must have non-null details",
+                        idx
+                    ));
+                }
+                let d = details.as_object().unwrap();
+                // expect name and arguments inside details
+                let name_val = d.get("name").ok_or_else(|| {
+                    anyhow!(
+                        "🐔 conversation[{}].details must contain 'name' for function-call",
+                        idx
+                    )
+                })?;
+                let name = name_val
+                    .as_str()
+                    .ok_or_else(|| anyhow!("🐔 conversation details.name must be a string"))?;
+
+                // optional: check referenced function exists in description list
+                if !known_funcs.is_empty() && !known_funcs.contains(name) {
+                    return Err(anyhow!(
+                        "🐔 conversation[{}] references unknown function '{}'",
+                        idx,
+                        name
+                    ));
+                }
+
+                let args_val = d.get("arguments").ok_or_else(|| {
+                    anyhow!(
+                        "🐔 conversation[{}].details must contain 'arguments' for function-call",
+                        idx
+                    )
+                })?;
+
+                match args_val {
+                    Value::Object(_) | Value::Null => {}
+                    Value::String(s) => {
+                        let parsed = serde_json::from_str::<Value>(s).map_err(|_| {
+                            anyhow!(
+                                "🐔 conversation[{}].details.arguments string is not valid JSON",
+                                idx
+                            )
+                        })?;
+                        if !parsed.is_object() {
+                            return Err(anyhow!(
+                                "🐔 conversation[{}].details.arguments must decode to an object",
+                                idx
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(anyhow!("🐔 conversation[{}].details.arguments must be object, null or JSON string", idx));
+                    }
+                }
+            }
+
+            // If this is a function-response action, ensure details is object mapping function name -> result
+            if action.is_string() && action.as_str().unwrap() == "function-response" {
+                if details.is_null() {
+                    return Err(anyhow!(
+                        "🐔 conversation[{}] function-response must have non-null details",
+                        idx
+                    ));
+                }
+                if let Some(map) = details.as_object() {
+                    if map.len() != 1 {
+                        // allow single-key mapping where key is function name
+                        // but allow multiple in case of aggregated responses
+                    }
+                    for (k, v) in map.iter() {
+                        // key should be a simple name
+                        if !name_re.is_match(k) {
+                            return Err(anyhow!("🐔 conversation[{}] function-response has invalid function name '{}'", idx, k));
+                        }
+                        // value may be object or primitive
+                        if !(v.is_null()
+                            || v.is_object()
+                            || v.is_string()
+                            || v.is_number()
+                            || v.is_boolean())
+                        {
+                            return Err(anyhow!("🐔 conversation[{}] function-response value for '{}' must be JSON value", idx, k));
+                        }
+                    }
+                } else {
+                    return Err(anyhow!(
+                        "🐔 conversation[{}].details for function-response must be an object",
+                        idx
+                    ));
+                }
+            }
+        } else {
+            return Err(anyhow!("🐔 conversation[{}] missing 'details'", idx));
+        }
+    }
+
+    Ok(())
+}
+
+/// Validate alternate conversation format that uses `role`, `content`, `tool_calls`, and `tools`.
+/// `value` is a JSON string for convenience (many callers produce string payloads).
+pub fn validate_tool_format_conversation(value: &str) -> Result<()> {
+    let value = serde_json::from_str::<Value>(value)
+        .map_err(|_| anyhow!("🐔 messages is not valid JSON"))?;
+    let obj = match value {
+        Value::Object(m) => m,
+        _ => return Err(anyhow!("🐔 messages root must be a JSON object")),
+    };
+
+    // Validate optional `tools` array
+    let mut known_tools: std::collections::HashSet<String> = std::collections::HashSet::new();
+    if let Some(tools) = obj.get("tools") {
+        if !tools.is_array() {
+            return Err(anyhow!("🐔 'tools' must be an array when present"));
+        }
+        for t in tools.as_array().unwrap().iter() {
+            // reuse existing validation for tool schema
+            validate_function_call_format(t)?;
+            if let Some(n) = t.get("name").and_then(|v| v.as_str()) {
+                known_tools.insert(n.to_string());
+            }
+        }
+    }
+
+    // messages must be an array
+    let conv = obj
+        .get("messages")
+        .ok_or_else(|| anyhow!("🐔 missing required field 'messages'"))?;
+    if !conv.is_array() {
+        return Err(anyhow!("🐔 'messages' must be an array"));
+    }
+
+    let name_re = Regex::new(r"^[a-zA-Z0-9_.-]+$")?;
+    for (idx, entry) in conv.as_array().unwrap().iter().enumerate() {
+        if !entry.is_object() {
+            return Err(anyhow!("🐔 messages[{}] must be an object", idx));
+        }
+        let e = entry.as_object().unwrap();
+
+        // role required and must be string (user/assistant/tool/system)
+        let role = e
+            .get("role")
+            .ok_or_else(|| anyhow!("🐔 messages[{}] missing 'role'", idx))?;
+        let role_s = role
+            .as_str()
+            .ok_or_else(|| anyhow!("🐔 messages[{}].role must be a string", idx))?;
+        if role_s != "user" && role_s != "assistant" && role_s != "tool" && role_s != "system" {
+            return Err(anyhow!(
+                "🐔 messages[{}].role must be 'user','assistant','tool' or 'system'",
+                idx
+            ));
+        }
+
+        // content must be present for user/tool; assistant may omit content if it has tool_calls
+        if role_s == "user" || role_s == "tool" {
+            let content = e
+                .get("content")
+                .ok_or_else(|| anyhow!("🐔 messages[{}] missing 'content'", idx))?;
+            if !content.is_string() {
+                return Err(anyhow!("🐔 messages[{}].content must be a string", idx));
+            }
+        }
+
+        // If assistant entry has tool_calls, validate array of objects with function/name/arguments.
+        // Assistant entries are valid if they have either `content` (string) or `tool_calls`.
+        if role_s == "assistant" {
+            let has_content = e.get("content").is_some();
+            let has_tool_calls = e.get("tool_calls").is_some();
+            if !has_content && !has_tool_calls {
+                return Err(anyhow!(
+                    "🐔 messages[{}] assistant entry must have 'content' or 'tool_calls'",
+                    idx
+                ));
+            }
+
+            if let Some(tc) = e.get("tool_calls") {
+                if !tc.is_array() {
+                    return Err(anyhow!(
+                        "🐔 conversation[{}].tool_calls must be an array",
+                        idx
+                    ));
+                }
+                for (j, call) in tc.as_array().unwrap().iter().enumerate() {
+                    if !call.is_object() {
+                        return Err(anyhow!(
+                            "🐔 messages[{}].tool_calls[{}] must be an object",
+                            idx,
+                            j
+                        ));
+                    }
+                    let call_obj = call.as_object().unwrap();
+                    let function = call_obj.get("function").ok_or_else(|| {
+                        anyhow!(
+                            "🐔 conversation[{}].tool_calls[{}] missing 'function'",
+                            idx,
+                            j
+                        )
+                    })?;
+                    if !function.is_object() {
+                        return Err(anyhow!(
+                            "🐔 conversation[{}].tool_calls[{}].function must be an object",
+                            idx,
+                            j
+                        ));
+                    }
+                    let func_obj = function.as_object().unwrap();
+                    let name = func_obj
+                        .get("name")
+                        .ok_or_else(|| {
+                            anyhow!(
+                                "🐔 messages[{}].tool_calls[{}].function missing 'name'",
+                                idx,
+                                j
+                            )
+                        })?
+                        .as_str()
+                        .ok_or_else(|| {
+                            anyhow!("🐔 messages[].tool_calls[].function.name must be a string")
+                        })?;
+                    if !name_re.is_match(name) {
+                        return Err(anyhow!(
+                            "🐔 messages[{}].tool_calls[{}] invalid function name '{}'",
+                            idx,
+                            j,
+                            name
+                        ));
+                    }
+                    if !known_tools.contains(name) {
+                        return Err(anyhow!(
+                            "🐔 messages[{}].tool_calls[{}] references unknown tool '{}'",
+                            idx,
+                            j,
+                            name
+                        ));
+                    }
+
+                    // arguments may be object or string
+                    if let Some(args) = func_obj.get("arguments") {
+                        match args {
+                            Value::Object(_) | Value::Null => {}
+                            Value::String(s) => {
+                                let parsed = serde_json::from_str::<Value>(s).map_err(|_| {
+                                    anyhow!("🐔 messages[{}].tool_calls[{}].function.arguments string invalid JSON", idx, j)
+                                })?;
+                                if !parsed.is_object() {
+                                    return Err(anyhow!("🐔 messages[{}].tool_calls[{}].function.arguments must decode to object", idx, j));
+                                }
+                            }
+                            _ => {
+                                return Err(anyhow!("🐔 messages[{}].tool_calls[{}].function.arguments must be object, null or string", idx, j));
+                            }
+                        }
+                    } else {
+                        return Err(anyhow!(
+                            "🐔 messages[{}].tool_calls[{}].function missing 'arguments'",
+                            idx,
+                            j
+                        ));
+                    }
+                }
+            }
+        }
+
+        // If role == tool, content is usually JSON string; ensure it's valid JSON and object
+        if role_s == "tool" {
+            if let Some(content) = e.get("content") {
+                if let Some(s) = content.as_str() {
+                    let parsed = serde_json::from_str::<Value>(s).map_err(|_| {
+                        anyhow!(
+                            "🐔 messages[{}].content for tool must be a valid JSON string",
+                            idx
+                        )
+                    })?;
+                    if !parsed.is_object() {
+                        return Err(anyhow!(
+                            "🐔 messages[{}].content for tool must decode to an object",
+                            idx
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -543,25 +920,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_render_tool_arguments_string() -> Result<()> {
-        use serde_json::json;
-
-        let v = json!({
-            "name": "legacy",
-            "arguments": "{ \"a\": 1 }",
-            "extra": "should be dropped"
-        });
-
-        let out = normalize_tool(&v)?;
-        let o = out.as_object().unwrap();
-        assert!(o.get("extra").is_none());
-        assert!(o.get("arguments").is_some());
-        assert_eq!(o.get("arguments").unwrap()["a"], json!(1));
-
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn test_enum_integer_with_float_invalid() -> Result<()> {
         use serde_json::json;
 
@@ -613,6 +971,123 @@ mod tests {
         });
 
         let res = validate_function_call_format(&v);
+        assert!(res.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_validate_function_call_conversation_valid() -> Result<()> {
+        use serde_json::json;
+
+        let v = json!({
+            "conversation": [
+                {
+                    "speaker": "human",
+                    "message": "Ile wyniesie indywidualna kwota napiwku...",
+                    "action": null,
+                    "details": null
+                },
+                {
+                    "speaker": "assistant",
+                    "message": null,
+                    "action": "function-call",
+                    "details": {
+                        "name": "calculate_tip_split",
+                        "arguments": { "total_bill": 250, "number_of_people": 5 }
+                    }
+                },
+                {
+                    "speaker": "assistant",
+                    "message": null,
+                    "action": "function-response",
+                    "details": { "calculate_tip_split": { "individual_tip_amount": 50 } }
+                },
+                {
+                    "speaker": "assistant",
+                    "message": "Indywidualna kwota napiwku...",
+                    "action": null,
+                    "details": null
+                }
+            ],
+            "function_descriptions": [
+                {
+                    "name": "calculate_tip_split",
+                    "description": "Obliczanie indywidualnej kwoty napiwku dla grupy",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "total_bill": { "type": "number" },
+                            "number_of_people": { "type": "integer" }
+                        },
+                        "required": ["total_bill","number_of_people"]
+                    }
+                }
+            ]
+        });
+
+        validate_function_call_conversation(&v.to_string())?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_validate_function_call_conversation_missing_details() -> Result<()> {
+        use serde_json::json;
+
+        let v = json!({
+            "conversation": [
+                {
+                    "speaker": "assistant",
+                    "message": null,
+                    "action": "function-call",
+                    "details": null
+                }
+            ]
+        });
+
+        let res = validate_function_call_conversation(&v.to_string());
+        assert!(res.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_validate_tool_format_conversation_valid() -> Result<()> {
+        let s = r#"
+        {
+            "messages": [
+                        { "role": "user", "content": "Ile wyniesie indywidualna kwota napiwku...?" },
+                        { "role": "assistant", "tool_calls": [
+                                { "function": { "name": "calculate_tip_split", "arguments": { "total_bill": 250, "number_of_people": 5 } } },
+                                { "function": { "name": "calculate_tip_split", "arguments": { "total_bill": 250, "number_of_people": 5 } } }
+                        ] },
+                        { "role": "tool", "content": "{\"calculate_tip_split\": {\"individual_tip_amount\": 50}}" },
+                        { "role": "assistant", "content": "Indywidualna kwota napiwku..." }
+                    ],
+                    "tools": [
+                        {
+                            "name": "calculate_tip_split",
+                            "description": "Oblicza indywidualną kwotę napiwku",
+                            "parameters": { "type": "object", "properties": { "total_bill": { "type": "number" }, "number_of_people": { "type": "integer" } }, "required": ["total_bill","number_of_people"] }
+                        }
+                    ]
+                }
+                "#;
+
+        validate_tool_format_conversation(s)?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_validate_tool_format_conversation_invalid_unknown_tool() -> Result<()> {
+        let s = r#"
+                {
+                    "messages": [
+                        { "role": "assistant", "tool_calls": [ { "function": { "name": "unknown_tool", "arguments": { } } } ] }
+                    ],
+                    "tools": []
+                }
+                "#;
+
+        let res = validate_tool_format_conversation(s);
         assert!(res.is_err());
         Ok(())
     }

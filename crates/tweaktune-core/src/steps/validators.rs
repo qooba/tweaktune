@@ -193,3 +193,58 @@ impl Step for ToolsNormalizeStep {
         }
     }
 }
+
+pub struct ConversationValidateStep {
+    pub name: String,
+    pub conversation: String,
+}
+
+impl ConversationValidateStep {
+    pub fn new(name: String, conversation: String) -> Self {
+        Self { name, conversation }
+    }
+}
+
+impl Step for ConversationValidateStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        let conversation_json =
+            templates.render(self.conversation.clone(), context.data.clone())?;
+
+        match serde_json::from_str::<Value>(&conversation_json) {
+            Ok(value) => {
+                let instances: Vec<Value> = match value {
+                    Value::Array(arr) => arr,
+                    other => vec![other],
+                };
+
+                // Validate each instance using the centralized validator. Fail on any error.
+                for inst in &instances {
+                    if let Err(e) = validate_function_call_format(inst) {
+                        error!(target: "tools_validation_step", "🐔 Tool instance failed validation: {} - error: {}", inst, e);
+                        context.set_status(StepStatus::Failed);
+                        return Ok(context);
+                    }
+                }
+
+                // All instances validated successfully; store them in context.
+                context.set(&self.name, instances);
+
+                Ok(context)
+            }
+            Err(e) => {
+                error!(target: "tools_validation_step", "🐔 Failed to render instance: {}", e);
+                context.set_status(StepStatus::Failed);
+                Ok(context)
+            }
+        }
+    }
+}
