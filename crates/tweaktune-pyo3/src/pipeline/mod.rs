@@ -20,7 +20,7 @@ use tweaktune_core::datasets::{
 };
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
-use tweaktune_core::steps::validators::ToolsValidateStep;
+use tweaktune_core::steps::validators::{ToolsNormalizeStep, ToolsValidateStep};
 use tweaktune_core::steps::{validators::ValidateJsonStep, ChunkStep, IfElseStep, RenderStep};
 use tweaktune_core::{
     common::OptionToResult,
@@ -619,6 +619,22 @@ impl PipelineBuilder {
             .push(StepType::ValidateTools(ToolsValidateStep::new(
                 name,
                 instances_key,
+            )));
+    }
+
+    pub fn add_normalizetools_step(&mut self, name: String, instances: String, output: String) {
+        info!("Added normalize tools step");
+
+        let instances_key = format!("normalizetools_instance_{}_{}", name, instances);
+        self.templates.add(
+            instances_key.clone(),
+            format!("{{{{{}|tojson}}}}", instances.clone()),
+        );
+        self.steps
+            .push(StepType::NormalizeTools(ToolsNormalizeStep::new(
+                name,
+                instances_key,
+                output,
             )));
     }
 
@@ -1271,6 +1287,17 @@ async fn process_steps(
             }
             StepType::ValidateTools(tools_validate_step) => {
                 context = tools_validate_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
+            StepType::NormalizeTools(tools_normalize_step) => {
+                context = tools_normalize_step
                     .process(
                         &pipeline.datasets.resources,
                         &pipeline.templates,

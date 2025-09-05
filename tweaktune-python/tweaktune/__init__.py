@@ -71,7 +71,7 @@ class Pipeline:
 
     def with_tools_dataset(self, name: str, tools: List[callable]):
         """Converts a list of functions to json schema and adds them to the pipeline."""
-        json_list = [function_to_json_schema(tool) for tool in tools]
+        json_list = [function_to_json_schema(tool, include_response=True) for tool in tools]
         self.builder.with_json_list_dataset(name, json_list, None)
         self.graph.config.datasets.append(config_item(name))
         return self
@@ -445,7 +445,7 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def sample_tool(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
+    def sample_tools(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
         self.builder.add_tool_sampler_step(self.__name(name), dataset, size, output)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
@@ -468,6 +468,13 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
+
+    def normalize_tools(self, instances: str, output: str, name: str = "NORMALIZE-TOOLS"):
+        self.builder.add_normalizetools_step(self.__name(name), instances, output)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
 
     def chunk(self, capacity: Tuple[int, int], input: str, output: str, name: str = "CHUNK"):
         self.builder.add_chunk_step(self.__name(name), capacity, input, output)

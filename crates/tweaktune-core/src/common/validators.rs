@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use regex::Regex;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 pub fn validate_function_call_format(value: &Value) -> Result<()> {
     // Accept both a "tool" definition (as in OpenAI function-calling tool schema)
@@ -315,10 +315,78 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
     Ok(())
 }
 
+pub fn normalize_tool(value: &Value) -> Result<Value> {
+    let obj = match value {
+        Value::Object(m) => m,
+        _ => return Err(anyhow!("🐔 function/tool must be a JSON object")),
+    };
+
+    // name is required and must be string
+    let name_val = obj
+        .get("name")
+        .ok_or_else(|| anyhow!("🐔 missing required field 'name'"))?;
+    let name = name_val
+        .as_str()
+        .ok_or_else(|| anyhow!("🐔 'name' must be a string"))?;
+
+    // Start building canonical object
+    let mut out = serde_json::Map::new();
+    out.insert("name".to_string(), Value::String(name.to_string()));
+
+    // optional description
+    if let Some(d) = obj.get("description") {
+        if d.is_string() {
+            out.insert(
+                "description".to_string(),
+                Value::String(d.as_str().unwrap().to_string()),
+            );
+        }
+    }
+
+    // If parameters present and is object or string-encoded object, keep it as object
+    if let Some(params) = obj.get("parameters") {
+        if params.is_object() {
+            if let Some(props) = params.get("properties") {
+                if props.is_string() {
+                    // If properties is a string, try to parse it as JSON
+                    let parsed =
+                        serde_json::from_str::<Value>(props.as_str().unwrap()).map_err(|_| {
+                            anyhow!("🐔 'parameters.properties' string is not valid JSON")
+                        })?;
+                    if !parsed.is_object() {
+                        return Err(anyhow!(
+                            "🐔 'parameters.properties' string must decode to a JSON object"
+                        ));
+                    }
+                    let mut new_params = params.clone();
+
+                    if let Some(o) = new_params.as_object_mut() {
+                        o.insert("properties".to_string(), parsed.clone());
+                    }
+
+                    out.insert("parameters".to_string(), new_params);
+                } else {
+                    out.insert("parameters".to_string(), params.clone());
+                }
+            } else {
+                out.insert("parameters".to_string(), params.clone());
+            }
+        } else if params.is_string() {
+            if let Ok(parsed) = serde_json::from_str::<Value>(params.as_str().unwrap()) {
+                if parsed.is_object() {
+                    out.insert("parameters".to_string(), parsed);
+                }
+            }
+        }
+    }
+
+    Ok(Value::Object(out))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::*;
+    // use crate::common::*; // not used in these tests
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -447,6 +515,49 @@ mod tests {
         });
 
         validate_function_call_format(&v)?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_render_tool_basic() -> Result<()> {
+        use serde_json::json;
+
+        let v = json!({
+            "name": "do_thing",
+            "description": "Does a thing",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x": { "type": "integer" }
+                }
+            }
+        });
+
+        let out = normalize_tool(&v)?;
+        assert!(out.is_object());
+        let o = out.as_object().unwrap();
+        assert_eq!(o.get("name").and_then(|v| v.as_str()), Some("do_thing"));
+        assert!(o.get("parameters").is_some());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_render_tool_arguments_string() -> Result<()> {
+        use serde_json::json;
+
+        let v = json!({
+            "name": "legacy",
+            "arguments": "{ \"a\": 1 }",
+            "extra": "should be dropped"
+        });
+
+        let out = normalize_tool(&v)?;
+        let o = out.as_object().unwrap();
+        assert!(o.get("extra").is_none());
+        assert!(o.get("arguments").is_some());
+        assert_eq!(o.get("arguments").unwrap()["a"], json!(1));
+
         Ok(())
     }
 

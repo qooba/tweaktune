@@ -1,4 +1,4 @@
-use crate::common::validators::validate_function_call_format;
+use crate::common::validators::{normalize_tool, validate_function_call_format};
 use crate::{
     datasets::DatasetType,
     embeddings::{self},
@@ -124,6 +124,69 @@ impl Step for ToolsValidateStep {
             }
             Err(e) => {
                 error!(target: "tools_validation_step", "🐔 Failed to render instance: {}", e);
+                context.set_status(StepStatus::Failed);
+                Ok(context)
+            }
+        }
+    }
+}
+
+pub struct ToolsNormalizeStep {
+    pub name: String,
+    pub instances: String,
+    pub output: String,
+}
+
+impl ToolsNormalizeStep {
+    pub fn new(name: String, instances: String, output: String) -> Self {
+        Self {
+            name,
+            instances,
+            output,
+        }
+    }
+}
+
+impl Step for ToolsNormalizeStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        let instance_json = templates.render(self.instances.clone(), context.data.clone())?;
+
+        match serde_json::from_str::<Value>(&instance_json) {
+            Ok(value) => {
+                let instances: Vec<Value> = match value {
+                    Value::Array(arr) => arr,
+                    other => vec![other],
+                };
+
+                // Validate each instance using the centralized validator. Fail on any error.
+                let mut normalized: Vec<Value> = Vec::new();
+                for inst in &instances {
+                    match normalize_tool(inst) {
+                        Ok(norm) => normalized.push(norm),
+                        Err(e) => {
+                            error!(target: "tools_normalize_step", "🐔 Tool instance failed normalization: {} - error: {}", inst, e);
+                            context.set_status(StepStatus::Failed);
+                            return Ok(context);
+                        }
+                    }
+                }
+                let instances = normalized;
+
+                context.set(&self.output, instances);
+
+                Ok(context)
+            }
+            Err(e) => {
+                error!(target: "tools_normalize_step", "🐔 Failed to render instance: {}", e);
                 context.set_status(StepStatus::Failed);
                 Ok(context)
             }
