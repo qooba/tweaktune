@@ -20,7 +20,10 @@ use tweaktune_core::datasets::{
 };
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
-use tweaktune_core::steps::validators::{ToolsNormalizeStep, ToolsValidateStep};
+use tweaktune_core::steps::validators::{
+    ConversationValidateStep, ToolsNormalizeStep, ToolsValidateStep,
+};
+use tweaktune_core::steps::IntoListStep;
 use tweaktune_core::steps::{validators::ValidateJsonStep, ChunkStep, IfElseStep, RenderStep};
 use tweaktune_core::{
     common::OptionToResult,
@@ -417,6 +420,19 @@ impl PipelineBuilder {
         info!("Added Python validator step: {}", &name);
         self.steps
             .push(StepType::PyValidator(PyValidator::new(name, py_func)));
+    }
+
+    pub fn add_into_list_step(&mut self, name: String, inputs: Vec<String>, output: String) {
+        info!("Added IntoList step: {}", &name);
+        self.steps
+            .push(StepType::IntoList(IntoListStep::new(name, inputs, output)));
+    }
+
+    pub fn add_validate_conversation_step(&mut self, name: String, conversation: String) {
+        info!("Added conversation validation step: {}", &name);
+        self.steps.push(StepType::ConversationValidate(
+            ConversationValidateStep::new(name, conversation),
+        ));
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1298,6 +1314,28 @@ async fn process_steps(
             }
             StepType::NormalizeTools(tools_normalize_step) => {
                 context = tools_normalize_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
+            StepType::ConversationValidate(conversation_validate_step) => {
+                context = conversation_validate_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
+            StepType::IntoList(into_list_step) => {
+                context = into_list_step
                     .process(
                         &pipeline.datasets.resources,
                         &pipeline.templates,

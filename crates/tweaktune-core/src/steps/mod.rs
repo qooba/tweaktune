@@ -10,7 +10,9 @@ use crate::{
     steps::{
         generators::{JsonGenerationStep, TextGenerationStep},
         py::{PyStep, PyValidator},
-        validators::{ToolsNormalizeStep, ToolsValidateStep, ValidateJsonStep},
+        validators::{
+            ConversationValidateStep, ToolsNormalizeStep, ToolsValidateStep, ValidateJsonStep,
+        },
         writers::{CsvWriterStep, JsonlWriterStep},
     },
     templates::Templates,
@@ -97,6 +99,8 @@ pub enum StepType {
     ValidateJson(ValidateJsonStep),
     ValidateTools(ToolsValidateStep),
     NormalizeTools(ToolsNormalizeStep),
+    ConversationValidate(ConversationValidateStep),
+    IntoList(IntoListStep),
 }
 
 pub struct IfElseStep {
@@ -387,6 +391,42 @@ impl Step for ChunkStep {
             .collect();
 
         context.set(&self.output, chunks);
+        Ok(context)
+    }
+}
+
+pub struct IntoListStep {
+    pub name: String,
+    pub inputs: Vec<String>,
+    pub output: String,
+}
+
+impl IntoListStep {
+    pub fn new(name: String, inputs: Vec<String>, output: String) -> Self {
+        Self {
+            name,
+            inputs,
+            output,
+        }
+    }
+}
+
+impl Step for IntoListStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+        let list = self
+            .inputs
+            .iter()
+            .map(|input| context.get(input).cloned().expect("🐔 Input not found"))
+            .collect::<Vec<serde_json::Value>>();
+        context.set(&self.output, list);
         Ok(context)
     }
 }

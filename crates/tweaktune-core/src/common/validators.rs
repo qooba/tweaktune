@@ -574,7 +574,7 @@ pub fn validate_function_call_conversation(value: &str) -> Result<()> {
 
 /// Validate alternate conversation format that uses `role`, `content`, `tool_calls`, and `tools`.
 /// `value` is a JSON string for convenience (many callers produce string payloads).
-pub fn validate_tool_format_conversation(value: &str) -> Result<()> {
+pub fn validate_tool_format_messages(value: &str) -> Result<()> {
     let value = serde_json::from_str::<Value>(value)
         .map_err(|_| anyhow!("🐔 messages is not valid JSON"))?;
     let obj = match value {
@@ -1072,7 +1072,7 @@ mod tests {
                 }
                 "#;
 
-        validate_tool_format_conversation(s)?;
+        validate_tool_format_messages(s)?;
         Ok(())
     }
 
@@ -1087,7 +1087,7 @@ mod tests {
                 }
                 "#;
 
-        let res = validate_tool_format_conversation(s);
+        let res = validate_tool_format_messages(s);
         assert!(res.is_err());
         Ok(())
     }
