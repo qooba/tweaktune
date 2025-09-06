@@ -31,4 +31,4 @@ serde_json = { workspace = true }
 simplelog = { workspace = true }
 # pyo3-async = { version = "0.3.2" }
 tokio = { workspace = true }
-comfy-table = "6"
+comfy-table = { workspace = true }
