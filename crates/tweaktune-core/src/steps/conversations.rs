@@ -195,7 +195,7 @@ impl Step for RenderConversationStep {
             json!({ "messages": conversations_steps })
         };
 
-        context.set(&self.output, rendered);
+        context.set(&self.output, rendered.to_string());
         Ok(context)
     }
 }
