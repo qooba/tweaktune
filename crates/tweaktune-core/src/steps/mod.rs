@@ -1,3 +1,4 @@
+pub mod conversations;
 pub mod generators;
 pub mod py;
 pub mod validators;
