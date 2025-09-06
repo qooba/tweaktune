@@ -734,10 +734,7 @@ struct OpenApiProperty {
 
 #[cfg(test)]
 mod tests {
-    use crate::datasets::OpenApiDataset;
     use anyhow::Result;
-    use rand::seq::SliceRandom;
-    use rand::thread_rng;
     // use serde_json;
 
     #[test]

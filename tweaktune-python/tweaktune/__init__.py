@@ -474,6 +474,13 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
+    
+    def into_list(self, inputs: List[str], output: str, name: str = "INTO-LIST"):
+        self.builder.add_into_list_step(self.__name(name), inputs, output)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
 
 
     def chunk(self, capacity: Tuple[int, int], input: str, output: str, name: str = "CHUNK"):

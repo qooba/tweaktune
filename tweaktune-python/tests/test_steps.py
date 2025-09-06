@@ -217,3 +217,24 @@ def test_step_ifelse_else(request, output_dir, data_dir, arrow_dataset):
         assert item["my_1"] == 1
         assert item["my_then"] is False
         assert item["my_else"] is True
+
+def test_step_into_list(request, output_dir, data_dir, arrow_dataset):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline()
+        .with_workers(1)
+        .with_arrow_dataset("items", arrow_dataset())
+        .with_template("output", """{"my_list": {{my_list|tojson}} }""")
+    .iter_range(10)
+        .add_column("item_1", lambda data: 1)
+        .add_column("item_2", lambda data: 2)
+        .into_list(inputs=["item_1", "item_2"], output="my_list")
+        .write_jsonl(path=output_file, template="output")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    item = json.loads(lines[0])
+    assert len(lines) == 10
+    assert "my_list" in item
+    assert item["my_list"] == [1, 2]
