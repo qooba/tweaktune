@@ -354,6 +354,7 @@ class PipelineRunner:
         self.builder = builder
         self.step_index = 0
         self.graph = graph if graph else Graph()
+        self.logger = False
 
     def __name(self, name: str):
         return f"{name}--{self.step_index}"
@@ -456,6 +457,12 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
+
+    def render_conversation(self, conversation: str, tools: Optional[str] = None, output: str = "conversation", name: str = "RENDER-CONVERSATION"):   
+        self.builder.add_render_conversation_step(self.__name(name), conversation, tools, output)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
     
     def validate_json(self, schema: str, instance: str, name: str = "VALIDATE-JSON"):
         self.builder.add_validatejson_step(self.__name(name), schema, instance)
@@ -541,9 +548,14 @@ class PipelineRunner:
     def log(self, level: str = LogLevel.ERROR.value, target: str = None):
         file = os.path.splitext(os.path.basename(sys.argv[0]))[0]
         self.builder.log(level, target, file)
+        self.logger = True
         return self
     
     def run(self):
+        if not self.logger:
+            self.log(LogLevel.ERROR.value, None)
+            self.logger = True
+
         self.builder.compile()
         return self.builder.run()
     

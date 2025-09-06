@@ -161,6 +161,40 @@ def test_step_render(request, output_dir):
     assert "hello" in line
     assert line["hello"] == "HELLO WORLD"
     assert len(lines) == number
+
+def test_step_render_conversation(request, output_dir):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+    
+    conversation_template = """@system:
+    {"role": "system", "content": "You are a helpful assistant."}
+    {"role": "user", "content": "Hello, who won the world series in 2020?"}
+    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."}
+    {"role": "user", "content": "Where was it played?"}
+    """
+
+    tools_template = """
+    [
+        {"name": "get_current_weather", "description": "Get the current weather in a given location"},
+        {"name": "get_news", "description": "Get the latest news headlines"}
+    ]
+    """
+
+    (Pipeline()
+        .with_workers(1)
+        .iter_range(1)
+        .add_column("system", lambda data: "You are a helpful assistant.")
+        .add_column("question", lambda data: "Hello, who won the world series in 2020?")
+        .add_column("call1", lambda data: "{ \"name\": \"get_who_won\", \"arguments\": { \"year\": 2020 } }")
+        .add_column("response", lambda data: "{\"winner\": \"Los Angeles Dodgers\", \"year\": 2020}")
+        .add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
+        .render_conversation(conversation="@system:system|@user:question|@assistant:tool_calls([call1])|@tool:response|@assistant:answer", output="conversation")
+        .write_jsonl(path=output_file, value="conversation")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    print("LINES !!!!!!!!!!!!!!!!!!!!!!1:", lines)
+    assert len(lines) == 1
     
 def test_step_ifelse_then(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""

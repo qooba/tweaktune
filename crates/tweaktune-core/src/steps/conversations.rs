@@ -31,24 +31,28 @@ impl RenderConversationStep {
         }
 
         let role = conv_step[0];
-        if role != "user" && role != "assistant" && role != "system" && role != "tool" {
+        if role != "@user"
+            && role != "@assistant"
+            && role != "@system"
+            && role != "@tool"
+            && role != "@u"
+            && role != "@a"
+            && role != "@s"
+            && role != "@t"
+        {
             anyhow::bail!("Invalid role in conversation step: {}, allowed roles are: user, assistant, system, tool", role);
         }
 
-        Ok(if role == "user" {
+        Ok(if role == "@user" || role == "@u" {
             let value = context
                 .get(conv_step[1])
                 .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", conv_step[1]))?;
 
             json!({
                 "role": "user",
-                "content": value.to_string()
+                "content": value
             })
-        } else if role == "assistant" {
-            let value = context
-                .get(conv_step[1])
-                .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", conv_step[1]))?;
-
+        } else if role == "@assistant" || role == "@a" {
             // handle assistant special forms: tool_calls([...]) and think(...)
             if conv_step[1].starts_with("tool_calls(") {
                 // extract inside of parentheses
@@ -97,10 +101,10 @@ impl RenderConversationStep {
                             } else if v.get("name").is_some() {
                                 json!({ "function": v })
                             } else {
-                                json!({ "function": { "name": v.to_string() } })
+                                json!({ "function": { "name": v } })
                             }
                         }
-                        other => json!({ "function": { "name": other.to_string() } }),
+                        other => json!({ "function": { "name": other } }),
                     };
 
                     calls.push(call_obj);
@@ -126,29 +130,33 @@ impl RenderConversationStep {
                     "role": "assistant",
                     "reasoning_content": val
                 }));
+            } else {
+                let value = context
+                    .get(conv_step[1])
+                    .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", conv_step[1]))?
+                    .clone();
+                return Ok(json!({
+                    "role": "assistant",
+                    "content": value
+                }));
             }
-
-            json!({
-                "role": "assistant",
-                "content": value.to_string()
-            })
-        } else if role == "tool" {
+        } else if role == "@tool" || role == "@t" {
             let value = context
                 .get(conv_step[1])
                 .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", conv_step[1]))?;
 
             json!({
                 "role": "tool",
-                "content": value.to_string()
+                "content": value
             })
-        } else if role == "system" {
+        } else if role == "@system" || role == "@s" {
             let value = context
                 .get(conv_step[1])
                 .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", conv_step[1]))?;
 
             json!({
                 "role": "system",
-                "content": value.to_string()
+                "content": value
             })
         } else {
             anyhow::bail!("Invalid role in conversation step: {}", role);

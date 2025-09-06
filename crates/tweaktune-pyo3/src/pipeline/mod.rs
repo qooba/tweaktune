@@ -1,5 +1,5 @@
 use crate::common::ResultExt;
-use crate::logging::{BusEvent, ChannelWriter};
+use crate::logging::{BusEvent, ChannelWriter, LogsCollector};
 use anyhow::{bail, Result};
 use chrono::Local;
 use futures::stream::{self, StreamExt};
@@ -20,6 +20,7 @@ use tweaktune_core::datasets::{
 };
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
+use tweaktune_core::steps::conversations::RenderConversationStep;
 use tweaktune_core::steps::validators::{
     ConversationValidateStep, ToolsNormalizeStep, ToolsValidateStep,
 };
@@ -49,6 +50,7 @@ pub struct PipelineBuilder {
     steps: Vec<StepType>,
     iter_by: IterBy,
     running: Arc<AtomicBool>,
+    logs_collector: Arc<LogsCollector>,
 }
 
 #[pymethods]
@@ -74,6 +76,7 @@ impl PipelineBuilder {
                 step: 1,
             },
             running: Arc::new(AtomicBool::new(false)),
+            logs_collector: Arc::new(LogsCollector::new()),
         }
     }
 
@@ -602,6 +605,23 @@ impl PipelineBuilder {
             .push(StepType::Render(RenderStep::new(name, template, output)));
     }
 
+    pub fn add_render_conversation_step(
+        &mut self,
+        name: String,
+        conversation: String,
+        tools: Option<String>,
+        output: String,
+    ) {
+        info!("Added render conversation step");
+        self.steps
+            .push(StepType::RenderConversation(RenderConversationStep::new(
+                name,
+                conversation,
+                tools,
+                output,
+            )));
+    }
+
     pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
         info!("Added render step");
 
@@ -655,19 +675,6 @@ impl PipelineBuilder {
             _ => log::LevelFilter::Info,
         };
 
-        create_dir_all(".tweaktune").unwrap();
-
-        let now = Local::now();
-        let filename = if let Some(f) = file {
-            format!(
-                ".tweaktune/log_{}_{}.log",
-                f,
-                now.format("%Y-%m-%d_%H-%M-%S")
-            )
-        } else {
-            format!(".tweaktune/log_{}.log", now.format("%Y-%m-%d_%H-%M-%S"))
-        };
-
         let config = ConfigBuilder::new()
             .set_level_color(Level::Error, Some(Color::Rgb(191, 0, 0)))
             .set_level_color(Level::Warn, Some(Color::Rgb(255, 127, 0)))
@@ -676,14 +683,33 @@ impl PipelineBuilder {
             .set_level_color(Level::Trace, Some(Color::Rgb(127, 127, 255)))
             .build();
 
-        CombinedLogger::init(vec![WriteLogger::new(
-            level,
-            config,
-            File::create(&filename).unwrap(),
-        )])
-        .unwrap();
+        if level == log::LevelFilter::Error {
+            CombinedLogger::init(vec![
+                Box::new((*self.logs_collector).clone()) as Box<dyn simplelog::SharedLogger>
+            ])
+            .unwrap();
+        } else {
+            create_dir_all(".tweaktune").unwrap();
 
-        println!("📑 LOGGING INTO FILE {}", &filename);
+            let now = Local::now();
+            let filename = if let Some(f) = file {
+                format!(
+                    ".tweaktune/log_{}_{}.log",
+                    f,
+                    now.format("%Y-%m-%d_%H-%M-%S")
+                )
+            } else {
+                format!(".tweaktune/log_{}.log", now.format("%Y-%m-%d_%H-%M-%S"))
+            };
+
+            CombinedLogger::init(vec![
+                WriteLogger::new(level, config.clone(), File::create(&filename).unwrap()),
+                Box::new((*self.logs_collector).clone()) as Box<dyn simplelog::SharedLogger>,
+            ])
+            .unwrap();
+
+            println!("📑 LOGGING INTO FILE {}", &filename);
+        }
 
         // env_logger::builder().filter(target, level).init();
     }
@@ -1087,6 +1113,8 @@ impl PipelineBuilder {
             Ok::<_, anyhow::Error>(())
         });
 
+        println!("{}", self.logs_collector.summary_table());
+
         result.map_pyerr()
     }
 }
@@ -1323,6 +1351,17 @@ async fn process_steps(
             }
             StepType::IntoList(into_list_step) => {
                 context = into_list_step
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }
+            StepType::RenderConversation(render_conversation_step) => {
+                context = render_conversation_step
                     .process(
                         &pipeline.datasets.resources,
                         &pipeline.templates,

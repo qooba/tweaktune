@@ -9,6 +9,7 @@ use crate::{
     embeddings::{self, EmbeddingsType},
     llms::{self, LLMType},
     steps::{
+        conversations::RenderConversationStep,
         generators::{JsonGenerationStep, TextGenerationStep},
         py::{PyStep, PyValidator},
         validators::{
@@ -102,6 +103,7 @@ pub enum StepType {
     NormalizeTools(ToolsNormalizeStep),
     ConversationValidate(ConversationValidateStep),
     IntoList(IntoListStep),
+    RenderConversation(RenderConversationStep),
 }
 
 pub struct IfElseStep {
