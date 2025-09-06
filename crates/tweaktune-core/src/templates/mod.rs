@@ -1,3 +1,4 @@
+pub mod embed;
 use crate::common::{OptionToResult, ResultExt};
 use crate::readers::build_reader;
 use crate::steps::StepContextData;
