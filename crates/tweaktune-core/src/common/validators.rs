@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use regex::Regex;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 pub fn validate_function_call_format(value: &Value) -> Result<()> {
     // Accept both a "tool" definition (as in OpenAI function-calling tool schema)
@@ -761,6 +761,7 @@ mod tests {
     use super::*;
     // use crate::common::*; // not used in these tests
     use serde::{Deserialize, Serialize};
+    use serde_json::json;
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
     struct Person {
