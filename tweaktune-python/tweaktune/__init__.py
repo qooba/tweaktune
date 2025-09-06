@@ -468,6 +468,12 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
+    
+    def validate_conversation(self, instances: str, name: str = "VALIDATE-CONVERSATION"):
+        self.builder.add_validateconversation_step(self.__name(name), instances)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
 
     def normalize_tools(self, instances: str, output: str, name: str = "NORMALIZE-TOOLS"):
         self.builder.add_normalizetools_step(self.__name(name), instances, output)
