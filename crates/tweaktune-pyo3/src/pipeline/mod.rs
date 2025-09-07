@@ -684,10 +684,11 @@ impl PipelineBuilder {
             .build();
 
         if level == log::LevelFilter::Error {
-            CombinedLogger::init(vec![
+            if let Err(e) = CombinedLogger::init(vec![
                 Box::new((*self.logs_collector).clone()) as Box<dyn simplelog::SharedLogger>
-            ])
-            .unwrap();
+            ]) {
+                info!("Initialize logger issue: {}", e);
+            }
         } else {
             create_dir_all(".tweaktune").unwrap();
 
@@ -702,13 +703,14 @@ impl PipelineBuilder {
                 format!(".tweaktune/log_{}.log", now.format("%Y-%m-%d_%H-%M-%S"))
             };
 
-            CombinedLogger::init(vec![
+            if let Err(e) = CombinedLogger::init(vec![
                 WriteLogger::new(level, config.clone(), File::create(&filename).unwrap()),
                 Box::new((*self.logs_collector).clone()) as Box<dyn simplelog::SharedLogger>,
-            ])
-            .unwrap();
-
-            println!("📑 LOGGING INTO FILE {}", &filename);
+            ]) {
+                info!("Initialize logger issue: {}", e);
+            } else {
+                println!("📑 LOGGING INTO FILE {}", &filename);
+            }
         }
 
         // env_logger::builder().filter(target, level).init();
