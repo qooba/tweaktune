@@ -6,7 +6,6 @@ use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, error, info};
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
-use serde::de;
 use serde_json::json;
 use simplelog::*;
 use std::fs::{create_dir_all, File};
@@ -606,12 +605,14 @@ impl PipelineBuilder {
             .push(StepType::Render(RenderStep::new(name, template, output)));
     }
 
+    #[pyo3(signature = (name, conversation, output, tools=None, separator=None))]
     pub fn add_render_conversation_step(
         &mut self,
         name: String,
         conversation: String,
-        tools: Option<String>,
         output: String,
+        tools: Option<String>,
+        separator: Option<String>,
     ) {
         debug!("Added render conversation step");
         self.steps
@@ -619,6 +620,7 @@ impl PipelineBuilder {
                 name,
                 conversation,
                 tools,
+                separator,
                 output,
             )));
     }

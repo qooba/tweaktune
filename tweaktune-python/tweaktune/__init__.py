@@ -458,8 +458,8 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def render_conversation(self, conversation: str, tools: Optional[str] = None, output: str = "conversation", name: str = "RENDER-CONVERSATION"):   
-        self.builder.add_render_conversation_step(self.__name(name), conversation, tools, output)
+    def render_conversation(self, conversation: str, output: str, tools: Optional[str] = None, separator: Optional[str] = "|", name: str = "RENDER-CONVERSATION"):   
+        self.builder.add_render_conversation_step(self.__name(name), conversation, output, tools, separator)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self

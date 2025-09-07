@@ -2,7 +2,7 @@ use crate::{
     common::validators::validate_tool_format_messages,
     datasets::DatasetType,
     embeddings, llms,
-    steps::{Step, StepContext, StepStatus},
+    steps::{self, Step, StepContext, StepStatus},
     templates::Templates,
 };
 use anyhow::Result;
@@ -14,22 +14,37 @@ pub struct RenderConversationStep {
     pub name: String,
     pub conversation: String,
     pub tools: Option<String>,
+    pub separator: String,
     pub output: String,
 }
 
 impl RenderConversationStep {
-    pub fn new(name: String, conversation: String, tools: Option<String>, output: String) -> Self {
+    pub fn new(
+        name: String,
+        conversation: String,
+        tools: Option<String>,
+        separator: Option<String>,
+        output: String,
+    ) -> Self {
+        let separator = separator.unwrap_or_else(|| "|".to_string());
+        if separator == "@" {
+            error!(target: "conversation_step", "🐔 The separator '@' is not allowed as it conflicts with role prefixes. Using '|' instead.");
+        }
         Self {
             name,
             conversation,
             tools,
+            separator,
             output,
         }
     }
 
     fn parse_step(&self, conv_step: Vec<&str>, context: &StepContext) -> Result<Value> {
         if conv_step.len() != 2 {
-            anyhow::bail!("Invalid conversation step format");
+            anyhow::bail!(
+                "Invalid conversation step format for step: {:?}, expected format: @role:key",
+                conv_step
+            );
         }
 
         let role = conv_step[0];
@@ -177,9 +192,15 @@ impl Step for RenderConversationStep {
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
-        let conversations_steps = self
-            .conversation
-            .split("|")
+        let conversation = self.conversation.trim();
+        let conversation = if self.separator != "\n" {
+            conversation.replace("\n", "")
+        } else {
+            conversation.to_string()
+        };
+
+        let conversations_steps = conversation
+            .split(self.separator.as_str())
             .map(|s| {
                 self.parse_step(
                     s.split(":").map(|s| s.trim()).collect::<Vec<&str>>(),

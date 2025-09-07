@@ -189,7 +189,8 @@ def test_step_render_conversation(request, output_dir):
         .add_column("response", lambda data: "{\"winner\": \"Los Angeles Dodgers\", \"year\": 2020}")
         .add_column("thinking", lambda data: "I should look up who won the world series in 2020.")
         .add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
-        .render_conversation(conversation="@system:system|@user:question|@assistant:tool_calls([call1])|@tool:response|@a:think(thinking)|@assistant:answer", output="conversation")
+        .render_conversation(conversation="""@system:system|@user:question|@assistant:tool_calls([call1])|@tool:response|@assistant:think(thinking)|@assistant:answer
+            """, output="conversation")
         .write_jsonl(path=output_file, value="conversation")
     .run())
 
@@ -236,7 +237,13 @@ def test_step_render_conversation_aliases(request, output_dir):
         .add_column("call1", lambda data: "{ \"name\": \"get_who_won\", \"arguments\": { \"year\": 2020 } }")
         .add_column("response", lambda data: "{\"winner\": \"Los Angeles Dodgers\", \"year\": 2020}")
         .add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
-        .render_conversation(conversation="@s:system|@u:question|@a:tool_calls([call1])|@t:response|@a:answer", output="conversation")
+        .render_conversation(conversation="""
+            @s:system
+            @u:question
+            @a:tool_calls([call1])
+            @t:response
+            @a:answer
+        """, output="conversation", separator="\n")
         .write_jsonl(path=output_file, value="conversation")
     .run())
 
