@@ -198,7 +198,6 @@ def test_step_render_conversation(request, output_dir):
     assert len(lines) == 1
     line = json.loads(lines[0])
     messages = line["messages"]
-    print("LINE:", line)
     assert messages[0]["role"] == "system"
     assert messages[0]["content"] == "You are a helpful assistant."
     assert messages[1]["role"] == "user"
@@ -253,7 +252,6 @@ def test_step_render_conversation_aliases(request, output_dir):
     assert len(lines) == 1
     line = json.loads(lines[0])
     messages = line["messages"]
-    print("LINE:", line)
     assert messages[0]["role"] == "system"
     assert messages[0]["content"] == "You are a helpful assistant."
     assert messages[1]["role"] == "user"
