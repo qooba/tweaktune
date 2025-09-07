@@ -832,9 +832,10 @@ impl PipelineBuilder {
 
                     let dataset = self.datasets.get(name).ok_or_err(name)?;
                     let mut inc = 0;
-                    match dataset {
-                        DatasetType::Jsonl(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row| {
+                    // macros to reduce duplicated iteration logic for datasets
+                    macro_rules! process_dataset {
+                        ($dataset:expr) => {{
+                            let iter_results = stream::iter($dataset.stream()?.map(|json_row| {
                                 let bar = &bar;
                                 let sender = sender.clone();
                                 process_progress_bar(bar, &self.running);
@@ -864,244 +865,13 @@ impl PipelineBuilder {
                                     bail!(e)
                                 }
                             }
-                        }
+                        }};
+                    }
 
-                        DatasetType::Json(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row| {
-                                let bar = &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-
-                                let value = successfull_iterations.clone();
-                                async move {
-                                    if let Err(e) =
-                                        map_record_batches(self, name, &json_row.unwrap()).await
-                                    {
-                                        return Err(format!(
-                                            "Error processing step: {} - {}",
-                                            name, e
-                                        ));
-                                    } else {
-                                        value.fetch_add(1, Ordering::SeqCst);
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                                }
-                            }))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        }
-
-                        DatasetType::JsonList(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row| {
-                                let bar = &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-
-                                let value = successfull_iterations.clone();
-                                async move {
-                                    if let Err(e) =
-                                        map_record_batches(self, name, &json_row.unwrap()).await
-                                    {
-                                        return Err(format!(
-                                            "Error processing step: {} - {}",
-                                            name, e
-                                        ));
-                                    } else {
-                                        value.fetch_add(1, Ordering::SeqCst);
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                                }
-                            }))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        }
-
-                        DatasetType::OpenApi(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row| {
-                                let bar = &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                let value = successfull_iterations.clone();
-                                async move {
-                                    if let Err(e) =
-                                        map_record_batches(self, name, &json_row.unwrap()).await
-                                    {
-                                        return Err(format!(
-                                            "Error processing step: {} - {}",
-                                            name, e
-                                        ));
-                                    } else {
-                                        value.fetch_add(1, Ordering::SeqCst);
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                                }
-                            }))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        }
-
-                        DatasetType::Polars(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row| {
-                                let bar = &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                let value = successfull_iterations.clone();
-                                async move {
-                                    if let Err(e) =
-                                        map_record_batches(self, name, &json_row.unwrap()).await
-                                    {
-                                        return Err(format!(
-                                            "Error processing step: {} - {}",
-                                            name, e
-                                        ));
-                                    } else {
-                                        value.fetch_add(1, Ordering::SeqCst);
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                                }
-                            }))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        }
-
-                        DatasetType::Ipc(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row| {
-                                let bar = &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                let value = successfull_iterations.clone();
-                                async move {
-                                    if let Err(e) =
-                                        map_record_batches(self, name, &json_row.unwrap()).await
-                                    {
-                                        return Err(format!(
-                                            "Error processing step: {} - {}",
-                                            name, e
-                                        ));
-                                    } else {
-                                        value.fetch_add(1, Ordering::SeqCst);
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                                }
-                            }))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        }
-
-                        DatasetType::Csv(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row| {
-                                let bar = &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                let value = successfull_iterations.clone();
-                                async move {
-                                    if let Err(e) =
-                                        map_record_batches(self, name, &json_row.unwrap()).await
-                                    {
-                                        return Err(format!(
-                                            "Error processing step: {} - {}",
-                                            name, e
-                                        ));
-                                    } else {
-                                        value.fetch_add(1, Ordering::SeqCst);
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                                }
-                            }))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        }
-
-                        DatasetType::Parquet(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row| {
-                                let bar = &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                let value = successfull_iterations.clone();
-                                async move {
-                                    if let Err(e) =
-                                        map_record_batches(self, name, &json_row.unwrap()).await
-                                    {
-                                        return Err(format!(
-                                            "Error processing step: {} - {}",
-                                            name, e
-                                        ));
-                                    } else {
-                                        value.fetch_add(1, Ordering::SeqCst);
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                                }
-                            }))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        }
-
-                        DatasetType::Mixed(dataset) => {
+                    macro_rules! process_dataset_mix {
+                        ($dataset:expr) => {{
                             let iter_results =
-                                stream::iter(dataset.stream_mix(&self.datasets.resources)?.map(
+                                stream::iter($dataset.stream_mix(&self.datasets.resources)?.map(
                                     |json_row| {
                                         let bar = &bar;
                                         let sender = sender.clone();
@@ -1134,6 +904,43 @@ impl PipelineBuilder {
                                     bail!(e)
                                 }
                             }
+                        }};
+                    }
+                    match dataset {
+                        DatasetType::Jsonl(dataset) => {
+                            process_dataset!(dataset)
+                        }
+
+                        DatasetType::Json(dataset) => {
+                            process_dataset!(dataset)
+                        }
+
+                        DatasetType::JsonList(dataset) => {
+                            process_dataset!(dataset)
+                        }
+
+                        DatasetType::OpenApi(dataset) => {
+                            process_dataset!(dataset)
+                        }
+
+                        DatasetType::Polars(dataset) => {
+                            process_dataset!(dataset)
+                        }
+
+                        DatasetType::Ipc(dataset) => {
+                            process_dataset!(dataset)
+                        }
+
+                        DatasetType::Csv(dataset) => {
+                            process_dataset!(dataset)
+                        }
+
+                        DatasetType::Parquet(dataset) => {
+                            process_dataset!(dataset)
+                        }
+
+                        DatasetType::Mixed(dataset) => {
+                            process_dataset_mix!(dataset)
                         }
                     }
                 }
