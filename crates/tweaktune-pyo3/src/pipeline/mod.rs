@@ -6,6 +6,7 @@ use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, error, info};
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
+use serde_arrow::schema;
 use serde_json::json;
 use simplelog::*;
 use std::fs::{create_dir_all, File};
@@ -497,17 +498,21 @@ impl PipelineBuilder {
 
         self.steps
             .push(StepType::JsonGeneration(JsonGenerationStep::new(
-                name,
+                name.clone(),
                 template,
                 llm,
-                output,
+                output.clone(),
                 json_path,
                 system_template,
                 json_schema,
                 max_tokens,
                 temperature,
-                schema_key,
+                schema_key.clone(),
             )));
+
+        if let Some(schema_key) = schema_key {
+            self.add_validatejson_step(name.clone(), schema_key, output.clone());
+        }
     }
 
     #[pyo3(signature = (name, path, template=None, value=None))]
