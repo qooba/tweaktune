@@ -1018,6 +1018,21 @@ async fn process_steps(
             break;
         }
 
+        // macro to collapse the repeated `step.process(...).await?` pattern
+        macro_rules! process_common {
+            ($step_ident:ident) => {{
+                context = $step_ident
+                    .process(
+                        &pipeline.datasets.resources,
+                        &pipeline.templates,
+                        &pipeline.llms.resources,
+                        &pipeline.embeddings.resources,
+                        &context,
+                    )
+                    .await?;
+            }};
+        }
+
         match step {
             StepType::IfElse(if_step) => {
                 let check_result = if_step
@@ -1043,180 +1058,52 @@ async fn process_steps(
                 }
             }
             StepType::Py(py_step) => {
-                context = py_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(py_step)
             }
             StepType::TextGeneration(text_generation_step) => {
-                context = text_generation_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(text_generation_step)
             }
             StepType::JsonGeneration(json_generation_step) => {
-                context = json_generation_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(json_generation_step)
             }
             StepType::PyValidator(py_validator) => {
-                context = py_validator
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(py_validator)
             }
             StepType::JsonWriter(jsonl_writer_step) => {
-                context = jsonl_writer_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(jsonl_writer_step)
             }
             StepType::CsvWriter(csv_writer_step) => {
-                context = csv_writer_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(csv_writer_step)
             }
             StepType::Print(print_step) => {
-                context = print_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(print_step)
             }
             StepType::DataSampler(data_sampler_step) => {
-                context = data_sampler_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(data_sampler_step)
             }
             StepType::Chunk(chunk_step) => {
-                context = chunk_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(chunk_step)
             }
             StepType::Render(render_step) => {
-                context = render_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(render_step)
             }
             StepType::ValidateJson(validate_json_step) => {
-                context = validate_json_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(validate_json_step)
             }
             StepType::ValidateTools(tools_validate_step) => {
-                context = tools_validate_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(tools_validate_step)
             }
             StepType::NormalizeTools(tools_normalize_step) => {
-                context = tools_normalize_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(tools_normalize_step)
             }
             StepType::ConversationValidate(conversation_validate_step) => {
-                context = conversation_validate_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(conversation_validate_step)
             }
             StepType::IntoList(into_list_step) => {
-                context = into_list_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(into_list_step)
             }
             StepType::RenderConversation(render_conversation_step) => {
-                context = render_conversation_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+                process_common!(render_conversation_step)
             }
         }
     }
