@@ -4,8 +4,9 @@ use anyhow::{bail, Result};
 use chrono::Local;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
-use log::{error, info};
+use log::{debug, error, info};
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
+use serde::de;
 use serde_json::json;
 use simplelog::*;
 use std::fs::{create_dir_all, File};
@@ -82,11 +83,11 @@ impl PipelineBuilder {
 
     pub fn with_workers(&mut self, workers: usize) {
         self.workers = workers;
-        info!("Setting workers to {}", workers);
+        debug!("Setting workers to {}", workers);
     }
 
     pub fn with_openapi_dataset(&mut self, name: String, path_or_url: String) -> PyResult<()> {
-        info!("Added OPEN_API dataset: {}", &name);
+        debug!("Added OPEN_API dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::OpenApi(OpenApiDataset::new(name, path_or_url)?),
@@ -101,7 +102,7 @@ impl PipelineBuilder {
         json_list: Vec<String>,
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added JSON_LIST dataset: {}", &name);
+        debug!("Added JSON_LIST dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::JsonList(JsonListDataset::new(name, json_list, sql)?),
@@ -116,7 +117,7 @@ impl PipelineBuilder {
         path: String,
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added JSONL dataset: {}", &name);
+        debug!("Added JSONL dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Jsonl(JsonlDataset::new(name, path, sql)?),
@@ -125,7 +126,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_polars_dataset(&mut self, name: String, path: String, sql: String) -> PyResult<()> {
-        info!("Added POLARS dataset: {}", &name);
+        debug!("Added POLARS dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Polars(PolarsDataset::new(name, path, Some(sql))?),
@@ -140,7 +141,7 @@ impl PipelineBuilder {
         path: String,
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added JSON dataset: {}", &name);
+        debug!("Added JSON dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Json(JsonDataset::new(name, path, sql)?),
@@ -149,7 +150,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_mixed_dataset(&mut self, name: String, datasets: Vec<String>) -> PyResult<()> {
-        info!("Added MIXED dataset: {}", &name);
+        debug!("Added MIXED dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Mixed(MixedDataset::new(name, datasets, &self.datasets.resources)?),
@@ -164,7 +165,7 @@ impl PipelineBuilder {
         path: String,
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added Parquet dataset: {}", &name);
+        debug!("Added Parquet dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Parquet(ParquetDataset::new(name, path, sql)?),
@@ -179,7 +180,7 @@ impl PipelineBuilder {
         ipc_data: &[u8],
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added Ipc dataset: {}", &name);
+        debug!("Added Ipc dataset: {}", &name);
 
         self.datasets.add(
             name.clone(),
@@ -197,7 +198,7 @@ impl PipelineBuilder {
         has_header: bool,
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added CSV dataset: {}", &name);
+        debug!("Added CSV dataset: {}", &name);
         self.datasets.add(
             name.clone(),
             DatasetType::Csv(CsvDataset::new(
@@ -220,7 +221,7 @@ impl PipelineBuilder {
         max_tokens: u32,
         temperature: f32,
     ) {
-        info!("Added LLM API: {}", &name);
+        debug!("Added LLM API: {}", &name);
         self.llms.add(
             name.clone(),
             LLMType::Api(ApiLLM::new(
@@ -244,7 +245,7 @@ impl PipelineBuilder {
         max_tokens: u32,
         temperature: f32,
     ) {
-        info!("Added LLM API: {}", &name);
+        debug!("Added LLM API: {}", &name);
         self.llms.add(
             name.clone(),
             LLMType::Api(ApiLLM::new(
@@ -267,7 +268,7 @@ impl PipelineBuilder {
         max_tokens: u32,
         temperature: f32,
     ) {
-        info!("Added LLM API: {}", &name);
+        debug!("Added LLM API: {}", &name);
         self.llms.add(
             name.clone(),
             LLMType::Api(ApiLLM::new(
@@ -285,7 +286,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_llm_unsloth(&mut self, name: String, py_func: PyObject) {
-        info!("Added LLM UNSLOTH: {}", &name);
+        debug!("Added LLM UNSLOTH: {}", &name);
         self.llms.add(
             name.clone(),
             LLMType::Unsloth(UnslothLLM::new(name, py_func)),
@@ -293,7 +294,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_llm_mistralrs(&mut self, name: String, py_func: PyObject) {
-        info!("Added LLM MISTRALRS: {}", &name);
+        debug!("Added LLM MISTRALRS: {}", &name);
         self.llms.add(
             name.clone(),
             LLMType::Mistralrs(MistralrsLLM::new(name, py_func)),
@@ -307,7 +308,7 @@ impl PipelineBuilder {
         api_key: String,
         model: String,
     ) {
-        info!("Added OpenAI embeddings: {}", &name);
+        debug!("Added OpenAI embeddings: {}", &name);
         self.embeddings.add(
             name.clone(),
             EmbeddingsType::OpenAI(OpenAIEmbeddings::new(name, base_url, api_key, model)),
@@ -315,7 +316,7 @@ impl PipelineBuilder {
     }
 
     pub fn with_jinja_template(&mut self, name: String, template: String) {
-        info!("Added Jinja template: {}", &name);
+        debug!("Added Jinja template: {}", &name);
         self.templates.add(name, template);
     }
 
@@ -330,7 +331,7 @@ impl PipelineBuilder {
                             if let Ok(template) =
                                 read_to_string(template_path_str, op_config.clone())
                             {
-                                info!("Added Jinja template: {}", &name);
+                                debug!("Added Jinja template: {}", &name);
                                 self.templates.add(name.to_string(), template);
                             } else {
                                 error!("Failed to read template file: {}", template_path.display());
@@ -351,7 +352,7 @@ impl PipelineBuilder {
 
     #[pyo3(signature = (name, path, op_config=None))]
     pub fn with_j2_template(&mut self, name: String, path: String, op_config: Option<String>) {
-        info!("Added Jinja template: {}", &name);
+        debug!("Added Jinja template: {}", &name);
         let template = read_to_string(&path, op_config).unwrap();
         self.templates.add(name, template);
     }
@@ -369,7 +370,7 @@ impl PipelineBuilder {
         let template = read_to_string(&path, op_config).unwrap();
         let templates = deserialize::<Templates>(&template, serialization_type).unwrap();
         for (name, template) in templates.templates {
-            info!("Adding template: {}", &name);
+            debug!("Adding template: {}", &name);
             self.templates.add(name, template);
         }
     }
@@ -383,7 +384,7 @@ impl PipelineBuilder {
     }
 
     pub fn add_py_step(&mut self, name: String, py_func: PyObject) {
-        info!("Added Python step: {}", &name);
+        debug!("Added Python step: {}", &name);
         self.steps.push(StepType::Py(PyStep::new(name, py_func)));
     }
 
@@ -394,7 +395,7 @@ impl PipelineBuilder {
         then_steps: PyRef<StepsChain>,
         else_steps: PyRef<StepsChain>,
     ) {
-        info!("Added Ifelse step: {}", &name);
+        debug!("Added Ifelse step: {}", &name);
 
         let then_steps = then_steps
             .steps
@@ -420,19 +421,19 @@ impl PipelineBuilder {
     }
 
     pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
-        info!("Added Python validator step: {}", &name);
+        debug!("Added Python validator step: {}", &name);
         self.steps
             .push(StepType::PyValidator(PyValidator::new(name, py_func)));
     }
 
     pub fn add_into_list_step(&mut self, name: String, inputs: Vec<String>, output: String) {
-        info!("Added IntoList step: {}", &name);
+        debug!("Added IntoList step: {}", &name);
         self.steps
             .push(StepType::IntoList(IntoListStep::new(name, inputs, output)));
     }
 
     pub fn add_validate_conversation_step(&mut self, name: String, conversation: String) {
-        info!("Added conversation validation step: {}", &name);
+        debug!("Added conversation validation step: {}", &name);
         self.steps.push(StepType::ConversationValidate(
             ConversationValidateStep::new(name, conversation),
         ));
@@ -450,7 +451,7 @@ impl PipelineBuilder {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) {
-        info!(
+        debug!(
             "Added text generation step with llm: {}, template: {}",
             &llm, &template
         );
@@ -481,7 +482,7 @@ impl PipelineBuilder {
         temperature: Option<f32>,
         schema_template: Option<String>,
     ) {
-        info!(
+        debug!(
             "Added JSON generation step with template: {}, llm: {}",
             &llm, &template
         );
@@ -518,7 +519,7 @@ impl PipelineBuilder {
         template: Option<String>,
         value: Option<String>,
     ) {
-        info!("Added JSONL writer step: {}", &name);
+        debug!("Added JSONL writer step: {}", &name);
         self.steps.push(StepType::JsonWriter(JsonlWriterStep::new(
             name, path, template, value,
         )));
@@ -531,7 +532,7 @@ impl PipelineBuilder {
         template: Option<String>,
         columns: Option<Vec<String>>,
     ) {
-        info!("Added print step");
+        debug!("Added print step: {}", &name);
         self.steps
             .push(StepType::Print(PrintStep::new(name, template, columns)));
     }
@@ -543,7 +544,7 @@ impl PipelineBuilder {
         columns: Vec<String>,
         delimiter: String,
     ) {
-        info!("Added CSV writer step: {}", &name);
+        debug!("Added CSV writer step: {}", &name);
         self.steps.push(StepType::CsvWriter(CsvWriterStep::new(
             name, path, columns, delimiter,
         )));
@@ -556,7 +557,7 @@ impl PipelineBuilder {
         size: usize,
         output: String,
     ) {
-        info!(
+        debug!(
             "Added data sampler on dataset: {} with size: {}",
             &dataset, &size
         );
@@ -580,7 +581,7 @@ impl PipelineBuilder {
     }
 
     pub fn add_data_read_step(&mut self, name: String, dataset: String, output: String) {
-        info!("Added data read on dataset: {}", &dataset);
+        debug!("Added data read on dataset: {}", &dataset);
         self.steps.push(StepType::DataSampler(DataSamplerStep::new(
             name, dataset, None, output,
         )));
@@ -593,14 +594,14 @@ impl PipelineBuilder {
         input: String,
         output: String,
     ) {
-        info!("Added data chunking step");
+        debug!("Added data chunking step");
         self.steps.push(StepType::Chunk(ChunkStep::new(
             name, capacity, input, output,
         )));
     }
 
     pub fn add_render_step(&mut self, name: String, template: String, output: String) {
-        info!("Added render step");
+        debug!("Added render step");
         self.steps
             .push(StepType::Render(RenderStep::new(name, template, output)));
     }
@@ -612,7 +613,7 @@ impl PipelineBuilder {
         tools: Option<String>,
         output: String,
     ) {
-        info!("Added render conversation step");
+        debug!("Added render conversation step");
         self.steps
             .push(StepType::RenderConversation(RenderConversationStep::new(
                 name,
@@ -623,7 +624,7 @@ impl PipelineBuilder {
     }
 
     pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
-        info!("Added render step");
+        debug!("Added validate JSON step");
 
         let schema_key = format!("validatejson_schema_{}_{}", name, schema);
         let instance_key = format!("validatejson_instance_{}_{}", name, instance);
@@ -644,7 +645,7 @@ impl PipelineBuilder {
     }
 
     pub fn add_validatetools_step(&mut self, name: String, instances: String) {
-        info!("Added render step");
+        debug!("Added validate tools step");
 
         self.steps
             .push(StepType::ValidateTools(ToolsValidateStep::new(
@@ -653,7 +654,7 @@ impl PipelineBuilder {
     }
 
     pub fn add_normalizetools_step(&mut self, name: String, instances: String, output: String) {
-        info!("Added normalize tools step");
+        debug!("Added normalize tools step");
 
         self.steps
             .push(StepType::NormalizeTools(ToolsNormalizeStep::new(
@@ -687,7 +688,7 @@ impl PipelineBuilder {
             if let Err(e) = CombinedLogger::init(vec![
                 Box::new((*self.logs_collector).clone()) as Box<dyn simplelog::SharedLogger>
             ]) {
-                info!("Initialize logger issue: {}", e);
+                debug!("Initialize logger issue: {}", e);
             }
         } else {
             create_dir_all(".tweaktune").unwrap();
@@ -707,7 +708,7 @@ impl PipelineBuilder {
                 WriteLogger::new(level, config.clone(), File::create(&filename).unwrap()),
                 Box::new((*self.logs_collector).clone()) as Box<dyn simplelog::SharedLogger>,
             ]) {
-                info!("Initialize logger issue: {}", e);
+                debug!("Initialize logger issue: {}", e);
             } else {
                 println!("📑 LOGGING INTO FILE {}", &filename);
             }
@@ -729,10 +730,10 @@ impl PipelineBuilder {
             r.store(false, std::sync::atomic::Ordering::SeqCst);
         }) {
             Ok(_) => {
-                info!("Ctrl-C handler set");
+                debug!("Ctrl-C handler set");
             }
             Err(e) => {
-                info!("Error setting Ctrl-C handler: {}", e);
+                debug!("Error setting Ctrl-C handler: {}", e);
             }
         }
 
@@ -767,9 +768,10 @@ impl PipelineBuilder {
         };
 
         let result = run_async(async {
+            let successfull_iterations = Arc::new(std::sync::atomic::AtomicUsize::new(0));
             match &self.iter_by {
                 IterBy::Range { start, stop, step } => {
-                    info!("Iterating by range: {}..{}..{}", start, stop, step);
+                    debug!("Iterating by range: {}..{}..{}", start, stop, step);
                     let bar = ProgressBar::new((stop - start) as u64);
 
                     bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",)
@@ -783,13 +785,15 @@ impl PipelineBuilder {
                         }
 
                         let sender = sender.clone();
-
+                        let value = successfull_iterations.clone();
                         async move {
                             let mut context = StepContext::new();
                             context.set("index", i);
                             context.set_status(StepStatus::Running);
                             if let Err(e) = process_steps(self, context, None).await {
                                 return Err(format!("Error processing step: {} - {}", i, e));
+                            } else {
+                                value.fetch_add(1, Ordering::SeqCst);
                             }
 
                             bar.inc(1);
@@ -816,7 +820,7 @@ impl PipelineBuilder {
                     }
                 }
                 IterBy::Dataset { name } => {
-                    info!("Iterating by dataset: {}", name);
+                    debug!("Iterating by dataset: {}", name);
                     let bar = ProgressBar::new(0);
 
                     bar.set_style(
@@ -834,6 +838,7 @@ impl PipelineBuilder {
                                 let bar = &bar;
                                 let sender = sender.clone();
                                 process_progress_bar(bar, &self.running);
+                                let value = successfull_iterations.clone();
                                 async move {
                                     if let Err(e) =
                                         map_record_batches(self, name, &json_row.unwrap()).await
@@ -842,6 +847,8 @@ impl PipelineBuilder {
                                             "Error processing step: {} - {}",
                                             name, e
                                         ));
+                                    } else {
+                                        value.fetch_add(1, Ordering::SeqCst);
                                     }
                                     bar.inc(1);
                                     inc += 1;
@@ -864,6 +871,8 @@ impl PipelineBuilder {
                                 let bar = &bar;
                                 let sender = sender.clone();
                                 process_progress_bar(bar, &self.running);
+
+                                let value = successfull_iterations.clone();
                                 async move {
                                     if let Err(e) =
                                         map_record_batches(self, name, &json_row.unwrap()).await
@@ -872,6 +881,8 @@ impl PipelineBuilder {
                                             "Error processing step: {} - {}",
                                             name, e
                                         ));
+                                    } else {
+                                        value.fetch_add(1, Ordering::SeqCst);
                                     }
                                     bar.inc(1);
                                     inc += 1;
@@ -894,6 +905,8 @@ impl PipelineBuilder {
                                 let bar = &bar;
                                 let sender = sender.clone();
                                 process_progress_bar(bar, &self.running);
+
+                                let value = successfull_iterations.clone();
                                 async move {
                                     if let Err(e) =
                                         map_record_batches(self, name, &json_row.unwrap()).await
@@ -902,6 +915,8 @@ impl PipelineBuilder {
                                             "Error processing step: {} - {}",
                                             name, e
                                         ));
+                                    } else {
+                                        value.fetch_add(1, Ordering::SeqCst);
                                     }
                                     bar.inc(1);
                                     inc += 1;
@@ -924,6 +939,7 @@ impl PipelineBuilder {
                                 let bar = &bar;
                                 let sender = sender.clone();
                                 process_progress_bar(bar, &self.running);
+                                let value = successfull_iterations.clone();
                                 async move {
                                     if let Err(e) =
                                         map_record_batches(self, name, &json_row.unwrap()).await
@@ -932,6 +948,8 @@ impl PipelineBuilder {
                                             "Error processing step: {} - {}",
                                             name, e
                                         ));
+                                    } else {
+                                        value.fetch_add(1, Ordering::SeqCst);
                                     }
                                     bar.inc(1);
                                     inc += 1;
@@ -954,6 +972,7 @@ impl PipelineBuilder {
                                 let bar = &bar;
                                 let sender = sender.clone();
                                 process_progress_bar(bar, &self.running);
+                                let value = successfull_iterations.clone();
                                 async move {
                                     if let Err(e) =
                                         map_record_batches(self, name, &json_row.unwrap()).await
@@ -962,6 +981,8 @@ impl PipelineBuilder {
                                             "Error processing step: {} - {}",
                                             name, e
                                         ));
+                                    } else {
+                                        value.fetch_add(1, Ordering::SeqCst);
                                     }
                                     bar.inc(1);
                                     inc += 1;
@@ -984,6 +1005,7 @@ impl PipelineBuilder {
                                 let bar = &bar;
                                 let sender = sender.clone();
                                 process_progress_bar(bar, &self.running);
+                                let value = successfull_iterations.clone();
                                 async move {
                                     if let Err(e) =
                                         map_record_batches(self, name, &json_row.unwrap()).await
@@ -992,6 +1014,8 @@ impl PipelineBuilder {
                                             "Error processing step: {} - {}",
                                             name, e
                                         ));
+                                    } else {
+                                        value.fetch_add(1, Ordering::SeqCst);
                                     }
                                     bar.inc(1);
                                     inc += 1;
@@ -1014,6 +1038,7 @@ impl PipelineBuilder {
                                 let bar = &bar;
                                 let sender = sender.clone();
                                 process_progress_bar(bar, &self.running);
+                                let value = successfull_iterations.clone();
                                 async move {
                                     if let Err(e) =
                                         map_record_batches(self, name, &json_row.unwrap()).await
@@ -1022,6 +1047,8 @@ impl PipelineBuilder {
                                             "Error processing step: {} - {}",
                                             name, e
                                         ));
+                                    } else {
+                                        value.fetch_add(1, Ordering::SeqCst);
                                     }
                                     bar.inc(1);
                                     inc += 1;
@@ -1044,6 +1071,7 @@ impl PipelineBuilder {
                                 let bar = &bar;
                                 let sender = sender.clone();
                                 process_progress_bar(bar, &self.running);
+                                let value = successfull_iterations.clone();
                                 async move {
                                     if let Err(e) =
                                         map_record_batches(self, name, &json_row.unwrap()).await
@@ -1052,6 +1080,8 @@ impl PipelineBuilder {
                                             "Error processing step: {} - {}",
                                             name, e
                                         ));
+                                    } else {
+                                        value.fetch_add(1, Ordering::SeqCst);
                                     }
                                     bar.inc(1);
                                     inc += 1;
@@ -1076,6 +1106,7 @@ impl PipelineBuilder {
                                         let bar = &bar;
                                         let sender = sender.clone();
                                         process_progress_bar(bar, &self.running);
+                                        let value = successfull_iterations.clone();
                                         async move {
                                             if let Err(e) =
                                                 map_record_batches(self, name, &json_row.unwrap())
@@ -1085,6 +1116,8 @@ impl PipelineBuilder {
                                                     "Error processing step: {} - {}",
                                                     name, e
                                                 ));
+                                            } else {
+                                                value.fetch_add(1, Ordering::SeqCst);
                                             }
                                             bar.inc(1);
                                             inc += 1;
@@ -1105,6 +1138,11 @@ impl PipelineBuilder {
                     }
                 }
             }
+
+            info!(
+                "🚀 Finished all iterations, processed {} items",
+                successfull_iterations.load(Ordering::SeqCst)
+            );
 
             if let Some(sender) = &sender {
                 sender
@@ -1435,7 +1473,7 @@ impl StepsChain {
     }
 
     pub fn add_py_step(&mut self, named: String, py_func: PyObject) {
-        info!("Added Python step: {}", &named);
+        debug!("Added Python step: {}", &named);
         self.steps.push(Step::Py {
             name: named,
             py_func,
@@ -1453,7 +1491,7 @@ impl StepsChain {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) {
-        info!(
+        debug!(
             "Added text generation step with llm: {}, template: {}",
             &llm, &template
         );
@@ -1482,7 +1520,7 @@ impl StepsChain {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) {
-        info!(
+        debug!(
             "Added JSON generation step with template: {}, llm: {}",
             &llm, &template
         );
@@ -1506,7 +1544,7 @@ impl StepsChain {
         template: Option<String>,
         columns: Option<Vec<String>>,
     ) {
-        info!("Added print step");
+        debug!("Added print step");
         self.steps.push(Step::Print {
             name,
             template,
@@ -1521,7 +1559,7 @@ impl StepsChain {
         size: usize,
         output: String,
     ) {
-        info!(
+        debug!(
             "Added data sampler on dataset: {} with size: {}",
             &dataset, &size
         );
@@ -1534,7 +1572,7 @@ impl StepsChain {
     }
 
     pub fn add_judge_step(&mut self, name: String, template: String, llm: String) {
-        info!("Added judge step: {}", &name);
+        debug!("Added judge step: {}", &name);
         self.steps.push(Step::Judge {
             name,
             template,
@@ -1543,12 +1581,12 @@ impl StepsChain {
     }
 
     pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
-        info!("Added Python validator step: {}", &name);
+        debug!("Added Python validator step: {}", &name);
         self.steps.push(Step::PyValidator { name, py_func });
     }
 
     pub fn add_jsonl_writer_step(&mut self, name: String, path: String, template: String) {
-        info!("Added JSONL writer step: {}", &name);
+        debug!("Added JSONL writer step: {}", &name);
         self.steps.push(Step::JsonlWriter {
             name,
             path,

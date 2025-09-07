@@ -193,8 +193,21 @@ def test_step_render_conversation(request, output_dir):
     .run())
 
     lines = open(output_file, "r").readlines()
-    print("LINES !!!!!!!!!!!!!!!!!!!!!!1:", lines)
     assert len(lines) == 1
+    line = json.loads(lines[0])
+    messages = line["messages"]
+    print("LINE:", line)
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == "You are a helpful assistant."
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"] == "Hello, who won the world series in 2020?"
+    assert messages[2]["role"] == "assistant"
+    assert "tool_calls" in messages[2]
+    assert messages[3]["role"] == "tool"
+    assert "winner" in messages[3]["content"]
+    assert messages[4]["role"] == "assistant"
+    assert "Los Angeles Dodgers" in messages[4]["content"]
+
     
 def test_step_ifelse_then(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""

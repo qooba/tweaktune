@@ -95,6 +95,10 @@ impl LogsCollector {
         let mut per_level: std::collections::BTreeMap<String, usize> = BTreeMap::new();
 
         for e in entries.iter() {
+            if e.level > Level::Info {
+                continue;
+            }
+
             total += 1;
             let key = (format!("{:?}", e.level), e.message.clone());
             *grouped.entry(key).or_insert(0) += 1;
