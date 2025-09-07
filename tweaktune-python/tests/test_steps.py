@@ -187,8 +187,9 @@ def test_step_render_conversation(request, output_dir):
         .add_column("question", lambda data: "Hello, who won the world series in 2020?")
         .add_column("call1", lambda data: "{ \"name\": \"get_who_won\", \"arguments\": { \"year\": 2020 } }")
         .add_column("response", lambda data: "{\"winner\": \"Los Angeles Dodgers\", \"year\": 2020}")
+        .add_column("thinking", lambda data: "I should look up who won the world series in 2020.")
         .add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
-        .render_conversation(conversation="@system:system|@user:question|@assistant:tool_calls([call1])|@tool:response|@assistant:answer", output="conversation")
+        .render_conversation(conversation="@system:system|@user:question|@assistant:tool_calls([call1])|@tool:response|@a:think(thinking)|@assistant:answer", output="conversation")
         .write_jsonl(path=output_file, value="conversation")
     .run())
 
@@ -206,8 +207,8 @@ def test_step_render_conversation(request, output_dir):
     assert messages[2]["tool_calls"] == [{"function":{"name": "get_who_won", "arguments": {"year": 2020}}}]
     assert messages[3]["role"] == "tool"
     assert "winner" in messages[3]["content"]
-    assert messages[4]["role"] == "assistant"
-    assert "Los Angeles Dodgers" in messages[4]["content"]
+    assert messages[5]["role"] == "assistant"
+    assert "Los Angeles Dodgers" in messages[5]["content"]
 
 def test_step_render_conversation_aliases(request, output_dir):
     """Test the basic functionality of the pipeline."""

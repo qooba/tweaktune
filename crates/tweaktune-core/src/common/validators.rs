@@ -637,9 +637,10 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
         if role_s == "assistant" {
             let has_content = e.get("content").is_some();
             let has_tool_calls = e.get("tool_calls").is_some();
-            if !has_content && !has_tool_calls {
+            let has_think = e.get("reasoning_content").is_some();
+            if !has_content && !has_tool_calls && !has_think {
                 return Err(anyhow!(
-                    "🐔 messages[{}] assistant entry must have 'content' or 'tool_calls'",
+                    "🐔 messages[{}] assistant entry must have 'content' or 'tool_calls' or 'reasoning_content'",
                     idx
                 ));
             }
