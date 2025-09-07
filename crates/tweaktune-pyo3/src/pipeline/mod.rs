@@ -907,41 +907,15 @@ impl PipelineBuilder {
                         }};
                     }
                     match dataset {
-                        DatasetType::Jsonl(dataset) => {
-                            process_dataset!(dataset)
-                        }
-
-                        DatasetType::Json(dataset) => {
-                            process_dataset!(dataset)
-                        }
-
-                        DatasetType::JsonList(dataset) => {
-                            process_dataset!(dataset)
-                        }
-
-                        DatasetType::OpenApi(dataset) => {
-                            process_dataset!(dataset)
-                        }
-
-                        DatasetType::Polars(dataset) => {
-                            process_dataset!(dataset)
-                        }
-
-                        DatasetType::Ipc(dataset) => {
-                            process_dataset!(dataset)
-                        }
-
-                        DatasetType::Csv(dataset) => {
-                            process_dataset!(dataset)
-                        }
-
-                        DatasetType::Parquet(dataset) => {
-                            process_dataset!(dataset)
-                        }
-
-                        DatasetType::Mixed(dataset) => {
-                            process_dataset_mix!(dataset)
-                        }
+                        DatasetType::Jsonl(dataset) => process_dataset!(dataset),
+                        DatasetType::Json(dataset) => process_dataset!(dataset),
+                        DatasetType::JsonList(dataset) => process_dataset!(dataset),
+                        DatasetType::OpenApi(dataset) => process_dataset!(dataset),
+                        DatasetType::Polars(dataset) => process_dataset!(dataset),
+                        DatasetType::Ipc(dataset) => process_dataset!(dataset),
+                        DatasetType::Csv(dataset) => process_dataset!(dataset),
+                        DatasetType::Parquet(dataset) => process_dataset!(dataset),
+                        DatasetType::Mixed(dataset) => process_dataset_mix!(dataset),
                     }
                 }
             }
@@ -1057,51 +1031,23 @@ async fn process_steps(
                         .await?;
                 }
             }
-            StepType::Py(py_step) => {
-                process_common!(py_step)
-            }
-            StepType::TextGeneration(text_generation_step) => {
-                process_common!(text_generation_step)
-            }
-            StepType::JsonGeneration(json_generation_step) => {
-                process_common!(json_generation_step)
-            }
-            StepType::PyValidator(py_validator) => {
-                process_common!(py_validator)
-            }
-            StepType::JsonWriter(jsonl_writer_step) => {
-                process_common!(jsonl_writer_step)
-            }
-            StepType::CsvWriter(csv_writer_step) => {
-                process_common!(csv_writer_step)
-            }
-            StepType::Print(print_step) => {
-                process_common!(print_step)
-            }
-            StepType::DataSampler(data_sampler_step) => {
-                process_common!(data_sampler_step)
-            }
-            StepType::Chunk(chunk_step) => {
-                process_common!(chunk_step)
-            }
-            StepType::Render(render_step) => {
-                process_common!(render_step)
-            }
-            StepType::ValidateJson(validate_json_step) => {
-                process_common!(validate_json_step)
-            }
-            StepType::ValidateTools(tools_validate_step) => {
-                process_common!(tools_validate_step)
-            }
-            StepType::NormalizeTools(tools_normalize_step) => {
-                process_common!(tools_normalize_step)
-            }
+            StepType::Py(py_step) => process_common!(py_step),
+            StepType::TextGeneration(text_generation_step) => process_common!(text_generation_step),
+            StepType::JsonGeneration(json_generation_step) => process_common!(json_generation_step),
+            StepType::PyValidator(py_validator) => process_common!(py_validator),
+            StepType::JsonWriter(jsonl_writer_step) => process_common!(jsonl_writer_step),
+            StepType::CsvWriter(csv_writer_step) => process_common!(csv_writer_step),
+            StepType::Print(print_step) => process_common!(print_step),
+            StepType::DataSampler(data_sampler_step) => process_common!(data_sampler_step),
+            StepType::Chunk(chunk_step) => process_common!(chunk_step),
+            StepType::Render(render_step) => process_common!(render_step),
+            StepType::ValidateJson(validate_json_step) => process_common!(validate_json_step),
+            StepType::ValidateTools(tools_validate_step) => process_common!(tools_validate_step),
+            StepType::NormalizeTools(tools_normalize_step) => process_common!(tools_normalize_step),
             StepType::ConversationValidate(conversation_validate_step) => {
                 process_common!(conversation_validate_step)
             }
-            StepType::IntoList(into_list_step) => {
-                process_common!(into_list_step)
-            }
+            StepType::IntoList(into_list_step) => process_common!(into_list_step),
             StepType::RenderConversation(render_conversation_step) => {
                 process_common!(render_conversation_step)
             }
