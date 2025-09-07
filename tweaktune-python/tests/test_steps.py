@@ -208,6 +208,8 @@ def test_step_render_conversation(request, output_dir):
     assert messages[2]["tool_calls"] == [{"function":{"name": "get_who_won", "arguments": {"year": 2020}}}]
     assert messages[3]["role"] == "tool"
     assert "winner" in messages[3]["content"]
+    assert messages[4]["role"] == "assistant"
+    assert "I should look up" in messages[4]["reasoning_content"]
     assert messages[5]["role"] == "assistant"
     assert "Los Angeles Dodgers" in messages[5]["content"]
 
