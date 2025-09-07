@@ -696,7 +696,7 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
                             name
                         ));
                     }
-                    if !known_tools.contains(name) {
+                    if !known_tools.is_empty() && !known_tools.contains(name) {
                         return Err(anyhow!(
                             "🐔 messages[{}].tool_calls[{}] references unknown tool '{}'",
                             idx,

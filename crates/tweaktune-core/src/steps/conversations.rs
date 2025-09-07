@@ -1,10 +1,12 @@
 use crate::{
+    common::validators::validate_tool_format_messages,
     datasets::DatasetType,
     embeddings, llms,
-    steps::{Step, StepContext},
+    steps::{Step, StepContext, StepStatus},
     templates::Templates,
 };
 use anyhow::Result;
+use log::error;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
@@ -194,6 +196,12 @@ impl Step for RenderConversationStep {
         } else {
             json!({ "messages": conversations_steps })
         };
+
+        if let Err(e) = validate_tool_format_messages(&rendered) {
+            error!(target: "conversation_validation_step", "🐔 Conversation validation failed: {}", e);
+            context.set_status(StepStatus::Failed);
+            return Ok(context);
+        }
 
         context.set(&self.output, rendered.to_string());
         Ok(context)
