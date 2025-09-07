@@ -203,11 +203,58 @@ def test_step_render_conversation(request, output_dir):
     assert messages[1]["content"] == "Hello, who won the world series in 2020?"
     assert messages[2]["role"] == "assistant"
     assert "tool_calls" in messages[2]
+    assert messages[2]["tool_calls"] == [{"function":{"name": "get_who_won", "arguments": {"year": 2020}}}]
     assert messages[3]["role"] == "tool"
     assert "winner" in messages[3]["content"]
     assert messages[4]["role"] == "assistant"
     assert "Los Angeles Dodgers" in messages[4]["content"]
 
+def test_step_render_conversation_aliases(request, output_dir):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+    
+    conversation_template = """@system:
+    {"role": "system", "content": "You are a helpful assistant."}
+    {"role": "user", "content": "Hello, who won the world series in 2020?"}
+    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."}
+    {"role": "user", "content": "Where was it played?"}
+    """
+
+    tools_template = """
+    [
+        {"name": "get_current_weather", "description": "Get the current weather in a given location"},
+        {"name": "get_news", "description": "Get the latest news headlines"}
+    ]
+    """
+
+    (Pipeline()
+        .with_workers(1)
+        .iter_range(1)
+        .add_column("system", lambda data: "You are a helpful assistant.")
+        .add_column("question", lambda data: "Hello, who won the world series in 2020?")
+        .add_column("call1", lambda data: "{ \"name\": \"get_who_won\", \"arguments\": { \"year\": 2020 } }")
+        .add_column("response", lambda data: "{\"winner\": \"Los Angeles Dodgers\", \"year\": 2020}")
+        .add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
+        .render_conversation(conversation="@s:system|@u:question|@a:tool_calls([call1])|@t:response|@a:answer", output="conversation")
+        .write_jsonl(path=output_file, value="conversation")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    assert len(lines) == 1
+    line = json.loads(lines[0])
+    messages = line["messages"]
+    print("LINE:", line)
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == "You are a helpful assistant."
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"] == "Hello, who won the world series in 2020?"
+    assert messages[2]["role"] == "assistant"
+    assert "tool_calls" in messages[2]
+    assert messages[2]["tool_calls"] == [{"function":{"name": "get_who_won", "arguments": {"year": 2020}}}]
+    assert messages[3]["role"] == "tool"
+    assert "winner" in messages[3]["content"]
+    assert messages[4]["role"] == "assistant"
+    assert "Los Angeles Dodgers" in messages[4]["content"]
     
 def test_step_ifelse_then(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
