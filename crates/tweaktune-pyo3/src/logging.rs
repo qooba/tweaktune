@@ -1,3 +1,5 @@
+use comfy_table::modifiers::UTF8_ROUND_CORNERS;
+use comfy_table::presets::UTF8_FULL;
 use comfy_table::{Cell, ContentArrangement, Table};
 use log::{Level, Log, Metadata, Record};
 use serde::{Deserialize, Serialize};
@@ -106,7 +108,11 @@ impl LogsCollector {
         }
 
         let mut table = Table::new();
-        table.set_content_arrangement(ContentArrangement::Dynamic);
+        table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            // .set_width(200)
+            .set_content_arrangement(ContentArrangement::Dynamic);
         table.set_header(vec![
             Cell::from("Level"),
             Cell::from("Message"),
@@ -134,9 +140,9 @@ impl LogsCollector {
         }
 
         let mut out = String::new();
-        out.push_str("Summary:\n");
-        out.push_str(&summary.to_string());
-        out.push_str("\nDetails:\n");
+        // out.push_str("Summary:\n");
+        // out.push_str(&summary.to_string());
+        // out.push_str("\nDetails:\n");
         out.push_str(&table.to_string());
         out
     }
