@@ -111,8 +111,8 @@ def test_step_add_column(request, output_dir, data_dir, arrow_dataset):
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"new_column_3": {{new_column_3}} }""")
     .iter_range(10)
-        .add_column("new_column_2", func="1 + 1")
-        .add_column("new_column_3", func="new_column_2 + 1")
+        .add_column("new_column_2", "1 + 1")
+        .add_column("new_column_3", "new_column_2 + 1")
         .write_jsonl(path=output_file, template="output")
     .run())
 

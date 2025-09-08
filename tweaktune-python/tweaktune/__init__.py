@@ -381,16 +381,16 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
-    def add_column(self, output: str, lambda_func: Optional[Callable] = None, func: Optional[str] = None, name: str = "ADD-COLUMN"):
-        if lambda_func:
+    def add_column(self, output: str, func: Union[Callable, str], name: str = "ADD-COLUMN"):
+        if isinstance(func, Callable):
             def wrapper(context):
                 if output in context["data"]:
                     print("Warning: Output column already exists, overwriting it.")
-                context["data"][output] = lambda_func(context["data"])
+                context["data"][output] = func(context["data"])
                 return context
 
             self.map(wrapper, name=name)
-        elif func:
+        elif isinstance(func, str):
             self.builder.add_new_column_step(self.__name(name), func, output)
         else:
             raise ValueError("Either lambda_func or func must be provided.")
@@ -399,15 +399,15 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def filter(self, lambda_condition: Optional[Callable] = None, condition: Optional[str] = None, name: str = "FILTER"):
-        if lambda_condition:
+    def filter(self, condition: Union[Callable, str], name: str = "FILTER"):
+        if isinstance(condition, Callable):
             def condition_wrapper(context):
-                if not lambda_condition(context["data"]):
+                if not condition(context["data"]):
                     context["status"] = StepStatus.FAILED.value
                 return context
 
             self.map(condition_wrapper, name=name)
-        elif condition:
+        elif isinstance(condition, str):
             self.builder.add_filter_step(self.__name(name), condition)
         else:
             raise ValueError("Either lambda_condition or condition must be provided.")
@@ -416,14 +416,14 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
-    def mutate(self, output: str, lambda_func: Optional[Callable] = None, func: Optional[str] = None, name: str = "MUTATE"):
-        if lambda_func:
+    def mutate(self, output: str, func: Union[Callable, str], name: str = "MUTATE"):
+        if isinstance(func, Callable):
             def wrapper(context):
-                context["data"][output] = lambda_func(context["data"][output])
+                context["data"][output] = func(context["data"][output])
                 return context
 
             self.map(wrapper, name=name)
-        elif func:
+        elif isinstance(func, str):
             self.builder.add_mutate_step(self.__name(name), func, output)
         else:
             raise ValueError("Either lambda_func or func must be provided.")
@@ -510,8 +510,6 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
-
-
 
     def chunk(self, capacity: Tuple[int, int], input: str, output: str, name: str = "CHUNK"):
         self.builder.add_chunk_step(self.__name(name), capacity, input, output)
