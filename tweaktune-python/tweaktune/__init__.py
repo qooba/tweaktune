@@ -381,36 +381,53 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
-    def add_column(self, output: str, func: Callable, name: str = "PY-ADD-COLUMN"):
-        def wrapper(context):
-            if output in context["data"]:
-                print("Warning: Output column already exists, overwriting it.")
-            context["data"][output] = func(context["data"])
-            return context
+    def add_column(self, output: str, lambda_func: Optional[Callable] = None, func: Optional[str] = None, name: str = "ADD-COLUMN"):
+        if lambda_func:
+            def wrapper(context):
+                if output in context["data"]:
+                    print("Warning: Output column already exists, overwriting it.")
+                context["data"][output] = lambda_func(context["data"])
+                return context
 
-        self.map(wrapper, name=name)
-        del self.graph.steps[-1]
+            self.map(wrapper, name=name)
+        elif func:
+            self.builder.add_new_column_step(self.__name(name), func, output)
+        else:
+            raise ValueError("Either lambda_func or func must be provided.")
+        
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
-    def filter(self, condition: Callable, name: str = "PY-FILTER"):
-        def condition_wrapper(context):
-            if not condition(context["data"]):
-                context["status"] = StepStatus.FAILED.value
-            return context
+    def filter(self, lambda_condition: Optional[Callable] = None, condition: Optional[str] = None, name: str = "FILTER"):
+        if lambda_condition:
+            def condition_wrapper(context):
+                if not lambda_condition(context["data"]):
+                    context["status"] = StepStatus.FAILED.value
+                return context
 
-        self.map(condition_wrapper, name=name)
+            self.map(condition_wrapper, name=name)
+        elif condition:
+            self.builder.add_filter_step(self.__name(name), condition)
+        else:
+            raise ValueError("Either lambda_condition or condition must be provided.")
+        
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
     
-    def mutate(self, output: str, func: Callable, name: str = "PY-ADD-COLUMN"):
-        def wrapper(context):
-            context["data"][output] = func(context["data"][output])
-            return context
+    def mutate(self, output: str, lambda_func: Optional[Callable] = None, func: Optional[str] = None, name: str = "MUTATE"):
+        if lambda_func:
+            def wrapper(context):
+                context["data"][output] = lambda_func(context["data"][output])
+                return context
 
-        self.map(wrapper, name=name)
+            self.map(wrapper, name=name)
+        elif func:
+            self.builder.add_mutate_step(self.__name(name), func, output)
+        else:
+            raise ValueError("Either lambda_func or func must be provided.")
+
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self

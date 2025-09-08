@@ -1,5 +1,6 @@
 pub mod conversations;
 pub mod generators;
+pub mod logic;
 pub mod py;
 pub mod validators;
 pub mod writers;
@@ -11,6 +12,7 @@ use crate::{
     steps::{
         conversations::RenderConversationStep,
         generators::{JsonGenerationStep, TextGenerationStep},
+        logic::{FilterStep, MutateStep},
         py::{PyStep, PyValidator},
         validators::{
             ConversationValidateStep, ToolsNormalizeStep, ToolsValidateStep, ValidateJsonStep,
@@ -104,6 +106,8 @@ pub enum StepType {
     ConversationValidate(ConversationValidateStep),
     IntoList(IntoListStep),
     RenderConversation(RenderConversationStep),
+    Filter(FilterStep),
+    Mutate(MutateStep),
 }
 
 pub struct IfElseStep {

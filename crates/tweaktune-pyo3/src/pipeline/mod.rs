@@ -6,7 +6,6 @@ use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, error, info};
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
-use serde_arrow::schema;
 use serde_json::json;
 use simplelog::*;
 use std::fs::{create_dir_all, File};
@@ -22,11 +21,13 @@ use tweaktune_core::datasets::{
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::conversations::RenderConversationStep;
-use tweaktune_core::steps::validators::{
-    ConversationValidateStep, ToolsNormalizeStep, ToolsValidateStep,
+use tweaktune_core::steps::{
+    logic::{FilterStep, MutateStep},
+    validators::{
+        ConversationValidateStep, ToolsNormalizeStep, ToolsValidateStep, ValidateJsonStep,
+    },
+    ChunkStep, IfElseStep, IntoListStep, RenderStep,
 };
-use tweaktune_core::steps::IntoListStep;
-use tweaktune_core::steps::{validators::ValidateJsonStep, ChunkStep, IfElseStep, RenderStep};
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
@@ -488,10 +489,10 @@ impl PipelineBuilder {
         );
 
         let schema_key = if let Some(schema) = &schema_template {
-            let schema_key = format!("json_generation_step_{}_{}", name, schema);
-            self.templates
-                .add(schema_key.clone(), format!("{{{{{}}}}}", schema.clone()));
-            Some(schema_key)
+            Some(
+                self.templates
+                    .add_inline("json_generation_step", &name, schema),
+            )
         } else {
             None
         };
@@ -633,16 +634,12 @@ impl PipelineBuilder {
     pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
         debug!("Added validate JSON step");
 
-        let schema_key = format!("validatejson_schema_{}_{}", name, schema);
-        let instance_key = format!("validatejson_instance_{}_{}", name, instance);
-        self.templates.add(
-            schema_key.clone(),
-            format!("{{{{{}|tojson}}}}", schema.clone()),
-        );
-        self.templates.add(
-            instance_key.clone(),
-            format!("{{{{{}|tojson}}}}", instance.clone()),
-        );
+        let schema_key = self
+            .templates
+            .add_inline("validatejson_schema", &name, &schema);
+        let instance_key = self
+            .templates
+            .add_inline("validatejson_instance", &name, &instance);
         self.steps
             .push(StepType::ValidateJson(ValidateJsonStep::new(
                 name,
@@ -667,6 +664,37 @@ impl PipelineBuilder {
             .push(StepType::NormalizeTools(ToolsNormalizeStep::new(
                 name, instances, output,
             )));
+    }
+
+    pub fn add_filter_step(&mut self, name: String, condition: String) {
+        debug!("Added filter step");
+
+        let condition_key = self.templates.add_inline("filter", &name, &condition);
+        self.steps
+            .push(StepType::Filter(FilterStep::new(name, condition_key)));
+    }
+
+    pub fn add_mutate_step(&mut self, name: String, mutation: String, output: String) {
+        debug!("Added mutate step");
+        let mutation_key = self.templates.add_inline("mutate", &name, &mutation);
+        self.steps.push(StepType::Mutate(MutateStep::new(
+            name,
+            mutation_key,
+            output,
+            false,
+        )));
+    }
+
+    pub fn add_new_column_step(&mut self, name: String, mutation: String, output: String) {
+        debug!("Added new column step");
+
+        let new_column_key = self.templates.add_inline("new_column", &name, &mutation);
+        self.steps.push(StepType::Mutate(MutateStep::new(
+            name,
+            new_column_key,
+            output,
+            true,
+        )));
     }
 
     pub fn compile(&self) {
@@ -1058,6 +1086,8 @@ async fn process_steps(
             StepType::RenderConversation(render_conversation_step) => {
                 process_common!(render_conversation_step)
             }
+            StepType::Filter(filter_step) => process_common!(filter_step),
+            StepType::Mutate(mutate_step) => process_common!(mutate_step),
         }
     }
 
@@ -1384,13 +1414,9 @@ fn map_step(step: &Step, templates: &mut Templates) -> StepType {
             temperature,
             schema_template,
         } => {
-            let schema_key = if let Some(schema) = &schema_template {
-                let schema_key = format!("json_generation_step_{}_{}", name, schema);
-                templates.add(schema_key.clone(), format!("{{{{{}}}}}", schema.clone()));
-                Some(schema_key)
-            } else {
-                None
-            };
+            let schema_key = schema_template
+                .as_ref()
+                .map(|schema| templates.add_inline("json_generation_step", name, schema));
 
             StepType::JsonGeneration(JsonGenerationStep::new(
                 name.clone(),

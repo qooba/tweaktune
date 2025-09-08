@@ -391,6 +391,16 @@ pub fn create_rows_stream(df: &DataFrame) -> Result<impl Iterator<Item = Result<
     }))
 }
 
+pub fn kmur(step_type: &str, name: &str, value: &str) -> String {
+    let key = format!("{}_{}_{}", step_type, name, value);
+    let key = murmur3::murmur3_32(&mut key.as_bytes(), 0);
+    format!("{:x}", key.unwrap())
+}
+
+pub fn ktmur(step_type: &str, name: &str, value: &str) -> (String, String) {
+    (kmur(step_type, name, value), format!("{{{{{}}}}}", value))
+}
+
 // Parse simple python function definitions from a string and convert them to
 // JSON-schema-like objects compatible with the `function_to_schema` output
 // used on the Python side. This implementation is intentionally conservative

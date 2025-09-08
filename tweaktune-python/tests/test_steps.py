@@ -83,7 +83,7 @@ def test_step_map(request, output_dir, data_dir, arrow_dataset):
     assert item["hello"] == "world"
     assert "name" in item["my_custom"]
 
-def test_step_add_column(request, output_dir, data_dir, arrow_dataset):
+def test_step_add_column_lambda(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
@@ -102,7 +102,28 @@ def test_step_add_column(request, output_dir, data_dir, arrow_dataset):
     assert "my_random" in item
     assert item["my_random"].startswith("random_")
 
-def test_step_filter(request, output_dir, data_dir, arrow_dataset):
+def test_step_add_column(request, output_dir, data_dir, arrow_dataset):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline()
+        .with_workers(1)
+        .with_arrow_dataset("items", arrow_dataset())
+        .with_template("output", """{"new_column_3": {{new_column_3}} }""")
+    .iter_range(10)
+        .add_column("new_column_2", func="1 + 1")
+        .add_column("new_column_3", func="new_column_2 + 1")
+        .write_jsonl(path=output_file, template="output")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    item = json.loads(lines[0])
+    assert len(lines) == 10
+    assert "new_column_3" in item
+    assert item["new_column_3"] == 3
+
+
+def test_step_filter_lambda(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
@@ -122,7 +143,27 @@ def test_step_filter(request, output_dir, data_dir, arrow_dataset):
         assert "my_random" in item
         assert item["my_random"] % 2 == 0
 
-def test_step_mutate(request, output_dir, data_dir, arrow_dataset):
+def test_step_filter(request, output_dir, data_dir, arrow_dataset):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline()
+        .with_workers(1)
+        .with_arrow_dataset("items", arrow_dataset())
+        .with_template("output", """{"my_random": {{my_random}} }""")
+    .iter_range(10)
+        .add_column("my_random", lambda data: random.randint(0,9))
+        .filter(condition="my_random % 2 == 0")
+        .write_jsonl(path=output_file, template="output")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    for line in lines:
+        item = json.loads(line)
+        assert "my_random" in item
+        assert item["my_random"] % 2 == 0
+
+def test_step_mutate_lambda(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
@@ -141,6 +182,28 @@ def test_step_mutate(request, output_dir, data_dir, arrow_dataset):
         item = json.loads(line)
         assert "my_random" in item
         assert item["my_random"] == 10
+
+def test_step_mutate(request, output_dir, data_dir, arrow_dataset):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline()
+        .with_workers(1)
+        .with_arrow_dataset("items", arrow_dataset())
+        .with_template("output", """{"val": {{val}} }""")
+    .iter_range(10)
+        .add_column("val_10", func="10")
+        .mutate("val", func="val_10 / 2")
+        .mutate("val", func="val - 5")
+        .write_jsonl(path=output_file, template="output")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    for line in lines:
+        item = json.loads(line)
+        assert "val" in item
+        assert item["val"] == 0
+
 
 def test_step_render(request, output_dir):
     """Test the basic functionality of the pipeline."""
