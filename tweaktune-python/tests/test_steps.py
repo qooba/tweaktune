@@ -327,7 +327,7 @@ def test_step_render_conversation_aliases(request, output_dir):
     assert messages[4]["role"] == "assistant"
     assert "Los Angeles Dodgers" in messages[4]["content"]
     
-def test_step_ifelse_then(request, output_dir, data_dir, arrow_dataset):
+def test_step_ifelse_then_lambda(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
@@ -355,7 +355,36 @@ def test_step_ifelse_then(request, output_dir, data_dir, arrow_dataset):
         assert item["my_then"] is True
         assert item["my_else"] is False
 
-def test_step_ifelse_else(request, output_dir, data_dir, arrow_dataset):
+def test_step_ifelse_then(request, output_dir, data_dir, arrow_dataset):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline()
+        .with_workers(1)
+        .with_arrow_dataset("items", arrow_dataset())
+        .with_template("output", """{"my_1": {{my_1}}, "my_then": {{my_then}}, "my_else": {{my_else}} }""")
+    .iter_range(10)
+        .add_column("my_1", lambda data: 1)
+        .ifelse(
+            condition="my_1 == 1",
+            then_chain=Chain().add_column("my_then", lambda data: True).add_column("my_else", lambda data: False),
+            else_chain=Chain().add_column("my_else", lambda data: True).add_column("my_then", lambda data: False)
+        )
+        .write_jsonl(path=output_file, template="output")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    for line in lines:
+        item = json.loads(line)
+        assert "my_1" in item
+        assert "my_then" in item
+        assert "my_else" in item
+        assert item["my_1"] == 1
+        assert item["my_then"] is True
+        assert item["my_else"] is False
+
+
+def test_step_ifelse_else_lambda(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
@@ -382,6 +411,35 @@ def test_step_ifelse_else(request, output_dir, data_dir, arrow_dataset):
         assert item["my_1"] == 1
         assert item["my_then"] is False
         assert item["my_else"] is True
+
+def test_step_ifelse_else(request, output_dir, data_dir, arrow_dataset):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline()
+        .with_workers(1)
+        .with_arrow_dataset("items", arrow_dataset())
+        .with_template("output", """{"my_1": {{my_1}}, "my_then": {{my_then}}, "my_else": {{my_else}} }""")
+    .iter_range(10)
+        .add_column("my_1", lambda data: 1)
+        .ifelse(
+            condition="my_1 == 2",
+            then_chain=Chain().add_column("my_then", lambda data: True).add_column("my_else", lambda data: False),
+            else_chain=Chain().add_column("my_else", lambda data: True).add_column("my_then", lambda data: False)
+        )
+        .write_jsonl(path=output_file, template="output")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    for line in lines:
+        item = json.loads(line)
+        assert "my_1" in item
+        assert "my_then" in item
+        assert "my_else" in item
+        assert item["my_1"] == 1
+        assert item["my_then"] is False
+        assert item["my_else"] is True
+
 
 def test_step_into_list(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""

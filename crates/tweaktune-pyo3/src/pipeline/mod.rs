@@ -392,7 +392,8 @@ impl PipelineBuilder {
     pub fn add_ifelse_step(
         &mut self,
         name: String,
-        condition: PyObject,
+        py_condition: Option<PyObject>,
+        condition: Option<String>,
         then_steps: PyRef<StepsChain>,
         else_steps: PyRef<StepsChain>,
     ) {
@@ -416,8 +417,18 @@ impl PipelineBuilder {
             None
         };
 
+        let condition_key = if let Some(condition) = &condition {
+            Some(self.templates.add_inline("ifelse", &name, condition))
+        } else {
+            None
+        };
+
         self.steps.push(StepType::IfElse(IfElseStep::new(
-            name, condition, then_steps, else_steps,
+            name,
+            py_condition,
+            condition_key,
+            then_steps,
+            else_steps,
         )));
     }
 

@@ -365,10 +365,14 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
-    def ifelse(self, condition: Callable, then_chain: Chain, else_chain: Chain, name: str = "PY-IFELSE"):
+    def ifelse(self, condition: Union[Callable, str], then_chain: Chain, else_chain: Chain, name: str = "PY-IFELSE"):
         name = self.__name(name)
-        step = type(name.replace("-","_"), (object,), {'check': lambda self, context: condition(context)})()
-        self.builder.add_ifelse_step(name, PyConditionWrapper(step), then_chain.steps_chain, else_chain.steps_chain)
+        if isinstance(condition, Callable):
+            step = type(name.replace("-","_"), (object,), {'check': lambda self, context: condition(context)})()
+            self.builder.add_ifelse_step(name, PyConditionWrapper(step), None, then_chain.steps_chain, else_chain.steps_chain)
+        elif isinstance(condition, str):
+            self.builder.add_ifelse_step(name, None, condition, then_chain.steps_chain, else_chain.steps_chain)
+            
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self

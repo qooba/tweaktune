@@ -112,7 +112,8 @@ pub enum StepType {
 
 pub struct IfElseStep {
     pub name: String,
-    pub condition: PyObject,
+    pub py_condition: Option<PyObject>,
+    pub condition_key: Option<String>,
     pub then_steps: Vec<StepType>,
     pub else_steps: Option<Vec<StepType>>,
 }
@@ -120,13 +121,15 @@ pub struct IfElseStep {
 impl IfElseStep {
     pub fn new(
         name: String,
-        condition: PyObject,
+        py_condition: Option<PyObject>,
+        condition_key: Option<String>,
         then_steps: Vec<StepType>,
         else_steps: Option<Vec<StepType>>,
     ) -> Self {
         Self {
             name,
-            condition,
+            py_condition,
+            condition_key,
             then_steps,
             else_steps,
         }
@@ -135,20 +138,33 @@ impl IfElseStep {
     pub async fn check(
         &self,
         _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
+        templates: &Templates,
         _llms: &HashMap<String, LLMType>,
         _embeddings: &HashMap<String, EmbeddingsType>,
         context: &StepContext,
     ) -> Result<bool> {
         let json = serde_json::to_string(context)?;
 
-        let result: PyResult<bool> = Python::with_gil(|py| {
-            let result: bool = self
-                .condition
-                .call_method1(py, "check", (json,))?
-                .extract(py)?;
-            Ok(result)
-        });
+        let result = if let Some(condition) = &self.py_condition {
+            let result: PyResult<bool> = Python::with_gil(|py| {
+                let result: bool = condition.call_method1(py, "check", (json,))?.extract(py)?;
+                Ok(result)
+            });
+
+            anyhow::Ok(result?)
+        } else if let Some(key) = &self.condition_key {
+            let rendered = templates.render(key.clone(), context.data.clone())?;
+            if let Ok(v) = serde_json::from_str::<bool>(&rendered) {
+                anyhow::Ok(v)
+            } else {
+                error!(target: "ifelsestep", "🐔 Condition is not a boolean: {}", rendered);
+                return Err(anyhow::anyhow!("Condition is not a boolean"));
+            }
+        } else {
+            Err(anyhow::anyhow!(
+                "Either py_condition or condition_key must be provided"
+            ))
+        };
 
         match result {
             Ok(result) => Ok(result),
