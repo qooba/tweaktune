@@ -1,5 +1,5 @@
 import json
-from typing import Callable
+from typing import Callable, Union
 from tweaktune import StepStatus
 from pydantic import BaseModel
 from tweaktune.wrappers import PyStepWrapper
@@ -66,33 +66,51 @@ class Chain:
         self.step_index += 1
         return self
     
-    def add_column(self, output: str, func: Callable, name: str = "PY-ADD-COLUMN"):
-        def wrapper(context):
-            if output in context["data"]:
-                print("Warning: Output column already exists, overwriting it.")
-            context["data"][output] = func(context["data"])
-            return context
+    def add_column(self, output: str, func: Union[Callable, str], name: str = "PY-ADD-COLUMN"):
+        if isinstance(func, Callable):
+            def wrapper(context):
+                if output in context["data"]:
+                    print("Warning: Output column already exists, overwriting it.")
+                context["data"][output] = func(context["data"])
+                return context
 
-        self.map(wrapper, name=name)
+            self.map(wrapper, name=name)
+        elif isinstance(func, str):
+            self.steps_chain.add_new_column_step(self.__name(name), func, output)
+        else:
+            raise ValueError("Either lambda_func or func must be provided.")
+
         self.step_index += 1
         return self
 
-    def filter(self, condition: Callable, name: str = "PY-FILTER"):
-        def condition_wrapper(context):
-            if not condition(context["data"]):
-                context["status"] = StepStatus.FAILED.value
-            return context
+    def filter(self, condition: Union[Callable, str], name: str = "PY-FILTER"):
+        if isinstance(condition, Callable):
+            def condition_wrapper(context):
+                if not condition(context["data"]):
+                    context["status"] = StepStatus.FAILED.value
+                return context
 
-        self.map(condition_wrapper, name=name)
+            self.map(condition_wrapper, name=name)
+        elif isinstance(condition, str):
+            self.steps_chain.add_filter_step(self.__name(name), condition)
+        else:
+            raise ValueError("Either lambda_condition or condition must be provided.")
+        
         self.step_index += 1
         return self
     
-    def mutate(self, output: str, func: Callable, name: str = "PY-ADD-COLUMN"):
-        def wrapper(context):
-            context["data"][output] = func(context["data"][output])
-            return context
+    def mutate(self, output: str, func: Union[Callable, str], name: str = "PY-ADD-COLUMN"):
+        if isinstance(func, Callable):
+            def wrapper(context):
+                context["data"][output] = func(context["data"][output])
+                return context
 
-        self.map(wrapper, name=name)
+            self.map(wrapper, name=name)
+        elif isinstance(func, str):
+            self.steps_chain.add_mutate_step(self.__name(name), func, output)
+        else:
+            raise ValueError("Either lambda_func or func must be provided.")
+
         self.step_index += 1
         return self
     

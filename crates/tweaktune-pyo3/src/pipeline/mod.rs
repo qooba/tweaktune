@@ -1281,6 +1281,18 @@ impl StepsChain {
             template,
         });
     }
+
+    pub fn add_new_column_step(&mut self, name: String, mutation: String, output: String) {
+        todo!()
+    }
+
+    pub fn add_filter_step(&mut self, name: String, condition: String) {
+        todo!()
+    }
+
+    pub fn add_mutate_step(&mut self, name: String, mutation: String, output: String) {
+        todo!()
+    }
 }
 
 impl Default for StepsChain {
