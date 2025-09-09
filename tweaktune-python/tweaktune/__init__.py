@@ -539,6 +539,12 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
+    def check_language(self, input: str, language: str, precision: float, detect_languages: List[str], name: str = "CHECK-LANGUAGE"):
+        self.builder.add_check_language_step(self.__name(name), input, language, precision, detect_languages);
+        self.graph.steps.append(step_item(name=self.__name(name)));
+        self.step_index += 1;
+        return self;
+
     def write_jsonl(self, path: str, template: Optional[str] = None, value: Optional[str] = "output", name: str = "WRITE-JSONL"):
         self.builder.add_write_jsonl_step(self.__name(name), path, template, value)
         self.graph.steps.append(step_item(name=self.__name(name)))

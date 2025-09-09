@@ -21,6 +21,7 @@ use tweaktune_core::datasets::{
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::conversations::RenderConversationStep;
+use tweaktune_core::steps::quality::CheckLanguageStep;
 use tweaktune_core::steps::{
     logic::{FilterStep, MutateStep},
     validators::{
@@ -708,6 +709,25 @@ impl PipelineBuilder {
         )));
     }
 
+    pub fn add_check_language_step(
+        &mut self,
+        name: String,
+        input: String,
+        language: String,
+        precision: f64,
+        detect_languages: Vec<String>,
+    ) {
+        debug!("Added check language step");
+        self.steps
+            .push(StepType::CheckLanguage(CheckLanguageStep::new(
+                name,
+                input,
+                language,
+                precision,
+                detect_languages,
+            )));
+    }
+
     pub fn compile(&self) {
         self.templates.compile().unwrap();
     }
@@ -1099,6 +1119,7 @@ async fn process_steps(
             }
             StepType::Filter(filter_step) => process_common!(filter_step),
             StepType::Mutate(mutate_step) => process_common!(mutate_step),
+            StepType::CheckLanguage(check_language_step) => process_common!(check_language_step),
         }
     }
 

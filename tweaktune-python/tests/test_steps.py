@@ -229,20 +229,6 @@ def test_step_render_conversation(request, output_dir):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
     
-    conversation_template = """@system:
-    {"role": "system", "content": "You are a helpful assistant."}
-    {"role": "user", "content": "Hello, who won the world series in 2020?"}
-    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."}
-    {"role": "user", "content": "Where was it played?"}
-    """
-
-    tools_template = """
-    [
-        {"name": "get_current_weather", "description": "Get the current weather in a given location"},
-        {"name": "get_news", "description": "Get the latest news headlines"}
-    ]
-    """
-
     (Pipeline()
         .with_workers(1)
         .iter_range(1)
@@ -278,20 +264,6 @@ def test_step_render_conversation(request, output_dir):
 def test_step_render_conversation_aliases(request, output_dir):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
-    
-    conversation_template = """@system:
-    {"role": "system", "content": "You are a helpful assistant."}
-    {"role": "user", "content": "Hello, who won the world series in 2020?"}
-    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."}
-    {"role": "user", "content": "Where was it played?"}
-    """
-
-    tools_template = """
-    [
-        {"name": "get_current_weather", "description": "Get the current weather in a given location"},
-        {"name": "get_news", "description": "Get the latest news headlines"}
-    ]
-    """
 
     (Pipeline()
         .with_workers(1)
@@ -326,7 +298,40 @@ def test_step_render_conversation_aliases(request, output_dir):
     assert "winner" in messages[3]["content"]
     assert messages[4]["role"] == "assistant"
     assert "Los Angeles Dodgers" in messages[4]["content"]
-    
+
+
+def test_step_check_language(request, output_dir):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline()
+        .with_workers(1)
+        .with_template("output", """{"question": {{question}}""")
+        .iter_range(1)
+        .add_column("question", lambda data: "Hello, who won the world series in 2020?")
+        .check_language(input="question", language="english", precision=0.8, detect_languages=["english", "french", "german", "spanish"])
+        .write_jsonl(path=output_file, template="output")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    assert len(lines) == 1
+
+def test_step_check_language_polish(request, output_dir):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline()
+        .with_workers(1)
+        .with_template("output", """{"question": {{question}}""")
+        .iter_range(1)
+        .add_column("question", lambda data: "Kto wygrał światową serię w 2020 roku?")
+        .check_language(input="question", language="polish", precision=0.9, detect_languages=["english", "polish", "french", "german", "spanish"])
+        .write_jsonl(path=output_file, template="output")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    assert len(lines) == 1
+
 def test_step_ifelse_then_lambda(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"

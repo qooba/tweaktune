@@ -10,7 +10,7 @@ use lingua::{LanguageDetector, LanguageDetectorBuilder};
 use log::error;
 use std::collections::HashMap;
 
-pub struct LanguageDetectorStep {
+pub struct CheckLanguageStep {
     pub name: String,
     pub input: String,
     pub language: String,
@@ -18,9 +18,19 @@ pub struct LanguageDetectorStep {
     pub detector: LanguageDetector,
 }
 
-impl LanguageDetectorStep {
-    pub fn new(name: String, input: String, language: String, precision: f64) -> Self {
-        let detector = LanguageDetectorBuilder::from_all_spoken_languages().build();
+impl CheckLanguageStep {
+    pub fn new(
+        name: String,
+        input: String,
+        language: String,
+        precision: f64,
+        detect_languages: Vec<String>,
+    ) -> Self {
+        let languages = detect_languages
+            .iter()
+            .filter_map(|lang| lang.parse().ok())
+            .collect::<Vec<_>>();
+        let detector = LanguageDetectorBuilder::from_languages(&languages).build();
         Self {
             name,
             input,
@@ -31,7 +41,7 @@ impl LanguageDetectorStep {
     }
 }
 
-impl Step for LanguageDetectorStep {
+impl Step for CheckLanguageStep {
     async fn process(
         &self,
         _datasets: &HashMap<String, DatasetType>,
