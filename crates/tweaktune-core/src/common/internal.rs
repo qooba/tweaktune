@@ -391,14 +391,24 @@ pub fn create_rows_stream(df: &DataFrame) -> Result<impl Iterator<Item = Result<
     }))
 }
 
-pub fn kmur(step_type: &str, name: &str, value: &str) -> String {
-    let key = format!("{}_{}_{}", step_type, name, value);
-    let key = murmur3::murmur3_32(&mut key.as_bytes(), 0);
-    format!("{:x}", key.unwrap())
+pub fn murmur3_hash(value: &str) -> Result<String> {
+    let mut cursor = io::Cursor::new(value);
+    let hash = murmur3::murmur3_32(&mut cursor, 0)?;
+    Ok(format!("{:x}", hash))
 }
 
-pub fn ktmur(step_type: &str, name: &str, value: &str) -> (String, String) {
-    (kmur(step_type, name, value), format!("{{{{{}}}}}", value))
+pub fn blake3_hash(value: &str) -> String {
+    let hash = blake3::hash(value.as_bytes());
+    hash.to_hex().to_string()
+}
+
+pub fn khash(step_type: &str, name: &str, value: &str) -> String {
+    let key = format!("{}_{}_{}", step_type, name, value);
+    blake3_hash(&key)
+}
+
+pub fn kthash(step_type: &str, name: &str, value: &str) -> (String, String) {
+    (khash(step_type, name, value), format!("{{{{{}}}}}", value))
 }
 
 // Parse simple python function definitions from a string and convert them to

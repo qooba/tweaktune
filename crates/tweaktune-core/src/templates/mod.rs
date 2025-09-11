@@ -1,5 +1,5 @@
 pub mod embed;
-use crate::common::{ktmur, OptionToResult, ResultExt};
+use crate::common::{kthash, OptionToResult, ResultExt};
 use crate::readers::build_reader;
 use crate::steps::StepContextData;
 use anyhow::{bail, Result};
@@ -29,7 +29,7 @@ impl Templates {
     }
 
     pub fn add_inline(&mut self, step_type: &str, name: &str, template: &str) -> String {
-        let kv = ktmur(step_type, name, template);
+        let kv = kthash(step_type, name, template);
         self.templates.insert(kv.0.clone(), kv.1);
         kv.0
     }

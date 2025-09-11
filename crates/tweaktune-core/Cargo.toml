@@ -12,6 +12,7 @@ license.workspace = true
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 base64 = { workspace = true }
+blake3 = { workspace = true }
 bytes = { workspace = true }
 csv = { workspace = true }
 hf-hub = { workspace = true }
