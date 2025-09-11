@@ -32,13 +32,17 @@ reqwest = { workspace = true }
 serde = { workspace = true }
 serde_arrow = { workspace = true, features = ["arrow-54"]}
 serde_json = { workspace = true }
+serde_json_canonicalizer = { workspace = true }
 serde_yaml = { workspace = true }
+simhash = { workspace = true }
 murmur3 = { workspace = true }
+probminhash = { workspace = true }
 text-splitter = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 tweaktune-abstractions= { workspace = true }
+unicode-normalization = { workspace = true}
 url = { workspace = true }
 
 
