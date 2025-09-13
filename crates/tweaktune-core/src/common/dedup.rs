@@ -80,6 +80,7 @@ pub fn io_hash(tool: &str, args: &Value, result: Option<&Value>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_simhash_normalization() {
@@ -110,6 +111,47 @@ mod tests {
         assert_eq!(deduped.len(), 2);
         assert_eq!(deduped[0], "Hello World");
         assert_eq!(deduped[1], "Completely different");
+    }
+
+    #[test]
+    fn test_call_hash_canonicalization_order_independent() {
+        let args1 = json!({"a": 1, "b": 2});
+        let args2 = json!({"b": 2, "a": 1});
+        let h1 = call_hash("mytool", &args1);
+        let h2 = call_hash("mytool", &args2);
+        assert_eq!(h1, h2, "call_hash should be independent of JSON key order");
+    }
+
+    #[test]
+    fn test_call_hash_tool_difference() {
+        let args = json!({"foo": "bar"});
+        let h1 = call_hash("tool1", &args);
+        let h2 = call_hash("tool2", &args);
+        assert_ne!(h1, h2, "different tool names must produce different hashes");
+    }
+
+    #[test]
+    fn test_io_hash_none_and_null_equal() {
+        let args = json!({"x": 1});
+        let h_none = io_hash("t", &args, None);
+        let h_null = io_hash("t", &args, Some(&json!(null)));
+        assert_eq!(h_none, h_null, "None result and explicit null should hash the same");
+    }
+
+    #[test]
+    fn test_io_hash_result_changes() {
+        let args = json!({"x": 1});
+        let h1 = io_hash("t", &args, Some(&json!("ok")));
+        let h2 = io_hash("t", &args, Some(&json!("changed")));
+        assert_ne!(h1, h2, "different result values must change the io_hash");
+    }
+
+    #[test]
+    fn test_call_and_io_different() {
+        let args = json!({"a": 1});
+        let ch = call_hash("t", &args);
+        let ih = io_hash("t", &args, None);
+        assert_ne!(ch, ih, "call_hash and io_hash should differ because io_hash includes result");
     }
 }
 

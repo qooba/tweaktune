@@ -578,8 +578,10 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
         _ => return Err(anyhow!("🐔 messages root must be a JSON object")),
     };
 
-    // Validate optional `tools` array
+    // Validate optional `tools` array. If `tools` key is present (even if empty),
+    // enforce that assistant tool_calls reference only names from this list.
     let mut known_tools: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let tools_provided = obj.get("tools").is_some();
     if let Some(tools) = obj.get("tools") {
         if !tools.is_array() {
             return Err(anyhow!("🐔 'tools' must be an array when present"));
@@ -697,7 +699,7 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
                             name
                         ));
                     }
-                    if !known_tools.is_empty() && !known_tools.contains(name) {
+                    if tools_provided && !known_tools.contains(name) {
                         return Err(anyhow!(
                             "🐔 messages[{}].tool_calls[{}] references unknown tool '{}'",
                             idx,
