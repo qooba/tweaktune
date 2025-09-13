@@ -1,3 +1,4 @@
+use serde_json::Value;
 use simhash::{hamming_distance, simhash};
 use unicode_normalization::UnicodeNormalization;
 
@@ -43,8 +44,8 @@ pub fn deduplicate_texts(texts: Vec<String>, similarity_threshold: u32) -> Vec<S
     unique_texts
 }
 
-fn canonicalize_json(input: String) -> Option<String> {
-    serde_json_canonicalizer::to_string(&input).ok()
+fn canonicalize_json(input: &Value) -> Option<String> {
+    serde_json_canonicalizer::to_string(input).ok()
 }
 
 fn word_shingles(text: &str, shingle_size: usize) -> Vec<String> {
@@ -58,6 +59,22 @@ fn word_shingles(text: &str, shingle_size: usize) -> Vec<String> {
         shingles.push(shingle);
     }
     shingles
+}
+
+pub fn call_hash(tool: &str, args: &Value) -> String {
+    let cann = canonicalize_json(args).unwrap_or_default();
+    let combined = format!("tool={};args={}", tool, cann);
+    hash_exact(combined.as_bytes()).to_string()
+}
+
+pub fn io_hash(tool: &str, args: &Value, result: Option<&Value>) -> String {
+    let cann_args = canonicalize_json(args).unwrap_or_default();
+    let cann_result = match result {
+        Some(res) => canonicalize_json(res).unwrap_or_default(),
+        None => "null".to_string(),
+    };
+    let combined = format!("tool={};args={};result={}", tool, cann_args, cann_result);
+    hash_exact(combined.as_bytes()).to_string()
 }
 
 #[cfg(test)]
