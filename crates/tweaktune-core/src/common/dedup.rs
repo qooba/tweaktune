@@ -59,3 +59,41 @@ fn word_shingles(text: &str, shingle_size: usize) -> Vec<String> {
     }
     shingles
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_simhash_normalization() {
+        let a = "Hello,   World!";
+        let b = "hello, world!";
+        assert_eq!(simhash64(a), simhash64(b));
+    }
+
+    #[test]
+    fn test_simhash_is_similar_exact() {
+        let a = "Some Unique Text";
+        let b = "Some Unique Text";
+        let ha = simhash64(a);
+        let hb = simhash64(b);
+        // identical texts must be within zero hamming distance
+        assert!(is_similar(ha, hb, 0));
+    }
+
+    #[test]
+    fn test_deduplicate_texts_basic() {
+        let texts = vec![
+            "Hello World".to_string(),
+            "hello   world".to_string(),
+            "Completely different".to_string(),
+            "HELLO world".to_string(),
+        ];
+        let deduped = deduplicate_texts(texts, 0);
+        assert_eq!(deduped.len(), 2);
+        assert_eq!(deduped[0], "Hello World");
+        assert_eq!(deduped[1], "Completely different");
+    }
+}
+
+
