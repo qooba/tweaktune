@@ -35,6 +35,7 @@ serde_json = { workspace = true }
 serde_json_canonicalizer = { workspace = true }
 serde_yaml = { workspace = true }
 simhash = { workspace = true }
+sqlx = { workspace = true }
 murmur3 = { workspace = true }
 probminhash = { workspace = true }
 text-splitter = { workspace = true }
