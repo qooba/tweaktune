@@ -98,7 +98,7 @@ serde_yaml = "0.9.33"
 serde_arrow = { version="0.13.5", features=["arrow-55"] }
 simhash = "0.2.0"
 simplelog = {version = "0.12.2"}
-sqlx = { version = "0.8.6", features = ["postgres", "sqlite"] }
+sqlx = { version = "0.8.6", features = ["postgres", "sqlite", "macros"] }
 murmur3 = { version="0.5" }
 probminhash = "0.1.12"
 #tar = "0.4"
