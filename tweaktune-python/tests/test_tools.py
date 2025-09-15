@@ -65,7 +65,7 @@ def test_tools_sample(request, output_dir, data_dir, arrow_dataset):
 
     OUTPUT_TEMPLATE = """{"function": {{function[0]}}, "all_functions": {{all_functions}} }"""
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_tools_dataset("functions", [place_order, get_order_status, search_products, list_categories, add_review, get_product_details, list_user_orders])
         .with_template("output", OUTPUT_TEMPLATE)
@@ -93,7 +93,7 @@ def test_tools_sample(request, output_dir, data_dir, arrow_dataset):
 #   , search_products, list_categories, , , 
 # .with_tools_dataset("functions", [place_order, get_order_status, search_products, list_categories, add_review, get_product_details, list_user_orders])\
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_tools_dataset("functions", [search_products, list_categories])
         .with_template("output", OUTPUT_TEMPLATE)
@@ -117,7 +117,7 @@ def test_tools_sample_2(request, output_dir, data_dir, arrow_dataset):
 #   , search_products, list_categories, , , 
 # .with_tools_dataset("functions", [place_order, get_order_status, search_products, list_categories, add_review, get_product_details, list_user_orders])\
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_tools_dataset("functions", [search_products, list_categories])
         .with_template("output", OUTPUT_TEMPLATE)

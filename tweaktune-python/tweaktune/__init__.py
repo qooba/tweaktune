@@ -1,4 +1,4 @@
-from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings
+from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings, Metadata
 from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
 from tweaktune.common import LogLevel, StepStatus, record_batches_to_ipc_bytes, package_installation_hint
 from tweaktune.tools import pydantic_to_json_schema, function_to_json_schema
@@ -59,8 +59,10 @@ class Graph(BaseModel):
 
 
 class Pipeline:
-    def __init__(self):
-        self.builder = PipelineBuilder()
+    def __init__(self, name: Optional[str] = None, metadata: Optional[Metadata] = None):
+        if name is None:
+            name = os.path.splitext(os.path.basename(__file__))[0]
+        self.builder = PipelineBuilder(name, metadata)
         self.graph = Graph()
 
     def with_openapi_dataset(self, name: str, path_or_url: str):

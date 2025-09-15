@@ -9,7 +9,7 @@ def test_step_sample(request, output_dir, data_dir, arrow_dataset):
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_items": {{sampled_items[0]|jstr}} }""")
@@ -36,7 +36,7 @@ def test_step_py(request, output_dir, data_dir, arrow_dataset):
             return context
 
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_items": {{sampled_items[0]|jstr}}, "hello": {{hello|jstr}}, "my_custom": {{my_custom|jstr}} }""")
@@ -65,7 +65,7 @@ def test_step_map(request, output_dir, data_dir, arrow_dataset):
         return context
 
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_items": {{sampled_items[0]|jstr}}, "hello": {{hello|jstr}}, "my_custom": {{my_custom|jstr}} }""")
@@ -87,7 +87,7 @@ def test_step_add_column_lambda(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_random": {{my_random|jstr}} }""")
@@ -106,7 +106,7 @@ def test_step_add_column(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"new_column_3": {{new_column_3}} }""")
@@ -127,7 +127,7 @@ def test_step_filter_lambda(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_random": {{my_random}} }""")
@@ -147,7 +147,7 @@ def test_step_filter(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_random": {{my_random}} }""")
@@ -167,7 +167,7 @@ def test_step_mutate_lambda(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_random": {{my_random}} }""")
@@ -187,7 +187,7 @@ def test_step_mutate(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"val": {{val}} }""")
@@ -210,7 +210,7 @@ def test_step_render(request, output_dir):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
     
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_template("my_template", """HELLO WORLD""")
         .with_template("output", """{"hello": {{my|jstr}}}""")
@@ -229,7 +229,7 @@ def test_step_render_conversation(request, output_dir):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
     
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .iter_range(1)
         .add_column("system", lambda data: "You are a helpful assistant.")
@@ -265,7 +265,7 @@ def test_step_render_conversation_aliases(request, output_dir):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .iter_range(1)
         .add_column("system", lambda data: "You are a helpful assistant.")
@@ -304,7 +304,7 @@ def test_step_check_language(request, output_dir):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_template("output", """{"question": {{question}}""")
         .iter_range(1)
@@ -320,7 +320,7 @@ def test_step_check_language_polish(request, output_dir):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_template("output", """{"question": {{question}}""")
         .iter_range(1)
@@ -336,7 +336,7 @@ def test_step_ifelse_then_lambda(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_1": {{my_1}}, "my_then": {{my_then}}, "my_else": {{my_else}} }""")
@@ -364,7 +364,7 @@ def test_step_ifelse_then(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_1": {{my_1}}, "my_then": {{my_then}}, "my_else": {{my_else}} }""")
@@ -393,7 +393,7 @@ def test_step_ifelse_else_lambda(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_1": {{my_1}}, "my_then": {{my_then}}, "my_else": {{my_else}} }""")
@@ -421,7 +421,7 @@ def test_step_ifelse_else(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_1": {{my_1}}, "my_then": {{my_then}}, "my_else": {{my_else}} }""")
@@ -450,7 +450,7 @@ def test_step_into_list(request, output_dir, data_dir, arrow_dataset):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_list": {{my_list|tojson}} }""")

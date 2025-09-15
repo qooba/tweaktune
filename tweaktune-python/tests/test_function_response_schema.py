@@ -25,13 +25,13 @@ def test_function_to_schema_includes_response():
     assert resp["name"] == "MyResponse"
     assert "schema" in resp
 
-def test_tools_sample_normalized(request, output_dir, data_dir, arrow_dataset):
+def test_tools_sample_normalized(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
     OUTPUT_TEMPLATE = """{"function": {{function[0]}}, "all_functions": {{normalized_all_functions|tojson}} }"""
 
-    (Pipeline()
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_tools_dataset("functions", [my_tool])
         .with_template("output", OUTPUT_TEMPLATE)

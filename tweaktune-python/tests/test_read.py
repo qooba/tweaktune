@@ -20,15 +20,15 @@ def test_read_mixed(request, output_dir, data_dir):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_json_dataset("functions",f"{data_dir}/functions_micro.json")\
-        .with_jsonl_dataset("personas",f"{data_dir}/personas_micro.jsonl")\
-        .with_mixed_dataset("mixed",["functions", "personas"])\
-        .with_template("output", """{"mixed": {{mixed|jstr}} }""")\
-    .iter_dataset("mixed")\
-        .write_jsonl(path=output_file, template="output")\
-        .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_json_dataset("functions",f"{data_dir}/functions_micro.json")
+        .with_jsonl_dataset("personas",f"{data_dir}/personas_micro.jsonl")
+        .with_mixed_dataset("mixed",["functions", "personas"])
+        .with_template("output", """{"mixed": {{mixed|jstr}} }""")
+    .iter_dataset("mixed")
+        .write_jsonl(path=output_file, template="output")
+        .run())
 
     lines = open(output_file, "r").readlines()
     item = json.loads(lines[0])
@@ -53,13 +53,13 @@ def test_read_csv(request, output_dir, data_dir, file_name, delimeter, has_heade
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_csv_dataset("functions",f"{data_dir}/{file_name}", delimiter=delimeter, has_header=has_header)\
-        .with_template("output", """{"functions": {{functions|jstr}} }""")\
-    .iter_dataset("functions")\
-        .write_jsonl(path=output_file, template="output")\
-        .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_csv_dataset("functions",f"{data_dir}/{file_name}", delimiter=delimeter, has_header=has_header)
+        .with_template("output", """{"functions": {{functions|jstr}} }""")
+    .iter_dataset("functions")
+        .write_jsonl(path=output_file, template="output")
+        .run())
 
     lines = open(output_file, "r").readlines()
     item = json.loads(lines[0])
@@ -75,13 +75,13 @@ def test_read_parquet(request, output_dir, data_dir, parquet_file):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_parquet_dataset("items",parquet_file)\
-        .with_template("output", """{"items": {{items|jstr}} }""")\
-    .iter_dataset("items")\
-        .write_jsonl(path=output_file, template="output")\
-    .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_parquet_dataset("items",parquet_file)
+        .with_template("output", """{"items": {{items|jstr}} }""")
+    .iter_dataset("items")
+        .write_jsonl(path=output_file, template="output")
+    .run())
 
     lines = open(output_file, "r").readlines()
     item = json.loads(lines[0])
@@ -96,13 +96,13 @@ def test_read_parquet_sql(request, output_dir, data_dir, parquet_file):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_parquet_dataset("items", parquet_file, "select * from items where price > 1.0")\
-        .with_template("output", """{"items": {{items|jstr}} }""")\
-    .iter_dataset("items")\
-        .write_jsonl(path=output_file, template="output")\
-    .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_parquet_dataset("items", parquet_file, "select * from items where price > 1.0")
+        .with_template("output", """{"items": {{items|jstr}} }""")
+    .iter_dataset("items")
+        .write_jsonl(path=output_file, template="output")
+    .run())
 
     lines = open(output_file, "r").readlines()
     item = json.loads(lines[0])
@@ -118,13 +118,13 @@ def test_read_db(request, output_dir, data_dir, sqlite_database):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_db_dataset("functions",f"sqlite://{sqlite_database}", "select * from `functions`")\
-        .with_template("output", """{"functions": {{functions|jstr}} }""")\
-    .iter_dataset("functions")\
-        .write_jsonl(path=output_file, template="output")\
-    .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_db_dataset("functions",f"sqlite://{sqlite_database}", "select * from `functions`")
+        .with_template("output", """{"functions": {{functions|jstr}} }""")
+    .iter_dataset("functions")
+        .write_jsonl(path=output_file, template="output")
+    .run())
 
     lines = open(output_file, "r").readlines()
     item = json.loads(lines[0])
@@ -135,13 +135,13 @@ def test_read_arrow(request, output_dir, data_dir, arrow_dataset):
 
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_arrow_dataset("functions", arrow_dataset())\
-        .with_template("output", """{"functions": {{functions|jstr}} }""")\
-    .iter_dataset("functions")\
-        .write_jsonl(path=output_file, template="output")\
-    .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_arrow_dataset("functions", arrow_dataset())
+        .with_template("output", """{"functions": {{functions|jstr}} }""")
+    .iter_dataset("functions")
+        .write_jsonl(path=output_file, template="output")
+    .run())
 
     lines = open(output_file, "r").readlines()
     item = json.loads(lines[0])
@@ -172,14 +172,14 @@ def test_read_dicts(request, output_dir):
         for cls in classes_list
     ]
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_dicts_dataset("json_list", classes)\
-        .with_template("output", """{"class": {{json_object[0].class|jstr}} }""")\
-    .iter_range(number)\
-        .sample(dataset="json_list", size=1, output="json_object")\
-        .write_jsonl(path=output_file, template="output")\
-    .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_dicts_dataset("json_list", classes)
+        .with_template("output", """{"class": {{json_object[0].class|jstr}} }""")
+    .iter_range(number)
+        .sample(dataset="json_list", size=1, output="json_object")
+        .write_jsonl(path=output_file, template="output")
+    .run())
 
     lines = open(output_file, "r").readlines()
     for line in lines:
@@ -213,14 +213,14 @@ def test_read_tools(request, data_dir, output_dir):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_tools_dataset("tools", [my_function])\
-        .with_template("output", """{"tool": {{tool|jstr}} }""")\
-    .iter_range(number)\
-        .sample(dataset="tools", size=1, output="tool")\
-        .write_jsonl(path=output_file, template="output")\
-    .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_tools_dataset("tools", [my_function])
+        .with_template("output", """{"tool": {{tool|jstr}} }""")
+    .iter_range(number)
+        .sample(dataset="tools", size=1, output="tool")
+        .write_jsonl(path=output_file, template="output")
+    .run())
 
     lines = open(output_file, "r").readlines()
     
@@ -252,14 +252,14 @@ def test_read_pydantic(request, output_dir):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_pydantic_models_dataset("pydantic_models", [Item])\
-        .with_template("output", """{"pydantic_models": {{pydantic_model|jstr}} }""")\
-    .iter_range(number)\
-        .sample(dataset="pydantic_models", size=1, output="pydantic_model")\
-        .write_jsonl(path=output_file, template="output")\
-    .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_pydantic_models_dataset("pydantic_models", [Item])
+        .with_template("output", """{"pydantic_models": {{pydantic_model|jstr}} }""")
+    .iter_range(number)
+        .sample(dataset="pydantic_models", size=1, output="pydantic_model")
+        .write_jsonl(path=output_file, template="output")
+    .run())
 
     lines = open(output_file, "r").readlines()
     
@@ -271,14 +271,14 @@ def test_read_openapi(request, output_dir):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_openapi_dataset("openapi", "./tweaktune-python/tests/openapi.json")\
-        .with_template("output", """{"api": {{openapi|jstr}} }""")\
-    .iter_range(number)\
-        .sample(dataset="openapi", size=1, output="openapi")\
-        .write_jsonl(path=output_file, template="output")\
-    .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_openapi_dataset("openapi", "./tweaktune-python/tests/openapi.json")
+        .with_template("output", """{"api": {{openapi|jstr}} }""")
+    .iter_range(number)
+        .sample(dataset="openapi", size=1, output="openapi")
+        .write_jsonl(path=output_file, template="output")
+    .run())
 
     lines = open(output_file, "r").readlines()
     
@@ -293,14 +293,14 @@ def test_read_jsonl(request, data_dir, output_dir):
     with open(functions_micro_file, "w") as f:
         f.write('{"name": "function1", "test_bool": true, "test_int": 1, "test_float": 0.1, "description": "This is function.", "parameters": {"type": "object", "p_bool": true, "p_int": 1, "p_float": 0.1, "properties": {"x": {"type": "integer", "v_int": 1, "v_float": 0.7, "v_bool": true}, "y": {"type": "integer"}}, "required": ["x", "y"], "arr_int": [1,2,3], "arr_float": [0.1,0.2,0.3], "arr_bool": [true, false, true]}}\n')
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_jsonl_dataset("functions", functions_micro_file)\
-        .with_template("output", """{"description": {{functions[0].description|jstr}}, "functions": {{functions}} }""")\
-    .iter_range(number)\
-        .sample(dataset="functions", size=1, output="functions")\
-        .write_jsonl(path=output_file, template="output")\
-    .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_jsonl_dataset("functions", functions_micro_file)
+        .with_template("output", """{"description": {{functions[0].description|jstr}}, "functions": {{functions}} }""")
+    .iter_range(number)
+        .sample(dataset="functions", size=1, output="functions")
+        .write_jsonl(path=output_file, template="output")
+    .run())
 
     lines = open(output_file, "r").readlines()
     line = json.loads(lines[0])

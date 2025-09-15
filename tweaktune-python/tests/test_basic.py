@@ -1,12 +1,12 @@
 import json
 from tweaktune import Pipeline
 
-def test_basic(request, output_dir):
+def test_basic(request, output_dir, metadata):
     """Test the basic functionality of the pipeline."""
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_template("output", """{"hello": "{{value}}"}""")
     .iter_range(number)
@@ -17,12 +17,12 @@ def test_basic(request, output_dir):
     
     assert len(lines) == number
 
-def test_basic_j2(request, output_dir, j2_file):
+def test_basic_j2(request, output_dir, j2_file, metadata):
     """Test the basic functionality of the pipeline."""
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_j2_template("output", j2_file)
     .iter_range(number)
@@ -35,12 +35,12 @@ def test_basic_j2(request, output_dir, j2_file):
     item = json.loads(lines[0])
     assert item["hello"] == "world"
 
-def test_basic_j2_dir(request, output_dir, j2_dir):
+def test_basic_j2_dir(request, output_dir, j2_dir, metadata):
     """Test the basic functionality of the pipeline."""
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_templates(j2_dir)
     .iter_range(number)
@@ -54,13 +54,13 @@ def test_basic_j2_dir(request, output_dir, j2_dir):
     assert item["hello"] == "world"
 
 
-def test_basic_j2_yaml(request, output_dir, j2_file_yaml):
+def test_basic_j2_yaml(request, output_dir, j2_file_yaml, metadata):
     """Test the basic functionality of the pipeline."""
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
     print(open(j2_file_yaml, "r").read())
 
-    (Pipeline()
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_j2_templates(j2_file_yaml)
     .iter_range(number)

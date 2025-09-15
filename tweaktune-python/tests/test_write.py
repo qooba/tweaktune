@@ -7,7 +7,7 @@ def test_write_json(request, output_dir):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_template("output", """{"hello": "world"}""")
     .iter_range(number)
@@ -24,7 +24,7 @@ def test_write_json_render(request, output_dir):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline()
+    (Pipeline(request.node.name)
         .with_workers(1)
         .with_template("output", """{"hello": "world"}""")
     .iter_range(number)
@@ -43,13 +43,13 @@ def test_write_csv(request, output_dir):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.csv"
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_template("output", """world""")\
-    .iter_range(number)\
-        .render(template="output", output="hello")\
-        .write_csv(path=output_file, columns=["hello"], delimeter=";" )\
-    .run()
+    (Pipeline(request.node.name)
+        .with_workers(1)
+        .with_template("output", """world""")
+    .iter_range(number)
+        .render(template="output", output="hello")
+        .write_csv(path=output_file, columns=["hello"], delimeter=";" )
+    .run())
 
     lines = open(output_file, "r").readlines()
     

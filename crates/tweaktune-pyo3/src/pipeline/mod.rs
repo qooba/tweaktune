@@ -44,7 +44,15 @@ use tweaktune_core::{
 };
 
 #[pyclass]
+#[derive(Clone)]
+pub struct Metadata {
+    pub path: String,
+    pub enabled: bool,
+}
+
+#[pyclass]
 pub struct PipelineBuilder {
+    name: String,
     workers: usize,
     datasets: Resources<DatasetType>,
     templates: Templates,
@@ -54,13 +62,24 @@ pub struct PipelineBuilder {
     iter_by: IterBy,
     running: Arc<AtomicBool>,
     logs_collector: Arc<LogsCollector>,
+    metadata: Metadata,
 }
 
 #[pymethods]
 impl PipelineBuilder {
     #[new]
-    pub fn new() -> Self {
+    pub fn new(name: String, metadata: Option<Metadata>) -> Self {
+        let metadata = if let Some(metadata) = metadata {
+            metadata
+        } else {
+            Metadata {
+                enabled: true,
+                path: format!(".tweaktune/{}/", &name),
+            }
+        };
+
         Self {
+            name: name,
             workers: 1,
             datasets: Resources {
                 resources: HashMap::new(),
@@ -80,6 +99,7 @@ impl PipelineBuilder {
             },
             running: Arc::new(AtomicBool::new(false)),
             logs_collector: Arc::new(LogsCollector::new()),
+            metadata,
         }
     }
 
@@ -729,6 +749,10 @@ impl PipelineBuilder {
     }
 
     pub fn compile(&self) {
+        if self.metadata.enabled {
+            create_dir_all(&self.metadata.path).unwrap();
+        }
+
         self.templates.compile().unwrap();
     }
 
@@ -757,17 +781,20 @@ impl PipelineBuilder {
                 debug!("Initialize logger issue: {}", e);
             }
         } else {
-            create_dir_all(".tweaktune").unwrap();
-
             let now = Local::now();
             let filename = if let Some(f) = file {
                 format!(
-                    ".tweaktune/log_{}_{}.log",
+                    "{}/log_{}_{}.log",
+                    self.metadata.path,
                     f,
                     now.format("%Y-%m-%d_%H-%M-%S")
                 )
             } else {
-                format!(".tweaktune/log_{}.log", now.format("%Y-%m-%d_%H-%M-%S"))
+                format!(
+                    "{}/log_{}.log",
+                    self.metadata.path,
+                    now.format("%Y-%m-%d_%H-%M-%S")
+                )
             };
 
             if let Err(e) = CombinedLogger::init(vec![
@@ -1034,12 +1061,6 @@ async fn map_record_batches(
     context.set_status(StepStatus::Running);
     process_steps(pipeline, context, None).await?;
     Ok(())
-}
-
-impl Default for PipelineBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 async fn process_steps(
