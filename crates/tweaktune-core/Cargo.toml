@@ -45,6 +45,7 @@ tokio-util = { workspace = true }
 tweaktune-abstractions= { workspace = true }
 unicode-normalization = { workspace = true}
 url = { workspace = true }
+uuid = { workspace = true }
 
 
 [dev-dependencies]

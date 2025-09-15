@@ -213,9 +213,9 @@ impl Step for RenderConversationStep {
             let tools = context
                 .get(t)
                 .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", t))?;
-            json!({ "messages": conversations_steps, "tools": tools })
+            json!({ "messages": conversations_steps, "tools": tools, "id": context.sid })
         } else {
-            json!({ "messages": conversations_steps })
+            json!({ "messages": conversations_steps, "id": context.sid })
         };
 
         if let Err(e) = validate_tool_format_messages(&rendered) {

@@ -1,11 +1,8 @@
-use std::{path::Path, str::FromStr};
-
-use polars::sql;
-use polars_arrow::io::ipc::format;
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
     SqlitePool,
 };
+use std::{path::Path, str::FromStr};
 
 pub async fn open_state_db(db_path: &Path) -> Result<SqlitePool, sqlx::Error> {
     if let Some(dir) = db_path.parent() {

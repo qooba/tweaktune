@@ -87,7 +87,7 @@ impl PipelineBuilder {
         };
 
         Self {
-            name: name,
+            name,
             workers: 1,
             datasets: Resources {
                 resources: HashMap::new(),

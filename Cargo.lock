@@ -5543,6 +5543,7 @@ dependencies = [
  "tweaktune-abstractions",
  "unicode-normalization",
  "url",
+ "uuid",
 ]
 
 [[package]]
