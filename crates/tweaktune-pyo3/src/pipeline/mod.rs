@@ -950,7 +950,8 @@ impl PipelineBuilder {
                                 let value = successfull_iterations.clone();
                                 async move {
                                     if let Err(e) =
-                                        map_record_batches(self, name, &json_row.unwrap()).await
+                                        map_record_batches(self, name, &json_row.unwrap(), &inc)
+                                            .await
                                     {
                                         return Err(format!(
                                             "Error processing step: {} - {}",
@@ -986,9 +987,13 @@ impl PipelineBuilder {
                                         process_progress_bar(bar, &self.running);
                                         let value = successfull_iterations.clone();
                                         async move {
-                                            if let Err(e) =
-                                                map_record_batches(self, name, &json_row.unwrap())
-                                                    .await
+                                            if let Err(e) = map_record_batches(
+                                                self,
+                                                name,
+                                                &json_row.unwrap(),
+                                                &inc,
+                                            )
+                                            .await
                                             {
                                                 return Err(format!(
                                                     "Error processing step: {} - {}",
@@ -1069,10 +1074,12 @@ async fn map_record_batches(
     pipeline: &PipelineBuilder,
     dataset_name: &str,
     json_row: &serde_json::Value,
+    inc: &i32,
 ) -> Result<()> {
     let mut context = StepContext::new();
 
     context.set(dataset_name, json_row);
+    context.set("index", inc);
     context.set_status(StepStatus::Running);
     process_steps(pipeline, context, None).await?;
     Ok(())
