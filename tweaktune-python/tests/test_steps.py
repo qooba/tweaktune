@@ -4,12 +4,12 @@ import random
 
 from tweaktune.chain import Chain
 
-def test_step_sample(request, output_dir, data_dir, arrow_dataset):
+def test_step_sample(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_items": {{sampled_items[0]|jstr}} }""")
@@ -25,7 +25,7 @@ def test_step_sample(request, output_dir, data_dir, arrow_dataset):
     assert "name" in item["my_items"]
     assert len(lines) == 10
 
-def test_step_py(request, output_dir, data_dir, arrow_dataset):
+def test_step_py(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
@@ -36,7 +36,7 @@ def test_step_py(request, output_dir, data_dir, arrow_dataset):
             return context
 
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_items": {{sampled_items[0]|jstr}}, "hello": {{hello|jstr}}, "my_custom": {{my_custom|jstr}} }""")
@@ -55,7 +55,7 @@ def test_step_py(request, output_dir, data_dir, arrow_dataset):
     assert "name" in item["my_custom"]
 
 
-def test_step_map(request, output_dir, data_dir, arrow_dataset):
+def test_step_map(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
@@ -65,7 +65,7 @@ def test_step_map(request, output_dir, data_dir, arrow_dataset):
         return context
 
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_items": {{sampled_items[0]|jstr}}, "hello": {{hello|jstr}}, "my_custom": {{my_custom|jstr}} }""")
@@ -83,11 +83,11 @@ def test_step_map(request, output_dir, data_dir, arrow_dataset):
     assert item["hello"] == "world"
     assert "name" in item["my_custom"]
 
-def test_step_add_column_lambda(request, output_dir, data_dir, arrow_dataset):
+def test_step_add_column_lambda(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_random": {{my_random|jstr}} }""")
@@ -102,11 +102,11 @@ def test_step_add_column_lambda(request, output_dir, data_dir, arrow_dataset):
     assert "my_random" in item
     assert item["my_random"].startswith("random_")
 
-def test_step_add_column(request, output_dir, data_dir, arrow_dataset):
+def test_step_add_column(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"new_column_3": {{new_column_3}} }""")
@@ -123,11 +123,11 @@ def test_step_add_column(request, output_dir, data_dir, arrow_dataset):
     assert item["new_column_3"] == 3
 
 
-def test_step_filter_lambda(request, output_dir, data_dir, arrow_dataset):
+def test_step_filter_lambda(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_random": {{my_random}} }""")
@@ -143,11 +143,11 @@ def test_step_filter_lambda(request, output_dir, data_dir, arrow_dataset):
         assert "my_random" in item
         assert item["my_random"] % 2 == 0
 
-def test_step_filter(request, output_dir, data_dir, arrow_dataset):
+def test_step_filter(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_random": {{my_random}} }""")
@@ -163,11 +163,11 @@ def test_step_filter(request, output_dir, data_dir, arrow_dataset):
         assert "my_random" in item
         assert item["my_random"] % 2 == 0
 
-def test_step_mutate_lambda(request, output_dir, data_dir, arrow_dataset):
+def test_step_mutate_lambda(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_random": {{my_random}} }""")
@@ -183,11 +183,11 @@ def test_step_mutate_lambda(request, output_dir, data_dir, arrow_dataset):
         assert "my_random" in item
         assert item["my_random"] == 10
 
-def test_step_mutate(request, output_dir, data_dir, arrow_dataset):
+def test_step_mutate(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"val": {{val}} }""")
@@ -205,12 +205,12 @@ def test_step_mutate(request, output_dir, data_dir, arrow_dataset):
         assert item["val"] == 0
 
 
-def test_step_render(request, output_dir):
+def test_step_render(request, output_dir, metadata):
     """Test the basic functionality of the pipeline."""
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
-    
-    (Pipeline(request.node.name)
+
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_template("my_template", """HELLO WORLD""")
         .with_template("output", """{"hello": {{my|jstr}}}""")
@@ -225,11 +225,11 @@ def test_step_render(request, output_dir):
     assert line["hello"] == "HELLO WORLD"
     assert len(lines) == number
 
-def test_step_render_conversation(request, output_dir):
+def test_step_render_conversation(request, output_dir, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
-    
-    (Pipeline(request.node.name)
+
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .iter_range(1)
         .add_column("system", lambda data: "You are a helpful assistant.")
@@ -261,11 +261,11 @@ def test_step_render_conversation(request, output_dir):
     assert messages[5]["role"] == "assistant"
     assert "Los Angeles Dodgers" in messages[5]["content"]
 
-def test_step_render_conversation_aliases(request, output_dir):
+def test_step_render_conversation_aliases(request, output_dir, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .iter_range(1)
         .add_column("system", lambda data: "You are a helpful assistant.")
@@ -300,11 +300,11 @@ def test_step_render_conversation_aliases(request, output_dir):
     assert "Los Angeles Dodgers" in messages[4]["content"]
 
 
-def test_step_check_language(request, output_dir):
+def test_step_check_language(request, output_dir, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_template("output", """{"question": {{question}}""")
         .iter_range(1)
@@ -316,11 +316,11 @@ def test_step_check_language(request, output_dir):
     lines = open(output_file, "r").readlines()
     assert len(lines) == 1
 
-def test_step_check_language_polish(request, output_dir):
+def test_step_check_language_polish(request, output_dir, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_template("output", """{"question": {{question}}""")
         .iter_range(1)
@@ -332,11 +332,11 @@ def test_step_check_language_polish(request, output_dir):
     lines = open(output_file, "r").readlines()
     assert len(lines) == 1
 
-def test_step_ifelse_then_lambda(request, output_dir, data_dir, arrow_dataset):
+def test_step_ifelse_then_lambda(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_1": {{my_1}}, "my_then": {{my_then}}, "my_else": {{my_else}} }""")
@@ -360,11 +360,11 @@ def test_step_ifelse_then_lambda(request, output_dir, data_dir, arrow_dataset):
         assert item["my_then"] is True
         assert item["my_else"] is False
 
-def test_step_ifelse_then(request, output_dir, data_dir, arrow_dataset):
+def test_step_ifelse_then(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_1": {{my_1}}, "my_then": {{my_then}}, "my_else": {{my_else}} }""")
@@ -389,11 +389,11 @@ def test_step_ifelse_then(request, output_dir, data_dir, arrow_dataset):
         assert item["my_else"] is False
 
 
-def test_step_ifelse_else_lambda(request, output_dir, data_dir, arrow_dataset):
+def test_step_ifelse_else_lambda(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_1": {{my_1}}, "my_then": {{my_then}}, "my_else": {{my_else}} }""")
@@ -417,11 +417,11 @@ def test_step_ifelse_else_lambda(request, output_dir, data_dir, arrow_dataset):
         assert item["my_then"] is False
         assert item["my_else"] is True
 
-def test_step_ifelse_else(request, output_dir, data_dir, arrow_dataset):
+def test_step_ifelse_else(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_1": {{my_1}}, "my_then": {{my_then}}, "my_else": {{my_else}} }""")
@@ -446,11 +446,11 @@ def test_step_ifelse_else(request, output_dir, data_dir, arrow_dataset):
         assert item["my_else"] is True
 
 
-def test_step_into_list(request, output_dir, data_dir, arrow_dataset):
+def test_step_into_list(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(request.node.name)
+    (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
         .with_template("output", """{"my_list": {{my_list|tojson}} }""")

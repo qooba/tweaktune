@@ -50,6 +50,14 @@ pub struct Metadata {
     pub enabled: bool,
 }
 
+#[pymethods]
+impl Metadata {
+    #[new]
+    pub fn new(path: String, enabled: bool) -> Self {
+        Self { path, enabled }
+    }
+}
+
 #[pyclass]
 pub struct PipelineBuilder {
     name: String,
@@ -748,11 +756,17 @@ impl PipelineBuilder {
             )));
     }
 
-    pub fn compile(&self) {
+    fn _prepare_metadata(&self) -> Result<()> {
         if self.metadata.enabled {
             create_dir_all(&self.metadata.path).unwrap();
+            create_dir_all(format!("{}/{}", &self.metadata.path, "logs")).unwrap();
+            create_dir_all(format!("{}/{}", &self.metadata.path, "state")).unwrap();
         }
+        Ok(())
+    }
 
+    pub fn compile(&self) {
+        self._prepare_metadata().unwrap();
         self.templates.compile().unwrap();
     }
 
@@ -781,17 +795,18 @@ impl PipelineBuilder {
                 debug!("Initialize logger issue: {}", e);
             }
         } else {
+            self._prepare_metadata().unwrap();
             let now = Local::now();
             let filename = if let Some(f) = file {
                 format!(
-                    "{}/log_{}_{}.log",
+                    "{}/logs/{}_{}.log",
                     self.metadata.path,
                     f,
                     now.format("%Y-%m-%d_%H-%M-%S")
                 )
             } else {
                 format!(
-                    "{}/log_{}.log",
+                    "{}/logs/{}.log",
                     self.metadata.path,
                     now.format("%Y-%m-%d_%H-%M-%S")
                 )
