@@ -11,6 +11,54 @@ use log::error;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
+pub struct RenderToolCallStep {
+    pub name: String,
+    pub tool_name: String,
+    pub arguments: String,
+    pub output: String,
+}
+
+impl RenderToolCallStep {
+    pub fn new(name: String, tool_name: String, arguments: String, output: String) -> Self {
+        Self {
+            name,
+            tool_name,
+            arguments,
+            output,
+        }
+    }
+}
+
+impl Step for RenderToolCallStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+        _state: Option<State>,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        let arguments = context.data.get(&self.arguments).unwrap();
+        let arguments = if let Value::String(v) = arguments {
+            serde_json::from_str(v).unwrap()
+        } else {
+            arguments.clone()
+        };
+
+        let rendered = json!({
+            "function": {
+                "name": context.data.get(&self.tool_name).unwrap().clone(),
+                "arguments": arguments,
+            }
+        });
+        context.set(&self.output, rendered);
+        Ok(context)
+    }
+}
+
 pub struct RenderConversationStep {
     pub name: String,
     pub conversation: String,

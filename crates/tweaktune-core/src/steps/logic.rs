@@ -84,8 +84,7 @@ impl Step for MutateStep {
                 context.set(&self.output, v);
             }
             Err(e) => {
-                error!(target: "mutatestep", "🐔 Failed to render mutation: {}", e);
-                context.set_status(StepStatus::Failed);
+                context.set(&self.output, serde_json::Value::String(rendered));
             }
         }
 

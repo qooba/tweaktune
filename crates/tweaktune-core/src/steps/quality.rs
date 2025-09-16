@@ -78,3 +78,8 @@ impl Step for CheckLanguageStep {
         Ok(context)
     }
 }
+
+pub struct CheckCallHashStep {
+    pub name: String,
+    pub input: String,
+}

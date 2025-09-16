@@ -20,7 +20,7 @@ use tweaktune_core::datasets::{
 };
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
-use tweaktune_core::steps::conversations::RenderConversationStep;
+use tweaktune_core::steps::conversations::{RenderConversationStep, RenderToolCallStep};
 use tweaktune_core::steps::quality::CheckLanguageStep;
 use tweaktune_core::steps::{
     logic::{FilterStep, MutateStep},
@@ -692,6 +692,20 @@ impl PipelineBuilder {
             )));
     }
 
+    pub fn add_render_tool_call_step(
+        &mut self,
+        name: String,
+        tool_name: String,
+        arguments: String,
+        output: String,
+    ) {
+        debug!("Added render tool call step");
+        self.steps
+            .push(StepType::RenderToolCall(RenderToolCallStep::new(
+                name, tool_name, arguments, output,
+            )));
+    }
+
     pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
         debug!("Added validate JSON step");
 
@@ -1218,6 +1232,9 @@ async fn process_steps(
             StepType::Filter(filter_step) => process_common!(filter_step),
             StepType::Mutate(mutate_step) => process_common!(mutate_step),
             StepType::CheckLanguage(check_language_step) => process_common!(check_language_step),
+            StepType::RenderToolCall(render_tool_call_step) => {
+                process_common!(render_tool_call_step)
+            }
         }
     }
 

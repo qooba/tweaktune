@@ -486,6 +486,16 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
+
+    def render_tool_call(self, arguments: str, output: str, tool: str = None, tool_name: str = None, name: str = "RENDER-TOOL-CALL"):
+        if tool:
+            tool_name = f"{self.__name(name)}-TOOL"
+            self.builder.add_new_column_step(self.__name(name), tool, output=tool_name)
+            
+        self.builder.add_render_tool_call_step(self.__name(name), tool_name, arguments, output);
+        self.graph.steps.append(step_item(name=self.__name(name)));
+        self.step_index += 1;
+        return self;
     
     def validate_json(self, schema: str, instance: str, name: str = "VALIDATE-JSON"):
         self.builder.add_validatejson_step(self.__name(name), schema, instance)

@@ -12,7 +12,7 @@ use crate::{
     llms::{self, LLMType},
     state::State,
     steps::{
-        conversations::RenderConversationStep,
+        conversations::{RenderConversationStep, RenderToolCallStep},
         generators::{JsonGenerationStep, TextGenerationStep},
         logic::{FilterStep, MutateStep},
         py::{PyStep, PyValidator},
@@ -115,6 +115,7 @@ pub enum StepType {
     Filter(FilterStep),
     Mutate(MutateStep),
     CheckLanguage(CheckLanguageStep),
+    RenderToolCall(RenderToolCallStep),
 }
 
 pub struct IfElseStep {
