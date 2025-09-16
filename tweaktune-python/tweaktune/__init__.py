@@ -573,8 +573,8 @@ class PipelineRunner:
         return self
 
     def log(self, level: str = LogLevel.ERROR.value, target: str = None):
-        file = os.path.splitext(os.path.basename(sys.argv[0]))[0]
-        self.builder.log(level, target, file)
+        #file = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        self.builder.log(level, target, None)
         self.logger = True
         return self
     

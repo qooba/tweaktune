@@ -797,7 +797,7 @@ impl PipelineBuilder {
             .set_level_color(Level::Trace, Some(Color::Rgb(127, 127, 255)))
             .build();
 
-        if level == log::LevelFilter::Error {
+        if level == log::LevelFilter::Error && !self.metadata.enabled {
             if let Err(e) = CombinedLogger::init(vec![
                 Box::new((*self.logs_collector).clone()) as Box<dyn simplelog::SharedLogger>
             ]) {

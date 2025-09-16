@@ -76,19 +76,19 @@ impl State {
         Ok(())
     }
 
-    // Steps
-    pub async fn add_step(
+    // Items
+    pub async fn add_item(
         &self,
-        step_id: &str,
+        item_id: &str,
         run_id: &str,
         iter_index: i64,
         metadata: Option<JsonValue>,
     ) -> Result<(), sqlx::Error> {
         let meta = metadata.map(|m| m.to_string());
         sqlx::query(
-            "INSERT INTO steps(step_id, run_id, iter_index, metadata) VALUES (?, ?, ?, ?) ON CONFLICT(step_id) DO UPDATE SET run_id=excluded.run_id, iter_index=excluded.iter_index, metadata=excluded.metadata",
+            "INSERT INTO items(item_id, run_id, iter_index, metadata) VALUES (?, ?, ?, ?) ON CONFLICT(item_id) DO UPDATE SET run_id=excluded.run_id, iter_index=excluded.iter_index, metadata=excluded.metadata",
         )
-        .bind(step_id)
+        .bind(item_id)
         .bind(run_id)
         .bind(iter_index)
         .bind(meta)
@@ -98,9 +98,9 @@ impl State {
         Ok(())
     }
 
-    pub async fn delete_step(&self, step_id: &str) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM steps WHERE step_id = ?")
-            .bind(step_id)
+    pub async fn delete_item(&self, item_id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM items WHERE item_id = ?")
+            .bind(item_id)
             .execute(&self.db)
             .await?;
         Ok(())
@@ -109,12 +109,12 @@ impl State {
     // Callhashes
     pub async fn add_callhash(
         &self,
-        step_id: Option<&str>,
+        item_id: Option<&str>,
         key: &str,
         hash: &str,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query("INSERT OR IGNORE INTO callhashes(step_id, key, hash) VALUES (?, ?, ?)")
-            .bind(step_id)
+        sqlx::query("INSERT OR IGNORE INTO callhashes(item_id, key, hash) VALUES (?, ?, ?)")
+            .bind(item_id)
             .bind(key)
             .bind(hash)
             .execute(&self.db)
@@ -144,12 +144,12 @@ impl State {
     // Simhashes
     pub async fn add_simhash(
         &self,
-        step_id: Option<&str>,
+        item_id: Option<&str>,
         key: &str,
         simhash: i64,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query("INSERT OR IGNORE INTO simhashes(step_id, key, simhash) VALUES (?, ?, ?)")
-            .bind(step_id)
+        sqlx::query("INSERT OR IGNORE INTO simhashes(item_id, key, simhash) VALUES (?, ?, ?)")
+            .bind(item_id)
             .bind(key)
             .bind(simhash)
             .execute(&self.db)
@@ -168,7 +168,7 @@ impl State {
 
     /// KNN search for simhash: preselect candidates by matching any stored band (b0..b3)
     /// and then compute exact Hamming distance in Rust, returning up to `k` nearest neighbors
-    /// as tuples (simhash, distance, step_id).
+    /// as tuples (simhash, distance, item_id).
     pub async fn knn_simhash(
         &self,
         key: &str,
@@ -184,7 +184,7 @@ impl State {
         // preselect candidates where any band matches. limit to a reasonable number
         let limit = (k.saturating_mul(10)).max(100) as i64;
 
-        let rows = sqlx::query("SELECT simhash, step_id FROM simhashes WHERE key = ? AND (b0 = ? OR b1 = ? OR b2 = ? OR b3 = ?) LIMIT ?")
+        let rows = sqlx::query("SELECT simhash, item_id FROM simhashes WHERE key = ? AND (b0 = ? OR b1 = ? OR b2 = ? OR b3 = ?) LIMIT ?")
             .bind(key)
             .bind(b0)
             .bind(b1)
@@ -199,9 +199,9 @@ impl State {
             .map(|r| {
                 let s: i64 = r.get("simhash");
                 let sim = s as u64;
-                let step_id: Option<String> = r.get("step_id");
+                let item_id: Option<String> = r.get("item_id");
                 let dist = (sim ^ query_simhash).count_ones();
-                (sim, dist, step_id)
+                (sim, dist, item_id)
             })
             .collect();
 
@@ -223,20 +223,20 @@ mod tests {
         let path = tmp.path().to_str().unwrap();
         let state = State::new(path).await?;
 
-        // add run and step
+        // add run and item
         state.add_run("run1", "/tmp/log", None).await?;
-        state.add_step("step1", "run1", 0, None).await?;
+        state.add_item("item1", "run1", 0, None).await?;
 
         // callhash
         assert!(!state.callhash_exists("k1", "h1").await?);
-        state.add_callhash(Some("step1"), "k1", "h1").await?;
+        state.add_callhash(Some("item1"), "k1", "h1").await?;
         assert!(state.callhash_exists("k1", "h1").await?);
         state.delete_callhash("k1", "h1").await?;
         assert!(!state.callhash_exists("k1", "h1").await?);
 
         // simhash
         let q: u64 = 0x0123_4567_89AB_CDEF;
-        state.add_simhash(Some("step1"), "k1", q as i64).await?;
+        state.add_simhash(Some("item1"), "k1", q as i64).await?;
         let res = state.knn_simhash("k1", q, 1).await?;
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].0, q);

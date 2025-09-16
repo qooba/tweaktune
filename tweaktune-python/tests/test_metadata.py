@@ -28,6 +28,12 @@ def test_metadata(request, output_dir):
     tables = cursor.fetchall()
     print(tables)
     assert ('runs',) in tables
-    assert ('steps',) in tables
+    assert ('items',) in tables
     assert ('callhashes',) in tables
     assert ('simhashes',) in tables
+
+    cursor.execute("SELECT * FROM runs;")
+    runs = cursor.fetchall()
+    print(runs)
+    assert len(runs) == 1
+
