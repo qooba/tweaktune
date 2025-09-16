@@ -90,6 +90,7 @@ pub struct PipelineBuilder {
     iter_by: IterBy,
     running: Arc<AtomicBool>,
     logs_collector: Arc<LogsCollector>,
+    log_path: Option<String>,
     metadata: Metadata,
 }
 
@@ -124,6 +125,7 @@ impl PipelineBuilder {
             },
             running: Arc::new(AtomicBool::new(false)),
             logs_collector: Arc::new(LogsCollector::new()),
+            log_path: None,
             metadata,
         }
     }
@@ -778,7 +780,7 @@ impl PipelineBuilder {
     }
 
     #[pyo3(signature = (level=None, target=None, file=None))]
-    pub fn log(&self, level: Option<&str>, target: Option<&str>, file: Option<&str>) {
+    pub fn log(&mut self, level: Option<&str>, target: Option<&str>, file: Option<&str>) {
         let level = match level {
             Some("debug") => log::LevelFilter::Debug,
             Some("info") => log::LevelFilter::Info,
@@ -817,6 +819,8 @@ impl PipelineBuilder {
                     now.format("%Y-%m-%d_%H-%M-%S")
                 )
             };
+
+            self.log_path = Some(filename.clone());
 
             if let Err(e) = CombinedLogger::init(vec![
                 WriteLogger::new(level, config.clone(), File::create(&filename).unwrap()),
@@ -881,7 +885,21 @@ impl PipelineBuilder {
             None
         };
 
+        let log_path = self.log_path.clone();
+
         let result = run_async(async {
+            if self.metadata.enabled {
+                if let Some(state) = &self.metadata.state {
+                    state
+                        .add_run(
+                            &uuid::Uuid::new_v4().to_string(),
+                            log_path.as_ref().expect("Log path not set"),
+                            None,
+                        )
+                        .await?;
+                }
+            }
+
             let successfull_iterations = Arc::new(std::sync::atomic::AtomicUsize::new(0));
             match &self.iter_by {
                 IterBy::Range { start, stop, step } => {

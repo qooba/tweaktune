@@ -5584,6 +5584,7 @@ dependencies = [
  "tokio",
  "tweaktune-abstractions",
  "tweaktune-core",
+ "uuid",
 ]
 
 [[package]]

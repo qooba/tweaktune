@@ -15,6 +15,7 @@ license.workspace = true
 anyhow = { workspace = true }
 chrono = { workspace = true }
 console = { workspace = true }
+comfy-table = { workspace = true }
 ctrlc = { workspace = true }
 env_logger = { workspace = true }
 futures = { workspace = true }
@@ -32,4 +33,4 @@ simplelog = { workspace = true }
 sqlx = { workspace = true }
 # pyo3-async = { version = "0.3.2" }
 tokio = { workspace = true }
-comfy-table = { workspace = true }
+uuid = { workspace = true }
