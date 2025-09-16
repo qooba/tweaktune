@@ -34,6 +34,7 @@ use tweaktune_core::{
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{ApiLLM, LLMType},
+    state::State,
     steps::{
         generators::{JsonGenerationStep, TextGenerationStep},
         py::{PyStep, PyValidator},
@@ -48,13 +49,32 @@ use tweaktune_core::{
 pub struct Metadata {
     pub path: String,
     pub enabled: bool,
+    pub state: Option<State>,
 }
 
 #[pymethods]
 impl Metadata {
     #[new]
     pub fn new(path: String, enabled: bool) -> Self {
-        Self { path, enabled }
+        if enabled {
+            create_dir_all(&path).unwrap();
+            create_dir_all(format!("{}/{}", &path, "logs")).unwrap();
+            create_dir_all(format!("{}/{}", &path, "state")).unwrap();
+            let state =
+                run_async(async { State::new(&format!("{}/{}", &path, "state")).await.ok() });
+
+            Self {
+                path,
+                enabled,
+                state,
+            }
+        } else {
+            Self {
+                path,
+                enabled,
+                state: None,
+            }
+        }
     }
 }
 
@@ -80,10 +100,7 @@ impl PipelineBuilder {
         let metadata = if let Some(metadata) = metadata {
             metadata
         } else {
-            Metadata {
-                enabled: true,
-                path: format!(".tweaktune/{}/", &name),
-            }
+            Metadata::new(format!(".tweaktune/{}/", &name), true)
         };
 
         Self {
@@ -756,17 +773,7 @@ impl PipelineBuilder {
             )));
     }
 
-    fn _prepare_metadata(&self) -> Result<()> {
-        if self.metadata.enabled {
-            create_dir_all(&self.metadata.path).unwrap();
-            create_dir_all(format!("{}/{}", &self.metadata.path, "logs")).unwrap();
-            create_dir_all(format!("{}/{}", &self.metadata.path, "state")).unwrap();
-        }
-        Ok(())
-    }
-
     pub fn compile(&self) {
-        self._prepare_metadata().unwrap();
         self.templates.compile().unwrap();
     }
 
@@ -795,7 +802,6 @@ impl PipelineBuilder {
                 debug!("Initialize logger issue: {}", e);
             }
         } else {
-            self._prepare_metadata().unwrap();
             let now = Local::now();
             let filename = if let Some(f) = file {
                 format!(
