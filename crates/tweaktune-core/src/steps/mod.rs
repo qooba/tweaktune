@@ -10,6 +10,7 @@ use crate::{
     datasets::{Dataset, DatasetType},
     embeddings::{self, EmbeddingsType},
     llms::{self, LLMType},
+    state::State,
     steps::{
         conversations::RenderConversationStep,
         generators::{JsonGenerationStep, TextGenerationStep},
@@ -89,6 +90,7 @@ pub trait Step {
         llms: &HashMap<String, llms::LLMType>,
         embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        state: Option<State>,
     ) -> impl std::future::Future<Output = Result<StepContext>>;
 }
 
@@ -191,6 +193,7 @@ impl Step for IfElseStep {
         _llms: &HashMap<String, LLMType>,
         _embeddings: &HashMap<String, EmbeddingsType>,
         _context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         unreachable!("Use check method to evaluate condition");
     }
@@ -220,6 +223,7 @@ impl Step for RenderStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let rendered = templates.render(self.template.clone(), context.data.clone())?;
@@ -252,6 +256,7 @@ impl Step for PrintStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut row = if let Some(template) = self.template.clone() {
             templates.render(template.clone(), context.data.clone())?
@@ -334,6 +339,7 @@ impl Step for DataSamplerStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
@@ -405,6 +411,7 @@ impl Step for ChunkStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let text = context
@@ -447,6 +454,7 @@ impl Step for IntoListStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let list = self

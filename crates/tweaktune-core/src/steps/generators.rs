@@ -3,6 +3,7 @@ use crate::{
     datasets::DatasetType,
     embeddings::{self},
     llms::{self, LLM},
+    state::State,
     steps::{Step, StepContext, StepStatus},
     templates::Templates,
 };
@@ -109,6 +110,7 @@ impl Step for TextGenerationStep {
         llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let result = self
@@ -190,6 +192,7 @@ impl Step for JsonGenerationStep {
         llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 

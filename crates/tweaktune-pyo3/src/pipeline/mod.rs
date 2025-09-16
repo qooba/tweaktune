@@ -1165,6 +1165,7 @@ async fn process_steps(
                         &pipeline.llms.resources,
                         &pipeline.embeddings.resources,
                         &context,
+                        pipeline.metadata.state.clone(),
                     )
                     .await?;
             }};

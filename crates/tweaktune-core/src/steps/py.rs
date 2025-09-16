@@ -3,6 +3,7 @@ use crate::{
     datasets::DatasetType,
     embeddings::EmbeddingsType,
     llms::LLMType,
+    state::State,
     steps::{Step, StepContext, StepStatus},
     templates::Templates,
 };
@@ -30,6 +31,7 @@ impl Step for PyStep {
         _llms: &HashMap<String, LLMType>,
         _embeddings: &HashMap<String, EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let json = serde_json::to_string(context)?;
 
@@ -75,6 +77,7 @@ impl Step for PyValidator {
         _llms: &HashMap<String, LLMType>,
         _embeddings: &HashMap<String, EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let json = serde_json::to_string(context)?;
 

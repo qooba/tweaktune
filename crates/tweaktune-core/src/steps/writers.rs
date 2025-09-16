@@ -2,6 +2,7 @@ use crate::{
     datasets::DatasetType,
     embeddings::{self},
     llms::{self},
+    state::State,
     steps::{Step, StepContext, StepStatus},
     templates::Templates,
 };
@@ -41,6 +42,7 @@ impl Step for JsonlWriterStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let file = File::options().append(true).create(true).open(&self.path)?;
         let mut writer = std::io::BufWriter::new(file);
@@ -112,6 +114,7 @@ impl Step for CsvWriterStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let file = File::options().append(true).create(true).open(&self.path)?;
         let mut writer = std::io::BufWriter::new(file);

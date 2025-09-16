@@ -2,6 +2,7 @@ use crate::{
     datasets::DatasetType,
     embeddings::{self},
     llms::{self},
+    state::State,
     steps::{Step, StepContext, StepStatus},
     templates::Templates,
 };
@@ -28,6 +29,7 @@ impl Step for FilterStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let rendered = templates.render(self.condition.clone(), context.data.clone())?;
@@ -67,6 +69,7 @@ impl Step for MutateStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         if self.fail_if_exists && context.data.get(&self.output).is_some() {

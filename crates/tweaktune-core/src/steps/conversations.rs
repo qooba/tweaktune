@@ -2,6 +2,7 @@ use crate::{
     common::validators::validate_tool_format_messages,
     datasets::DatasetType,
     embeddings, llms,
+    state::State,
     steps::{self, Step, StepContext, StepStatus},
     templates::Templates,
 };
@@ -189,6 +190,7 @@ impl Step for RenderConversationStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 

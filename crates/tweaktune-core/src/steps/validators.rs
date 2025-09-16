@@ -2,6 +2,7 @@ use crate::common::validators::{
     normalize_tool, validate_function_call_conversation, validate_function_call_format,
     validate_tool_format_messages,
 };
+use crate::state::State;
 use crate::{
     datasets::DatasetType,
     embeddings::{self},
@@ -38,6 +39,7 @@ impl Step for ValidateJsonStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
@@ -99,6 +101,7 @@ impl Step for ToolsValidateStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
@@ -152,6 +155,7 @@ impl Step for ToolsNormalizeStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
@@ -203,6 +207,7 @@ impl Step for ConversationValidateStep {
         _llms: &HashMap<String, llms::LLMType>,
         _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
         context: &StepContext,
+        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
