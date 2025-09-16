@@ -925,15 +925,19 @@ impl PipelineBuilder {
                             let mut context = StepContext::new();
                             context.set("index", i);
                             context.set_status(StepStatus::Running);
+                            let item_id = context.id.to_string();
                             if self.metadata.enabled {
                                 if let Some(state) = &self.metadata.state {
                                     state
-                                        .add_item(&context.id.to_string(), &rid, i as i64, None)
+                                        .add_item(&item_id, &rid, i as i64, None)
                                         .await
                                         .unwrap();
                                 }
                             }
                             if let Err(e) = process_steps(self, context, None).await {
+                                if let Some(state) = &self.metadata.state {
+                                    state.delete_item(&item_id).await.ok();
+                                }
                                 return Err(format!("Error processing step: {} - {}", i, e));
                             } else {
                                 value.fetch_add(1, Ordering::SeqCst);
@@ -1116,21 +1120,22 @@ async fn map_record_batches(
     context.set(dataset_name, json_row);
     context.set("index", inc);
     context.set_status(StepStatus::Running);
+    let item_id = context.id.to_string();
     if pipeline.metadata.enabled {
         if let Some(state) = &pipeline.metadata.state {
             state
-                .add_item(
-                    &context.id.to_string(),
-                    &pipeline.id.to_string(),
-                    inc.clone() as i64,
-                    None,
-                )
+                .add_item(&item_id, &pipeline.id.to_string(), inc.clone() as i64, None)
                 .await
                 .unwrap();
         }
     }
 
-    process_steps(pipeline, context, None).await?;
+    if let Err(e) = process_steps(pipeline, context, None).await {
+        if let Some(state) = &pipeline.metadata.state {
+            state.delete_item(&item_id).await.ok();
+        }
+        return Err(e);
+    }
     Ok(())
 }
 
