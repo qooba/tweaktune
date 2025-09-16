@@ -80,6 +80,7 @@ impl Metadata {
 
 #[pyclass]
 pub struct PipelineBuilder {
+    id: uuid::Uuid,
     name: String,
     workers: usize,
     datasets: Resources<DatasetType>,
@@ -105,6 +106,7 @@ impl PipelineBuilder {
         };
 
         Self {
+            id: uuid::Uuid::new_v4(),
             name,
             workers: 1,
             datasets: Resources {
@@ -892,7 +894,7 @@ impl PipelineBuilder {
                 if let Some(state) = &self.metadata.state {
                     state
                         .add_run(
-                            &uuid::Uuid::new_v4().to_string(),
+                            &self.id.to_string(),
                             log_path.as_ref().expect("Log path not set"),
                             None,
                         )
@@ -918,10 +920,19 @@ impl PipelineBuilder {
 
                         let sender = sender.clone();
                         let value = successfull_iterations.clone();
+                        let rid = self.id.to_string();
                         async move {
                             let mut context = StepContext::new();
                             context.set("index", i);
                             context.set_status(StepStatus::Running);
+                            if self.metadata.enabled {
+                                if let Some(state) = &self.metadata.state {
+                                    state
+                                        .add_item(&context.id.to_string(), &rid, i as i64, None)
+                                        .await
+                                        .unwrap();
+                                }
+                            }
                             if let Err(e) = process_steps(self, context, None).await {
                                 return Err(format!("Error processing step: {} - {}", i, e));
                             } else {
@@ -1105,6 +1116,20 @@ async fn map_record_batches(
     context.set(dataset_name, json_row);
     context.set("index", inc);
     context.set_status(StepStatus::Running);
+    if pipeline.metadata.enabled {
+        if let Some(state) = &pipeline.metadata.state {
+            state
+                .add_item(
+                    &context.id.to_string(),
+                    &pipeline.id.to_string(),
+                    inc.clone() as i64,
+                    None,
+                )
+                .await
+                .unwrap();
+        }
+    }
+
     process_steps(pipeline, context, None).await?;
     Ok(())
 }

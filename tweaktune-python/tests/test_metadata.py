@@ -37,3 +37,8 @@ def test_metadata(request, output_dir):
     print(runs)
     assert len(runs) == 1
 
+    cursor.execute("SELECT * FROM items;")
+    items = cursor.fetchall()
+    print(items)
+    assert len(items) == number
+

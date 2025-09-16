@@ -36,7 +36,7 @@ pub type StepContextData = serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepContext {
-    sid: uuid::Uuid,
+    pub id: uuid::Uuid,
     status: StepStatus,
     pub data: StepContextData,
 }
@@ -52,7 +52,7 @@ pub enum StepStatus {
 impl StepContext {
     pub fn new() -> Self {
         Self {
-            sid: uuid::Uuid::new_v4(),
+            id: uuid::Uuid::new_v4(),
             data: json!({}),
             status: StepStatus::Pending,
         }
