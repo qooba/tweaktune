@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use regex::Regex;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 pub fn validate_function_call_format(value: &Value) -> Result<()> {
     // Accept both a "tool" definition (as in OpenAI function-calling tool schema)
@@ -712,16 +712,54 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
                     if let Some(args) = func_obj.get("arguments") {
                         match args {
                             Value::Object(_) | Value::Null => {}
-                            Value::String(s) => {
-                                let parsed = serde_json::from_str::<Value>(s).map_err(|_| {
-                                    anyhow!("🐔 messages[{}].tool_calls[{}].function.arguments string invalid JSON", idx, j)
-                                })?;
-                                if !parsed.is_object() {
-                                    return Err(anyhow!("🐔 messages[{}].tool_calls[{}].function.arguments must decode to object", idx, j));
-                                }
-                            }
                             _ => {
-                                return Err(anyhow!("🐔 messages[{}].tool_calls[{}].function.arguments must be object, null or string", idx, j));
+                                return Err(anyhow!("🐔 messages[{}].tool_calls[{}].function.arguments must be object or null", idx, j));
+                            }
+                        }
+
+                        if tools_provided && known_tools.contains(name) {
+                            let used_tool = known_tools.get(name).unwrap();
+                            let used_tool_schema = obj
+                                .get("tools")
+                                .and_then(|t| {
+                                    t.as_array().and_then(|arr| {
+                                        for item in arr.iter() {
+                                            if let Some(n) =
+                                                item.get("name").and_then(|v| v.as_str())
+                                            {
+                                                if n == *used_tool {
+                                                    return Some(item);
+                                                }
+                                            }
+                                        }
+                                        None
+                                    })
+                                })
+                                .unwrap();
+
+                            let properties = if let Value::String(v) =
+                                used_tool_schema["parameters"]["properties"].clone()
+                            {
+                                serde_json::from_str(&v).unwrap()
+                            } else {
+                                used_tool_schema["parameters"]["properties"].clone()
+                            };
+
+                            let schema_value = json!({
+                                "type": "object",
+                                "properties": properties,
+                                "required": used_tool_schema["parameters"]["required"],
+                                "additionalProperties": used_tool_schema["parameters"]["additionalProperties"].as_bool().unwrap_or(false),
+                            });
+
+                            let is_valid = jsonschema::is_valid(&schema_value, args);
+
+                            if !is_valid {
+                                return Err(anyhow!(
+                                    "🐔 messages[{}].tool_calls[{}].function.arguments does not conform to tool schema",
+                                    idx,
+                                    j
+                                ));
                             }
                         }
                     } else {
@@ -758,6 +796,38 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
 
     Ok(())
 }
+
+/*
+pub fn validate_tool_call_schema(value: &Value) -> Result<()> {
+    let schema_value = json!({
+        "type": "object",
+        "properties": properties,
+        "required": full_schema["required"],
+        "additionalProperties": false,
+    });
+
+    let instance_json = templates.render(self.instance.clone(), context.data.clone())?;
+
+    match serde_json::from_str(&instance_json) {
+        Ok(instance) => {
+            let is_valid = jsonschema::is_valid(&schema_value, &instance);
+
+            if !is_valid {
+                error!(target: "validate_json_step", "🐔 Failed to validate JSON: {} with schema {}", instance, schema_value);
+                context.set_status(StepStatus::Failed);
+            }
+
+            Ok(context)
+        }
+        Err(e) => {
+            error!(target: "validate_json_step", "🐔 Failed to render instance: {}", e);
+            error!(target: "validate_json_step", "🐔 INSTANCE_JSON: {}", &instance_json);
+            context.set_status(StepStatus::Failed);
+            Ok(context)
+        }
+    }
+}
+    */
 
 #[cfg(test)]
 mod tests {

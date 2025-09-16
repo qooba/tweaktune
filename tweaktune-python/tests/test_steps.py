@@ -225,13 +225,27 @@ def test_step_render(request, output_dir, metadata):
     assert line["hello"] == "HELLO WORLD"
     assert len(lines) == number
 
+
 def test_step_render_conversation(request, output_dir, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
+    def get_who_won(year: int) -> dict:
+        """Example tool that returns who won the world series in a given year"""
+        winners = {
+            2020: "Los Angeles Dodgers",
+            2019: "Washington Nationals",
+            2018: "Boston Red Sox",
+            2017: "Houston Astros",
+            2016: "Chicago Cubs",
+        }
+        return {"winner": winners.get(year, "Unknown"), "year": year}
+
     (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
+        .with_tools_dataset("tools", [get_who_won])
         .iter_range(1)
+        .sample_tools("tools", 1, "tools")
         .add_column("system", lambda data: "You are a helpful assistant.")
         .add_column("question", lambda data: "Hello, who won the world series in 2020?")
         .add_column("call1", lambda data: "{ \"name\": \"get_who_won\", \"arguments\": { \"year\": 2020 } }")
@@ -239,7 +253,7 @@ def test_step_render_conversation(request, output_dir, metadata):
         .add_column("thinking", lambda data: "I should look up who won the world series in 2020.")
         .add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
         .render_conversation(conversation="""@system:system|@user:question|@assistant:tool_calls([call1])|@tool:response|@assistant:think(thinking)|@assistant:answer
-            """, output="conversation")
+            """,tools="tools", output="conversation")
         .write_jsonl(path=output_file, value="conversation")
     .run())
 
