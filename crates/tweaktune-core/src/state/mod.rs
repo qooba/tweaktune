@@ -204,10 +204,10 @@ mod tests {
         state.add_run("run1", "/tmp/log", None).await?;
         state.add_item("item1", "run1", 0, None).await?;
 
-        // callhash
-        assert!(!state.callhash_exists("k1", "h1").await?);
-        state.add_callhash("item1", "k1", "h1").await?;
-        assert!(state.callhash_exists("k1", "h1").await?);
+        // hash
+        assert!(!state.hash_exists("k1", "h1").await?);
+        state.add_hash("item1", "k1", "h1").await?;
+        assert!(state.hash_exists("k1", "h1").await?);
 
         // simhash
         let q: u64 = 0x0123_4567_89AB_CDEF;

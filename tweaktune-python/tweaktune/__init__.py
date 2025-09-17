@@ -496,7 +496,13 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)));
         self.step_index += 1;
         return self;
-    
+
+    def check_hash(self, input: str, name: str = "CHECK-HASH"):
+        self.builder.add_check_hash_step(self.__name(name), input)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self;
+
     def validate_json(self, schema: str, instance: str, name: str = "VALIDATE-JSON"):
         self.builder.add_validatejson_step(self.__name(name), schema, instance)
         self.graph.steps.append(step_item(name=self.__name(name)))

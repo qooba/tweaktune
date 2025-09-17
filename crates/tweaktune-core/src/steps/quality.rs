@@ -1,5 +1,5 @@
 use crate::{
-    common::dedup::call_hash,
+    common::dedup::hash_value,
     datasets::DatasetType,
     embeddings::{self},
     llms::{self},
@@ -80,18 +80,18 @@ impl Step for CheckLanguageStep {
     }
 }
 
-pub struct CheckCallHashStep {
+pub struct CheckHashStep {
     pub name: String,
     pub input: String,
 }
 
-impl CheckCallHashStep {
+impl CheckHashStep {
     pub fn new(name: String, input: String) -> Self {
         Self { name, input }
     }
 }
 
-impl Step for CheckCallHashStep {
+impl Step for CheckHashStep {
     async fn process(
         &self,
         _datasets: &HashMap<String, DatasetType>,
@@ -105,19 +105,19 @@ impl Step for CheckCallHashStep {
 
         match context.data.get(&self.input) {
             Some(value) => {
-                let hash = call_hash(value)?;
+                let hash = hash_value(value)?;
                 if let Some(state) = state.as_ref() {
                     if let Err(e) = state
-                        .add_callhash(&context.id.to_string(), &self.input, &hash.clone())
+                        .add_hash(&context.id.to_string(), &self.input, &hash.clone())
                         .await
                     {
-                        error!(target: "steps_quality", "🐔 Call hash validation failed to add hash: {}", e);
+                        error!(target: "steps_quality", "🐔 Hash validation failed to add hash: {}", e);
                         context.set_status(StepStatus::Failed);
                     }
                 }
             }
             None => {
-                error!(target: "steps_quality", "🐔 Call hash validation input not found");
+                error!(target: "steps_quality", "🐔 Hash validation input not found");
                 context.set_status(StepStatus::Failed);
             }
         }

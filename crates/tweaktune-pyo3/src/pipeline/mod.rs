@@ -21,7 +21,7 @@ use tweaktune_core::datasets::{
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::conversations::{RenderConversationStep, RenderToolCallStep};
-use tweaktune_core::steps::quality::CheckLanguageStep;
+use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep};
 use tweaktune_core::steps::{
     logic::{FilterStep, MutateStep},
     validators::{
@@ -791,6 +791,12 @@ impl PipelineBuilder {
             )));
     }
 
+    pub fn add_check_hash_step(&mut self, name: String, input: String) {
+        debug!("Added check hash step");
+        self.steps
+            .push(StepType::CheckHash(CheckHashStep::new(name, input)));
+    }
+
     pub fn compile(&self) {
         self.templates.compile().unwrap();
     }
@@ -1235,6 +1241,7 @@ async fn process_steps(
             StepType::RenderToolCall(render_tool_call_step) => {
                 process_common!(render_tool_call_step)
             }
+            StepType::CheckHash(check_hash_step) => process_common!(check_hash_step),
         }
     }
 

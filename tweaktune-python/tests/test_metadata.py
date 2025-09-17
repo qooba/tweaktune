@@ -15,7 +15,8 @@ def test_metadata(request, output_dir):
         .with_template("output", """{"hello": "{{value}}"}""")
     .iter_range(number)
         .log("info")
-        .add_column("call", lambda data: {"name": "test", "arguments": {"x": number}})
+        .add_column("call", lambda data: {"name": "test", "arguments": {"x": data["index"]}})
+        .check_hash(input="call")
         .write_jsonl(path=output_file, template="output")
     .run())
 
@@ -45,6 +46,6 @@ def test_metadata(request, output_dir):
 
     cursor.execute("SELECT * FROM hashes;")
     hashes = cursor.fetchall()
-    print(hashes)
+    print("HASHES !!!!!!!!!!!!!!11", hashes)
     assert len(hashes) == number
 
