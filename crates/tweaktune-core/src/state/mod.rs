@@ -106,14 +106,9 @@ impl State {
         Ok(())
     }
 
-    // Callhashes
-    pub async fn add_callhash(
-        &self,
-        item_id: &str,
-        key: &str,
-        hash: &str,
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query("INSERT INTO callhashes(item_id, key, hash) VALUES (?, ?, ?)")
+    // Hashes
+    pub async fn add_hash(&self, item_id: &str, key: &str, hash: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("INSERT INTO hashes(item_id, key, hash) VALUES (?, ?, ?)")
             .bind(item_id)
             .bind(key)
             .bind(hash)
@@ -122,9 +117,9 @@ impl State {
         Ok(())
     }
 
-    pub async fn callhash_exists(&self, key: &str, hash: &str) -> Result<bool, sqlx::Error> {
+    pub async fn hash_exists(&self, key: &str, hash: &str) -> Result<bool, sqlx::Error> {
         let v: Option<i64> =
-            sqlx::query_scalar("SELECT 1 FROM callhashes WHERE key = ? AND hash = ? LIMIT 1")
+            sqlx::query_scalar("SELECT 1 FROM hashes WHERE key = ? AND hash = ? LIMIT 1")
                 .bind(key)
                 .bind(hash)
                 .fetch_optional(&self.db)

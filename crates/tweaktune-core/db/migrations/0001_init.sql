@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS items (
 
 CREATE INDEX IF NOT EXISTS ix_items_index ON items(iter_index);
 
-CREATE TABLE IF NOT EXISTS callhashes (
+CREATE TABLE IF NOT EXISTS hashes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 	item_id TEXT,
 	key TEXT NOT NULL,
@@ -29,8 +29,8 @@ CREATE TABLE IF NOT EXISTS callhashes (
 	UNIQUE(key, hash)
 );
 
-CREATE INDEX IF NOT EXISTS ix_callhashes_item_key ON callhashes(item_id, key);
-CREATE INDEX IF NOT EXISTS ix_callhashes_key_hash ON callhashes(key, hash);
+CREATE INDEX IF NOT EXISTS ix_hashes_item_key ON hashes(item_id, key);
+CREATE INDEX IF NOT EXISTS ix_hashes_key_hash ON hashes(key, hash);
 
 CREATE TABLE IF NOT EXISTS simhashes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

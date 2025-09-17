@@ -15,6 +15,7 @@ def test_metadata(request, output_dir):
         .with_template("output", """{"hello": "{{value}}"}""")
     .iter_range(number)
         .log("info")
+        .add_column("call", lambda data: {"name": "test", "arguments": {"x": number}})
         .write_jsonl(path=output_file, template="output")
     .run())
 
@@ -29,7 +30,7 @@ def test_metadata(request, output_dir):
     print(tables)
     assert ('runs',) in tables
     assert ('items',) in tables
-    assert ('callhashes',) in tables
+    assert ('hashes',) in tables
     assert ('simhashes',) in tables
 
     cursor.execute("SELECT * FROM runs;")
@@ -41,4 +42,9 @@ def test_metadata(request, output_dir):
     items = cursor.fetchall()
     print(items)
     assert len(items) == number
+
+    cursor.execute("SELECT * FROM hashes;")
+    hashes = cursor.fetchall()
+    print(hashes)
+    assert len(hashes) == number
 
