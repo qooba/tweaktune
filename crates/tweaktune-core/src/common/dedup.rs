@@ -1,3 +1,4 @@
+use anyhow::Result;
 use serde_json::Value;
 use simhash::{hamming_distance, simhash};
 use unicode_normalization::UnicodeNormalization;
@@ -61,20 +62,42 @@ fn word_shingles(text: &str, shingle_size: usize) -> Vec<String> {
     shingles
 }
 
-pub fn call_hash(tool: &str, args: &Value) -> String {
-    let cann = canonicalize_json(args).unwrap_or_default();
-    let combined = format!("tool={};args={}", tool, cann);
-    hash_exact(combined.as_bytes()).to_string()
+pub fn call_hash(call: &Value) -> Result<String> {
+    if let Some(obj) = call.as_object() {
+        if obj.get("name").is_none() || obj.get("arguments").is_none() {
+            return Err(anyhow::anyhow!("Invalid call structure"));
+        }
+        let tool_name = obj.get("name").unwrap();
+        let arguments = obj.get("arguments").unwrap();
+        let cann = canonicalize_json(arguments).unwrap_or_default();
+        let combined = format!("tool={};args={}", tool_name, cann);
+        Ok(hash_exact(combined.as_bytes()).to_string())
+    } else {
+        Err(anyhow::anyhow!("Invalid call structure"))
+    }
 }
 
-pub fn io_hash(tool: &str, args: &Value, result: Option<&Value>) -> String {
-    let cann_args = canonicalize_json(args).unwrap_or_default();
-    let cann_result = match result {
-        Some(res) => canonicalize_json(res).unwrap_or_default(),
-        None => "null".to_string(),
-    };
-    let combined = format!("tool={};args={};result={}", tool, cann_args, cann_result);
-    hash_exact(combined.as_bytes()).to_string()
+pub fn io_hash(call: &Value, result: Option<&Value>) -> Result<String> {
+    if let Some(obj) = call.as_object() {
+        if obj.get("name").is_none() || obj.get("arguments").is_none() {
+            return Err(anyhow::anyhow!("Invalid call structure"));
+        }
+        let tool_name = obj.get("name").unwrap();
+        let arguments = obj.get("arguments").unwrap();
+        let cann_args = canonicalize_json(arguments).unwrap_or_default();
+
+        let cann_result = match result {
+            Some(res) => canonicalize_json(res).unwrap_or_default(),
+            None => "null".to_string(),
+        };
+        let combined = format!(
+            "tool={};args={};result={}",
+            tool_name, cann_args, cann_result
+        );
+        Ok(hash_exact(combined.as_bytes()).to_string())
+    } else {
+        Err(anyhow::anyhow!("Invalid call structure"))
+    }
 }
 
 #[cfg(test)]
@@ -114,45 +137,56 @@ mod tests {
     }
 
     #[test]
-    fn test_call_hash_canonicalization_order_independent() {
-        let args1 = json!({"a": 1, "b": 2});
-        let args2 = json!({"b": 2, "a": 1});
-        let h1 = call_hash("mytool", &args1);
-        let h2 = call_hash("mytool", &args2);
+    fn test_call_hash_canonicalization_order_independent() -> Result<()> {
+        let call1 = json!({"name": "mytool", "arguments": {"a": 1, "b": 2}});
+        let call2 = json!({"name": "mytool", "arguments": {"b": 2, "a": 1}});
+        let h1 = call_hash(&call1)?;
+        let h2 = call_hash(&call2)?;
         assert_eq!(h1, h2, "call_hash should be independent of JSON key order");
+        Ok(())
     }
 
     #[test]
-    fn test_call_hash_tool_difference() {
-        let args = json!({"foo": "bar"});
-        let h1 = call_hash("tool1", &args);
-        let h2 = call_hash("tool2", &args);
+    fn test_call_hash_tool_difference() -> Result<()> {
+        let call1 = json!({"name": "tool1", "arguments": {"foo": "bar"}});
+        let call2 = json!({"name": "tool2", "arguments": {"foo": "bar"}});
+        let h1 = call_hash(&call1)?;
+        let h2 = call_hash(&call2)?;
         assert_ne!(h1, h2, "different tool names must produce different hashes");
+        Ok(())
     }
 
     #[test]
     fn test_io_hash_none_and_null_equal() {
         let args = json!({"x": 1});
-        let h_none = io_hash("t", &args, None);
-        let h_null = io_hash("t", &args, Some(&json!(null)));
-        assert_eq!(h_none, h_null, "None result and explicit null should hash the same");
+        let call = json!({"name": "t", "arguments": args});
+        let h_none = io_hash(&call, None).expect("io_hash failed");
+        let h_null = io_hash(&call, Some(&json!(null))).expect("io_hash failed");
+        assert_eq!(
+            h_none, h_null,
+            "None result and explicit null should hash the same"
+        );
     }
 
     #[test]
     fn test_io_hash_result_changes() {
         let args = json!({"x": 1});
-        let h1 = io_hash("t", &args, Some(&json!("ok")));
-        let h2 = io_hash("t", &args, Some(&json!("changed")));
+        let call = json!({"name": "t", "arguments": args});
+        let h1 = io_hash(&call, Some(&json!("ok"))).expect("io_hash failed");
+        let h2 = io_hash(&call, Some(&json!("changed"))).expect("io_hash failed");
         assert_ne!(h1, h2, "different result values must change the io_hash");
     }
 
     #[test]
-    fn test_call_and_io_different() {
+    fn test_call_and_io_different() -> Result<()> {
         let args = json!({"a": 1});
-        let ch = call_hash("t", &args);
-        let ih = io_hash("t", &args, None);
-        assert_ne!(ch, ih, "call_hash and io_hash should differ because io_hash includes result");
+        let call = json!({"name": "t", "arguments": args});
+        let ch = call_hash(&call)?;
+        let ih = io_hash(&call, None)?;
+        assert_ne!(
+            ch, ih,
+            "call_hash and io_hash should differ because io_hash includes result"
+        );
+        Ok(())
     }
 }
-
-

@@ -1,4 +1,5 @@
 use crate::{
+    common::dedup::call_hash,
     datasets::DatasetType,
     embeddings::{self},
     llms::{self},
@@ -82,4 +83,41 @@ impl Step for CheckLanguageStep {
 pub struct CheckCallHashStep {
     pub name: String,
     pub input: String,
+}
+
+impl CheckCallHashStep {
+    pub fn new(name: String, input: String) -> Self {
+        Self { name, input }
+    }
+}
+
+impl Step for CheckCallHashStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+        state: Option<State>,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        match context.data.get(&self.input) {
+            Some(value) => {
+                let hash = call_hash(value)?;
+                if let Some(state) = state.as_ref() {
+                    // state
+                    //     .add_call_hash(context.id.clone(), self.input, hash.clone())
+                    //     .await?;
+                }
+            }
+            None => {
+                error!(target: "steps_quality", "🐔 Call hash validation input not found");
+                context.set_status(StepStatus::Failed);
+            }
+        }
+
+        Ok(context)
+    }
 }
