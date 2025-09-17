@@ -109,21 +109,12 @@ impl State {
     // Callhashes
     pub async fn add_callhash(
         &self,
-        item_id: Option<&str>,
+        item_id: &str,
         key: &str,
         hash: &str,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query("INSERT OR IGNORE INTO callhashes(item_id, key, hash) VALUES (?, ?, ?)")
+        sqlx::query("INSERT INTO callhashes(item_id, key, hash) VALUES (?, ?, ?)")
             .bind(item_id)
-            .bind(key)
-            .bind(hash)
-            .execute(&self.db)
-            .await?;
-        Ok(())
-    }
-
-    pub async fn delete_callhash(&self, key: &str, hash: &str) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM callhashes WHERE key = ? AND hash = ?")
             .bind(key)
             .bind(hash)
             .execute(&self.db)
@@ -150,15 +141,6 @@ impl State {
     ) -> Result<(), sqlx::Error> {
         sqlx::query("INSERT OR IGNORE INTO simhashes(item_id, key, simhash) VALUES (?, ?, ?)")
             .bind(item_id)
-            .bind(key)
-            .bind(simhash)
-            .execute(&self.db)
-            .await?;
-        Ok(())
-    }
-
-    pub async fn delete_simhash(&self, key: &str, simhash: i64) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM simhashes WHERE key = ? AND simhash = ?")
             .bind(key)
             .bind(simhash)
             .execute(&self.db)
@@ -229,10 +211,8 @@ mod tests {
 
         // callhash
         assert!(!state.callhash_exists("k1", "h1").await?);
-        state.add_callhash(Some("item1"), "k1", "h1").await?;
+        state.add_callhash("item1", "k1", "h1").await?;
         assert!(state.callhash_exists("k1", "h1").await?);
-        state.delete_callhash("k1", "h1").await?;
-        assert!(!state.callhash_exists("k1", "h1").await?);
 
         // simhash
         let q: u64 = 0x0123_4567_89AB_CDEF;
@@ -240,10 +220,6 @@ mod tests {
         let res = state.knn_simhash("k1", q, 1).await?;
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].0, q);
-
-        state.delete_simhash("k1", q as i64).await?;
-        let res2 = state.knn_simhash("k1", q, 1).await?;
-        assert!(res2.is_empty());
 
         Ok(())
     }

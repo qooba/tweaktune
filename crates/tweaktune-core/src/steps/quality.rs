@@ -107,9 +107,13 @@ impl Step for CheckCallHashStep {
             Some(value) => {
                 let hash = call_hash(value)?;
                 if let Some(state) = state.as_ref() {
-                    // state
-                    //     .add_call_hash(context.id.clone(), self.input, hash.clone())
-                    //     .await?;
+                    if let Err(e) = state
+                        .add_callhash(&context.id.to_string(), &self.input, &hash.clone())
+                        .await
+                    {
+                        error!(target: "steps_quality", "🐔 Call hash validation failed to add hash: {}", e);
+                        context.set_status(StepStatus::Failed);
+                    }
                 }
             }
             None => {
