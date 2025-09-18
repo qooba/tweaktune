@@ -153,20 +153,44 @@ impl State {
         k: usize,
     ) -> Result<Vec<(u64, u32, Option<String>)>, sqlx::Error> {
         // extract 16-bit bands matching the schema
-        let b0 = (query_simhash & 0xFFFF) as i64;
-        let b1 = ((query_simhash >> 16) & 0xFFFF) as i64;
-        let b2 = ((query_simhash >> 32) & 0xFFFF) as i64;
-        let b3 = ((query_simhash >> 48) & 0xFFFF) as i64;
+        let b0 = (query_simhash & 0xFF) as i64;
+        let b1 = ((query_simhash >> 8) & 0xFF) as i64;
+        let b2 = ((query_simhash >> 16) & 0xFF) as i64;
+        let b3 = ((query_simhash >> 24) & 0xFF) as i64;
+        let b4 = ((query_simhash >> 32) & 0xFF) as i64;
+        let b5 = ((query_simhash >> 40) & 0xFF) as i64;
+        let b6 = ((query_simhash >> 48) & 0xFF) as i64;
+        let b7 = ((query_simhash >> 56) & 0xFF) as i64;
+        let s0 = (query_simhash & 0xFFFF) as i64;
+        let s1 = ((query_simhash >> 16) & 0xFFFF) as i64;
+        let s2 = ((query_simhash >> 32) & 0xFFFF) as i64;
+        let s3 = ((query_simhash >> 48) & 0xFFFF) as i64;
+        let s4 = ((query_simhash >> 8) & 0xFFFF) as i64;
+        let s5 = ((query_simhash >> 24) & 0xFFFF) as i64;
+        let s6 = ((query_simhash >> 40) & 0xFFFF) as i64;
+        let s7 = ((query_simhash >> 56) & 0xFFFF) as i64;
 
         // preselect candidates where any band matches. limit to a reasonable number
         let limit = (k.saturating_mul(10)).max(100) as i64;
 
-        let rows = sqlx::query("SELECT simhash, item_id FROM simhashes WHERE key = ? AND (b0 = ? OR b1 = ? OR b2 = ? OR b3 = ?) LIMIT ?")
+        let rows = sqlx::query("SELECT simhash, item_id FROM simhashes WHERE key = ? AND (b0 = ? OR b1 = ? OR b2 = ? OR b3 = ? OR b4 = ? OR b5 = ? OR b6 = ? OR b7 = ? OR s0 = ? OR s1 = ? OR s2 = ? OR s3 = ? OR s4 = ? OR s5 = ? OR s6 = ? OR s7 = ?) LIMIT ?")
             .bind(key)
             .bind(b0)
             .bind(b1)
             .bind(b2)
             .bind(b3)
+            .bind(b4)
+            .bind(b5)
+            .bind(b6)
+            .bind(b7)
+            .bind(s0)
+            .bind(s1)
+            .bind(s2)
+            .bind(s3)
+            .bind(s4)
+            .bind(s5)
+            .bind(s6)
+            .bind(s7)
             .bind(limit)
             .fetch_all(&self.db)
             .await?;

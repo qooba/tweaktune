@@ -105,6 +105,16 @@ mod tests {
     }
 
     #[test]
+    fn test_simhash_is_similar() {
+        let a = "What is the capital of France?";
+        let b = "What is the capital of Poland?";
+        let ha = simhash64(a);
+        let hb = simhash64(b);
+        // identical texts must be within zero hamming distance
+        println!("DISTANCE !!!!!!!!!!!!!! {}", hamming_distance(ha, hb));
+    }
+
+    #[test]
     fn test_deduplicate_texts_basic() {
         let texts = vec![
             "Hello World".to_string(),

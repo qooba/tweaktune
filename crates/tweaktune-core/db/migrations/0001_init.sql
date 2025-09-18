@@ -37,20 +37,49 @@ CREATE TABLE IF NOT EXISTS simhashes (
 	item_id TEXT,
 	key TEXT NOT NULL,
     simhash INTEGER NOT NULL,
-    b0 INTEGER GENERATED ALWAYS AS (simhash & 0xFFFF) STORED,
-    b1 INTEGER GENERATED ALWAYS AS ((simhash >> 16) & 0xFFFF) STORED,
-    b2 INTEGER GENERATED ALWAYS AS ((simhash >> 32) & 0xFFFF) STORED,
-    b3 INTEGER GENERATED ALWAYS AS ((simhash >> 48) & 0xFFFF) STORED,
+
+    -- 8x8-bit bands
+    b0 INTEGER GENERATED ALWAYS AS (simhash & 0xFF) STORED,
+    b1 INTEGER GENERATED ALWAYS AS ((simhash >> 8) & 0xFF) STORED,
+    b2 INTEGER GENERATED ALWAYS AS ((simhash >> 16) & 0xFF) STORED,
+    b3 INTEGER GENERATED ALWAYS AS ((simhash >> 24) & 0xFF) STORED,
+    b4 INTEGER GENERATED ALWAYS AS ((simhash >> 32) & 0xFF) STORED,
+    b5 INTEGER GENERATED ALWAYS AS ((simhash >> 40) & 0xFF) STORED,
+    b6 INTEGER GENERATED ALWAYS AS ((simhash >> 48) & 0xFF) STORED,
+    b7 INTEGER GENERATED ALWAYS AS ((simhash >> 56) & 0xFF) STORED,
+
+    -- 8x8-bit bands (offset by 4 bit)
+    s0 INTEGER GENERATED ALWAYS AS ((simhash >> 4) & 0xFF) STORED, 
+    s1 INTEGER GENERATED ALWAYS AS ((simhash >> 12) & 0xFF) STORED,
+    s2 INTEGER GENERATED ALWAYS AS ((simhash >> 20) & 0xFF) STORED,
+    s3 INTEGER GENERATED ALWAYS AS ((simhash >> 28) & 0xFF) STORED,
+    s4 INTEGER GENERATED ALWAYS AS ((simhash >> 36) & 0xFF) STORED,
+    s5 INTEGER GENERATED ALWAYS AS ((simhash >> 44) & 0xFF) STORED,
+    s6 INTEGER GENERATED ALWAYS AS ((simhash >> 52) & 0xFF) STORED,
+    s7 INTEGER GENERATED ALWAYS AS ((simhash >> 60) & 0xFF) STORED,
+
 	created_at DATETIME NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(item_id) REFERENCES items(item_id) ON DELETE CASCADE,
 	UNIQUE(key, simhash)
 );
 
 CREATE INDEX IF NOT EXISTS ix_simhashes_key_simhash ON simhashes(key, simhash);
-CREATE INDEX IF NOT EXISTS ix_simhashes_b0 ON simhashes(b0);
-CREATE INDEX IF NOT EXISTS ix_simhashes_b1 ON simhashes(b1);
-CREATE INDEX IF NOT EXISTS ix_simhashes_b2 ON simhashes(b2);
-CREATE INDEX IF NOT EXISTS ix_simhashes_b3 ON simhashes(b3);
+CREATE INDEX IF NOT EXISTS ix_simhashes_b0 ON simhashes(key,b0);
+CREATE INDEX IF NOT EXISTS ix_simhashes_b1 ON simhashes(key,b1);
+CREATE INDEX IF NOT EXISTS ix_simhashes_b2 ON simhashes(key,b2);
+CREATE INDEX IF NOT EXISTS ix_simhashes_b3 ON simhashes(key,b3);
+CREATE INDEX IF NOT EXISTS ix_simhashes_b4 ON simhashes(key,b4);
+CREATE INDEX IF NOT EXISTS ix_simhashes_b5 ON simhashes(key,b5);
+CREATE INDEX IF NOT EXISTS ix_simhashes_b6 ON simhashes(key,b6);
+CREATE INDEX IF NOT EXISTS ix_simhashes_b7 ON simhashes(key,b7);
+CREATE INDEX IF NOT EXISTS ix_simhashes_s0 ON simhashes(key,s0);
+CREATE INDEX IF NOT EXISTS ix_simhashes_s1 ON simhashes(key,s1);
+CREATE INDEX IF NOT EXISTS ix_simhashes_s2 ON simhashes(key,s2);
+CREATE INDEX IF NOT EXISTS ix_simhashes_s3 ON simhashes(key,s3);
+CREATE INDEX IF NOT EXISTS ix_simhashes_s4 ON simhashes(key,s4);
+CREATE INDEX IF NOT EXISTS ix_simhashes_s5 ON simhashes(key,s5);
+CREATE INDEX IF NOT EXISTS ix_simhashes_s6 ON simhashes(key,s6);
+CREATE INDEX IF NOT EXISTS ix_simhashes_s7 ON simhashes(key,s7);
 
 PRAGMA user_version = 1;
 

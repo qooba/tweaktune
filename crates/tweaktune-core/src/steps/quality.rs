@@ -159,7 +159,7 @@ impl Step for CheckSimHashStep {
                 let hash = simhash_value(value);
 
                 if let Some(state) = state.as_ref() {
-                    let similar_items = state.knn_simhash(&self.input, hash, 1).await?;
+                    let similar_items = state.knn_simhash(&self.input, hash, 10).await?;
                     println!("SIMILAR ITEMS !!!!!!!!!!!!!!!!!!!!: {:?}", similar_items);
                     if !similar_items.is_empty() {
                         let (sim, dist, item_id) = &similar_items[0];
