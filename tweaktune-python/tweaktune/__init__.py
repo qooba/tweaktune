@@ -503,6 +503,12 @@ class PipelineRunner:
         self.step_index += 1
         return self;
 
+    def check_simhash(self, input: str, treshold: int = 3, name: str = "CHECK-SIMHASH"):
+        self.builder.add_check_simhash_step(self.__name(name), treshold, input)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self;
+
     def validate_json(self, schema: str, instance: str, name: str = "VALIDATE-JSON"):
         self.builder.add_validatejson_step(self.__name(name), schema, instance)
         self.graph.steps.append(step_item(name=self.__name(name)))

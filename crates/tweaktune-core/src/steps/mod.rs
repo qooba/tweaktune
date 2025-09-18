@@ -16,7 +16,7 @@ use crate::{
         generators::{JsonGenerationStep, TextGenerationStep},
         logic::{FilterStep, MutateStep},
         py::{PyStep, PyValidator},
-        quality::{CheckHashStep, CheckLanguageStep},
+        quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep},
         validators::{
             ConversationValidateStep, ToolsNormalizeStep, ToolsValidateStep, ValidateJsonStep,
         },
@@ -117,6 +117,7 @@ pub enum StepType {
     CheckLanguage(CheckLanguageStep),
     RenderToolCall(RenderToolCallStep),
     CheckHash(CheckHashStep),
+    CheckSimHash(CheckSimHashStep),
 }
 
 pub struct IfElseStep {

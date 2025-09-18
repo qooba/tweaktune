@@ -130,11 +130,11 @@ impl State {
     // Simhashes
     pub async fn add_simhash(
         &self,
-        item_id: Option<&str>,
+        item_id: &str,
         key: &str,
         simhash: i64,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query("INSERT OR IGNORE INTO simhashes(item_id, key, simhash) VALUES (?, ?, ?)")
+        sqlx::query("INSERT INTO simhashes(item_id, key, simhash) VALUES (?, ?, ?)")
             .bind(item_id)
             .bind(key)
             .bind(simhash)
@@ -211,7 +211,7 @@ mod tests {
 
         // simhash
         let q: u64 = 0x0123_4567_89AB_CDEF;
-        state.add_simhash(Some("item1"), "k1", q as i64).await?;
+        state.add_simhash("item1", "k1", q as i64).await?;
         let res = state.knn_simhash("k1", q, 1).await?;
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].0, q);
@@ -233,10 +233,10 @@ mod tests {
         let c = q ^ 0b11;
         let d = q ^ 0xFFFF_FFFF;
 
-        state.add_simhash(None, "k2", a as i64).await?;
-        state.add_simhash(None, "k2", b as i64).await?;
-        state.add_simhash(None, "k2", c as i64).await?;
-        state.add_simhash(None, "k2", d as i64).await?;
+        state.add_simhash("item1", "k2", a as i64).await?;
+        state.add_simhash("item1", "k2", b as i64).await?;
+        state.add_simhash("item1", "k2", c as i64).await?;
+        state.add_simhash("item1", "k2", d as i64).await?;
 
         let res = state.knn_simhash("k2", q, 3).await?;
         assert_eq!(res.len(), 3);

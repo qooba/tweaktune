@@ -1,5 +1,5 @@
 use crate::{
-    common::dedup::hash_value,
+    common::dedup::{hash_value, simhash_value},
     datasets::DatasetType,
     embeddings::{self},
     llms::{self},
@@ -105,10 +105,73 @@ impl Step for CheckHashStep {
 
         match context.data.get(&self.input) {
             Some(value) => {
-                let hash = hash_value(value)?;
+                let hash = hash_value(value);
                 if let Some(state) = state.as_ref() {
                     if let Err(e) = state
                         .add_hash(&context.id.to_string(), &self.input, &hash.clone())
+                        .await
+                    {
+                        error!(target: "steps_quality", "🐔 Hash validation failed to add hash: {}", e);
+                        context.set_status(StepStatus::Failed);
+                    }
+                }
+            }
+            None => {
+                error!(target: "steps_quality", "🐔 Hash validation input not found");
+                context.set_status(StepStatus::Failed);
+            }
+        }
+
+        Ok(context)
+    }
+}
+
+pub struct CheckSimHashStep {
+    pub name: String,
+    pub input: String,
+    pub threshold: u32,
+}
+
+impl CheckSimHashStep {
+    pub fn new(name: String, input: String, threshold: u32) -> Self {
+        Self {
+            name,
+            input,
+            threshold,
+        }
+    }
+}
+
+impl Step for CheckSimHashStep {
+    async fn process(
+        &self,
+        _datasets: &HashMap<String, DatasetType>,
+        _templates: &Templates,
+        _llms: &HashMap<String, llms::LLMType>,
+        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        context: &StepContext,
+        state: Option<State>,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        match context.data.get(&self.input) {
+            Some(value) => {
+                let hash = simhash_value(value);
+
+                if let Some(state) = state.as_ref() {
+                    let similar_items = state.knn_simhash(&self.input, hash, 1).await?;
+                    println!("SIMILAR ITEMS !!!!!!!!!!!!!!!!!!!!: {:?}", similar_items);
+                    if !similar_items.is_empty() {
+                        let (sim, dist, item_id) = &similar_items[0];
+                        if *dist <= self.threshold {
+                            error!(target: "steps_quality", "🐔 Simhash validation failed: found similar item with distance {} (item_id: {:?}, simhash: {:016X})", dist, item_id, sim);
+                            context.set_status(StepStatus::Failed);
+                            return Ok(context);
+                        }
+                    }
+
+                    if let Err(e) = state
+                        .add_simhash(&context.id.to_string(), &self.input, hash as i64)
                         .await
                     {
                         error!(target: "steps_quality", "🐔 Hash validation failed to add hash: {}", e);

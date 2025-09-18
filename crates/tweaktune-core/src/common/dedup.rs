@@ -16,12 +16,12 @@ fn hash_exact(bytes: &[u8]) -> blake3::Hash {
     blake3::hash(bytes)
 }
 
-pub fn hash_value(value: &Value) -> Result<String> {
+pub fn hash_value(value: &Value) -> String {
     match value {
-        Value::String(s) => Ok(hash_exact(s.as_bytes()).to_string()),
+        Value::String(s) => hash_exact(s.as_bytes()).to_string(),
         _ => {
             let cann = canonicalize_json(value).expect("Failed to canonicalize JSON");
-            Ok(hash_exact(cann.as_bytes()).to_string())
+            hash_exact(cann.as_bytes()).to_string()
         }
     }
 }
@@ -29,6 +29,16 @@ pub fn hash_value(value: &Value) -> Result<String> {
 fn simhash64(text: &str) -> u64 {
     let normalized = normalize_text(text);
     simhash(&normalized)
+}
+
+pub fn simhash_value(value: &Value) -> u64 {
+    match value {
+        Value::String(s) => simhash64(s),
+        _ => {
+            let cann = canonicalize_json(value).expect("Failed to canonicalize JSON");
+            simhash64(&cann)
+        }
+    }
 }
 
 fn is_similar(hash1: u64, hash2: u64, threshold: u32) -> bool {
@@ -112,8 +122,8 @@ mod tests {
     fn test_call_hash_canonicalization_tool_call() -> Result<()> {
         let call1 = json!({"name": "mytool", "arguments": {"a": 1, "b": 2}});
         let call2 = json!({"name": "mytool", "arguments": {"b": 2, "a": 1}});
-        let h1 = hash_value(&call1)?;
-        let h2 = hash_value(&call2)?;
+        let h1 = hash_value(&call1);
+        let h2 = hash_value(&call2);
         assert_eq!(h1, h2, "call_hash should be independent of JSON key order");
         Ok(())
     }
