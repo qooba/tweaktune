@@ -1,17 +1,11 @@
 use crate::{
     common::dedup::{hash_value, simhash_value},
-    datasets::DatasetType,
-    embeddings::{self},
-    llms::{self},
-    state::State,
     steps::{Step, StepContext, StepStatus},
-    templates::Templates,
     PipelineResources,
 };
 use anyhow::Result;
 use lingua::{LanguageDetector, LanguageDetectorBuilder};
 use log::error;
-use std::collections::HashMap;
 
 pub struct CheckLanguageStep {
     pub name: String,
@@ -49,7 +43,6 @@ impl Step for CheckLanguageStep {
         &self,
         _resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
@@ -92,16 +85,15 @@ impl CheckHashStep {
 impl Step for CheckHashStep {
     async fn process(
         &self,
-        _resources: &PipelineResources,
+        resources: &PipelineResources,
         context: &StepContext,
-        state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
         match context.data.get(&self.input) {
             Some(value) => {
                 let hash = hash_value(value);
-                if let Some(state) = state.as_ref() {
+                if let Some(state) = resources.state.as_ref() {
                     if let Err(e) = state
                         .add_hash(&context.id.to_string(), &self.input, &hash.clone())
                         .await
@@ -140,9 +132,8 @@ impl CheckSimHashStep {
 impl Step for CheckSimHashStep {
     async fn process(
         &self,
-        _resources: &PipelineResources,
+        resources: &PipelineResources,
         context: &StepContext,
-        state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
@@ -150,7 +141,7 @@ impl Step for CheckSimHashStep {
             Some(value) => {
                 let hash = simhash_value(value);
 
-                if let Some(state) = state.as_ref() {
+                if let Some(state) = resources.state.as_ref() {
                     let similar_items = state.knn_simhash(&self.input, hash, 10).await?;
                     if !similar_items.is_empty() {
                         let (sim, dist, item_id) = &similar_items[0];

@@ -1195,13 +1195,7 @@ async fn process_steps(
         // macro to collapse the repeated `step.process(...).await?` pattern
         macro_rules! process_common {
             ($step_ident:ident) => {{
-                context = $step_ident
-                    .process(
-                        &pipeline.resources,
-                        &context,
-                        pipeline.resources.state.clone(),
-                    )
-                    .await?;
+                context = $step_ident.process(&pipeline.resources, &context).await?;
             }};
         }
 

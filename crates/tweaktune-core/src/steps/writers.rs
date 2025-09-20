@@ -36,7 +36,6 @@ impl Step for JsonlWriterStep {
         &self,
         resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let file = File::options().append(true).create(true).open(&self.path)?;
         let mut writer = std::io::BufWriter::new(file);
@@ -107,7 +106,6 @@ impl Step for CsvWriterStep {
         &self,
         _resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let file = File::options().append(true).create(true).open(&self.path)?;
         let mut writer = std::io::BufWriter::new(file);

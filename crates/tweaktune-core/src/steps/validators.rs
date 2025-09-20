@@ -37,7 +37,6 @@ impl Step for ValidateJsonStep {
         &self,
         resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
@@ -100,7 +99,6 @@ impl Step for ToolsValidateStep {
         &self,
         _resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
@@ -151,7 +149,6 @@ impl Step for ToolsNormalizeStep {
         &self,
         _resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
@@ -200,7 +197,6 @@ impl Step for ConversationValidateStep {
         &self,
         _resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 

@@ -8,8 +8,8 @@ pub mod writers;
 use crate::{
     common::{df_to_values, OptionToResult},
     datasets::{Dataset, DatasetType},
-    embeddings::{self, EmbeddingsType},
-    llms::{self, LLMType},
+    embeddings::EmbeddingsType,
+    llms::LLMType,
     state::State,
     steps::{
         conversations::{RenderConversationStep, RenderToolCallStep},
@@ -88,7 +88,6 @@ pub trait Step {
         &self,
         resources: &PipelineResources,
         context: &StepContext,
-        state: Option<State>,
     ) -> impl std::future::Future<Output = Result<StepContext>>;
 }
 
@@ -191,7 +190,6 @@ impl Step for IfElseStep {
         &self,
         _resources: &PipelineResources,
         _context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         unreachable!("Use check method to evaluate condition");
     }
@@ -218,7 +216,6 @@ impl Step for RenderStep {
         &self,
         resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let rendered = resources
@@ -250,7 +247,6 @@ impl Step for PrintStep {
         &self,
         resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut row = if let Some(template) = self.template.clone() {
             resources
@@ -332,7 +328,6 @@ impl Step for DataSamplerStep {
         &self,
         resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
@@ -402,7 +397,6 @@ impl Step for ChunkStep {
         &self,
         _resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let text = context
@@ -442,7 +436,6 @@ impl Step for IntoListStep {
         &self,
         _resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let list = self

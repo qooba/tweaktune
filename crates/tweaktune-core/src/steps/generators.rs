@@ -108,7 +108,6 @@ impl Step for TextGenerationStep {
         &self,
         resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let result = self
@@ -187,7 +186,6 @@ impl Step for JsonGenerationStep {
         &self,
         resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 

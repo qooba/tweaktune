@@ -22,7 +22,6 @@ impl Step for FilterStep {
         &self,
         resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let rendered = resources
@@ -61,7 +60,6 @@ impl Step for MutateStep {
         &self,
         resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         if self.fail_if_exists && context.data.get(&self.output).is_some() {

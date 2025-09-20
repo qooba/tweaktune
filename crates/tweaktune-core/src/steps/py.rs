@@ -29,7 +29,6 @@ impl Step for PyStep {
         &self,
         _resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let json = serde_json::to_string(context)?;
 
@@ -72,7 +71,6 @@ impl Step for PyValidator {
         &self,
         _resources: &PipelineResources,
         context: &StepContext,
-        _state: Option<State>,
     ) -> Result<StepContext> {
         let json = serde_json::to_string(context)?;
 
