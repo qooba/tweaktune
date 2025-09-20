@@ -20,7 +20,7 @@ def test_metadata(request, output_dir):
         .add_column("question", lambda data: f"Hello! What is the weather ! How are you ! I want to buy {products[data['index']]}? How much does it cost?")
         .add_column("call", lambda data: {"name": "test", "arguments": {"x": data["index"]}})
         .check_hash(input="call")
-        .check_simhash(input="question", treshold=10)
+        .check_simhash(input="question", treshold=1)
         .write_jsonl(path=output_file, template="output")
     .run())
 

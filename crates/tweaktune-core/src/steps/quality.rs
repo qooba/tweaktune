@@ -160,7 +160,6 @@ impl Step for CheckSimHashStep {
 
                 if let Some(state) = state.as_ref() {
                     let similar_items = state.knn_simhash(&self.input, hash, 10).await?;
-                    println!("SIMILAR ITEMS !!!!!!!!!!!!!!!!!!!!: {:?}", similar_items);
                     if !similar_items.is_empty() {
                         let (sim, dist, item_id) = &similar_items[0];
                         if *dist <= self.threshold {
