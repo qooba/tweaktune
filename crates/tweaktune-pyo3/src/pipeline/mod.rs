@@ -11,8 +11,8 @@ use simplelog::*;
 use std::fs::{create_dir_all, File};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::thread;
-use std::{collections::HashMap, sync::Arc};
 use tweaktune_core::common::{deserialize, run_async, SerializationType};
 use tweaktune_core::datasets::{
     CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
@@ -50,7 +50,6 @@ use tweaktune_core::{
 pub struct Metadata {
     pub path: String,
     pub enabled: bool,
-    pub state: Option<State>,
 }
 
 #[pymethods]
@@ -61,20 +60,10 @@ impl Metadata {
             create_dir_all(&path).unwrap();
             create_dir_all(format!("{}/{}", &path, "logs")).unwrap();
             create_dir_all(format!("{}/{}", &path, "state")).unwrap();
-            let state =
-                run_async(async { State::new(&format!("{}/{}", &path, "state")).await.ok() });
 
-            Self {
-                path,
-                enabled,
-                state,
-            }
+            Self { path, enabled }
         } else {
-            Self {
-                path,
-                enabled,
-                state: None,
-            }
+            Self { path, enabled }
         }
     }
 }
@@ -103,11 +92,21 @@ impl PipelineBuilder {
             Metadata::new(format!(".tweaktune/{}/", &name), true)
         };
 
+        let state = if metadata.enabled {
+            run_async(async {
+                State::new(&format!("{}/{}", &metadata.path, "state"))
+                    .await
+                    .ok()
+            })
+        } else {
+            None
+        };
+
         Self {
             id: uuid::Uuid::new_v4(),
             name,
             workers: 1,
-            resources: PipelineResources::default(),
+            resources: PipelineResources::new(state),
             steps: vec![],
             iter_by: IterBy::Range {
                 start: 0,
@@ -928,7 +927,7 @@ impl PipelineBuilder {
 
         let result = run_async(async {
             if self.metadata.enabled {
-                if let Some(state) = &self.metadata.state {
+                if let Some(state) = &self.resources.state {
                     state
                         .add_run(
                             &self.id.to_string(),
@@ -964,7 +963,7 @@ impl PipelineBuilder {
                             context.set_status(StepStatus::Running);
                             let item_id = context.id.to_string();
                             if self.metadata.enabled {
-                                if let Some(state) = &self.metadata.state {
+                                if let Some(state) = &self.resources.state {
                                     state
                                         .add_item(&item_id, &rid, i as i64, None)
                                         .await
@@ -972,7 +971,7 @@ impl PipelineBuilder {
                                 }
                             }
                             if let Err(e) = process_steps(self, context, None).await {
-                                if let Some(state) = &self.metadata.state {
+                                if let Some(state) = &self.resources.state {
                                     state.delete_item(&item_id).await.ok();
                                 }
                                 return Err(format!("Error processing step: {} - {}", i, e));
@@ -1160,7 +1159,7 @@ async fn map_record_batches(
     context.set_status(StepStatus::Running);
     let item_id = context.id.to_string();
     if pipeline.metadata.enabled {
-        if let Some(state) = &pipeline.metadata.state {
+        if let Some(state) = &pipeline.resources.state {
             state
                 .add_item(&item_id, &pipeline.id.to_string(), inc.clone() as i64, None)
                 .await
@@ -1169,7 +1168,7 @@ async fn map_record_batches(
     }
 
     if let Err(e) = process_steps(pipeline, context, None).await {
-        if let Some(state) = &pipeline.metadata.state {
+        if let Some(state) = &pipeline.resources.state {
             state.delete_item(&item_id).await.ok();
         }
         return Err(e);
@@ -1200,7 +1199,7 @@ async fn process_steps(
                     .process(
                         &pipeline.resources,
                         &context,
-                        pipeline.metadata.state.clone(),
+                        pipeline.resources.state.clone(),
                     )
                     .await?;
             }};

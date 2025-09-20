@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    datasets::DatasetType, embeddings::EmbeddingsType, llms::LLMType, templates::Templates,
-    tokenizers::TokenizerWrapper,
+    datasets::DatasetType, embeddings::EmbeddingsType, llms::LLMType, state::State,
+    templates::Templates, tokenizers::TokenizerWrapper,
 };
 
 pub mod common;
@@ -22,10 +22,11 @@ pub struct PipelineResources {
     pub llms: Resources<LLMType>,
     pub templates: Templates,
     pub tokenizers: Resources<TokenizerWrapper>,
+    pub state: Option<State>,
 }
 
-impl Default for PipelineResources {
-    fn default() -> Self {
+impl PipelineResources {
+    pub fn new(state: Option<State>) -> Self {
         Self {
             datasets: Resources {
                 resources: HashMap::new(),
@@ -40,6 +41,7 @@ impl Default for PipelineResources {
             tokenizers: Resources {
                 resources: HashMap::new(),
             },
+            state,
         }
     }
 }
