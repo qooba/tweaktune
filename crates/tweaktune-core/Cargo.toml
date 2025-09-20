@@ -40,6 +40,7 @@ murmur3 = { workspace = true }
 probminhash = { workspace = true }
 text-splitter = { workspace = true }
 thiserror = { workspace = true }
+tokenizers = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 tweaktune-abstractions= { workspace = true }

@@ -29,6 +29,7 @@ use tweaktune_core::steps::{
     },
     ChunkStep, IfElseStep, IntoListStep, RenderStep,
 };
+use tweaktune_core::PipelineResources;
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
@@ -83,10 +84,7 @@ pub struct PipelineBuilder {
     id: uuid::Uuid,
     name: String,
     workers: usize,
-    datasets: Resources<DatasetType>,
-    templates: Templates,
-    llms: Resources<LLMType>,
-    embeddings: Resources<EmbeddingsType>,
+    resources: PipelineResources,
     steps: Vec<StepType>,
     iter_by: IterBy,
     running: Arc<AtomicBool>,
@@ -109,16 +107,7 @@ impl PipelineBuilder {
             id: uuid::Uuid::new_v4(),
             name,
             workers: 1,
-            datasets: Resources {
-                resources: HashMap::new(),
-            },
-            templates: Templates::default(),
-            llms: Resources {
-                resources: HashMap::new(),
-            },
-            embeddings: Resources {
-                resources: HashMap::new(),
-            },
+            resources: PipelineResources::default(),
             steps: vec![],
             iter_by: IterBy::Range {
                 start: 0,
@@ -139,7 +128,7 @@ impl PipelineBuilder {
 
     pub fn with_openapi_dataset(&mut self, name: String, path_or_url: String) -> PyResult<()> {
         debug!("Added OPEN_API dataset: {}", &name);
-        self.datasets.add(
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::OpenApi(OpenApiDataset::new(name, path_or_url)?),
         );
@@ -154,7 +143,7 @@ impl PipelineBuilder {
         sql: Option<String>,
     ) -> PyResult<()> {
         debug!("Added JSON_LIST dataset: {}", &name);
-        self.datasets.add(
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::JsonList(JsonListDataset::new(name, json_list, sql)?),
         );
@@ -169,7 +158,7 @@ impl PipelineBuilder {
         sql: Option<String>,
     ) -> PyResult<()> {
         debug!("Added JSONL dataset: {}", &name);
-        self.datasets.add(
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Jsonl(JsonlDataset::new(name, path, sql)?),
         );
@@ -178,7 +167,7 @@ impl PipelineBuilder {
 
     pub fn with_polars_dataset(&mut self, name: String, path: String, sql: String) -> PyResult<()> {
         debug!("Added POLARS dataset: {}", &name);
-        self.datasets.add(
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Polars(PolarsDataset::new(name, path, Some(sql))?),
         );
@@ -193,7 +182,7 @@ impl PipelineBuilder {
         sql: Option<String>,
     ) -> PyResult<()> {
         debug!("Added JSON dataset: {}", &name);
-        self.datasets.add(
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Json(JsonDataset::new(name, path, sql)?),
         );
@@ -202,9 +191,13 @@ impl PipelineBuilder {
 
     pub fn with_mixed_dataset(&mut self, name: String, datasets: Vec<String>) -> PyResult<()> {
         debug!("Added MIXED dataset: {}", &name);
-        self.datasets.add(
+        self.resources.datasets.add(
             name.clone(),
-            DatasetType::Mixed(MixedDataset::new(name, datasets, &self.datasets.resources)?),
+            DatasetType::Mixed(MixedDataset::new(
+                name,
+                datasets,
+                &self.resources.datasets.resources,
+            )?),
         );
         Ok(())
     }
@@ -217,7 +210,7 @@ impl PipelineBuilder {
         sql: Option<String>,
     ) -> PyResult<()> {
         debug!("Added Parquet dataset: {}", &name);
-        self.datasets.add(
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Parquet(ParquetDataset::new(name, path, sql)?),
         );
@@ -233,7 +226,7 @@ impl PipelineBuilder {
     ) -> PyResult<()> {
         debug!("Added Ipc dataset: {}", &name);
 
-        self.datasets.add(
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Ipc(IpcDataset::new(name, ipc_data, sql)?),
         );
@@ -250,7 +243,7 @@ impl PipelineBuilder {
         sql: Option<String>,
     ) -> PyResult<()> {
         debug!("Added CSV dataset: {}", &name);
-        self.datasets.add(
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Csv(CsvDataset::new(
                 name,
@@ -273,7 +266,7 @@ impl PipelineBuilder {
         temperature: f32,
     ) {
         debug!("Added LLM API: {}", &name);
-        self.llms.add(
+        self.resources.llms.add(
             name.clone(),
             LLMType::Api(ApiLLM::new(
                 name,
@@ -297,7 +290,7 @@ impl PipelineBuilder {
         temperature: f32,
     ) {
         debug!("Added LLM API: {}", &name);
-        self.llms.add(
+        self.resources.llms.add(
             name.clone(),
             LLMType::Api(ApiLLM::new(
                 name,
@@ -320,7 +313,7 @@ impl PipelineBuilder {
         temperature: f32,
     ) {
         debug!("Added LLM API: {}", &name);
-        self.llms.add(
+        self.resources.llms.add(
             name.clone(),
             LLMType::Api(ApiLLM::new(
                 name,
@@ -338,7 +331,7 @@ impl PipelineBuilder {
 
     pub fn with_llm_unsloth(&mut self, name: String, py_func: PyObject) {
         debug!("Added LLM UNSLOTH: {}", &name);
-        self.llms.add(
+        self.resources.llms.add(
             name.clone(),
             LLMType::Unsloth(UnslothLLM::new(name, py_func)),
         );
@@ -346,7 +339,7 @@ impl PipelineBuilder {
 
     pub fn with_llm_mistralrs(&mut self, name: String, py_func: PyObject) {
         debug!("Added LLM MISTRALRS: {}", &name);
-        self.llms.add(
+        self.resources.llms.add(
             name.clone(),
             LLMType::Mistralrs(MistralrsLLM::new(name, py_func)),
         );
@@ -360,7 +353,7 @@ impl PipelineBuilder {
         model: String,
     ) {
         debug!("Added OpenAI embeddings: {}", &name);
-        self.embeddings.add(
+        self.resources.embeddings.add(
             name.clone(),
             EmbeddingsType::OpenAI(OpenAIEmbeddings::new(name, base_url, api_key, model)),
         );
@@ -368,7 +361,7 @@ impl PipelineBuilder {
 
     pub fn with_jinja_template(&mut self, name: String, template: String) {
         debug!("Added Jinja template: {}", &name);
-        self.templates.add(name, template);
+        self.resources.templates.add(name, template);
     }
 
     #[pyo3(signature = (path, op_config=None))]
@@ -383,7 +376,7 @@ impl PipelineBuilder {
                                 read_to_string(template_path_str, op_config.clone())
                             {
                                 debug!("Added Jinja template: {}", &name);
-                                self.templates.add(name.to_string(), template);
+                                self.resources.templates.add(name.to_string(), template);
                             } else {
                                 error!("Failed to read template file: {}", template_path.display());
                             }
@@ -405,7 +398,7 @@ impl PipelineBuilder {
     pub fn with_j2_template(&mut self, name: String, path: String, op_config: Option<String>) {
         debug!("Added Jinja template: {}", &name);
         let template = read_to_string(&path, op_config).unwrap();
-        self.templates.add(name, template);
+        self.resources.templates.add(name, template);
     }
 
     #[pyo3(signature = (path, op_config=None))]
@@ -422,7 +415,7 @@ impl PipelineBuilder {
         let templates = deserialize::<Templates>(&template, serialization_type).unwrap();
         for (name, template) in templates.templates {
             debug!("Adding template: {}", &name);
-            self.templates.add(name, template);
+            self.resources.templates.add(name, template);
         }
     }
 
@@ -452,7 +445,7 @@ impl PipelineBuilder {
         let then_steps = then_steps
             .steps
             .iter()
-            .map(|step| map_step(step, &mut self.templates))
+            .map(|step| map_step(step, &mut self.resources.templates))
             .collect::<Vec<_>>();
 
         let else_steps = if !else_steps.steps.is_empty() {
@@ -460,7 +453,7 @@ impl PipelineBuilder {
                 else_steps
                     .steps
                     .iter()
-                    .map(|step| map_step(step, &mut self.templates))
+                    .map(|step| map_step(step, &mut self.resources.templates))
                     .collect::<Vec<_>>(),
             )
         } else {
@@ -468,7 +461,11 @@ impl PipelineBuilder {
         };
 
         let condition_key = if let Some(condition) = &condition {
-            Some(self.templates.add_inline("ifelse", &name, condition))
+            Some(
+                self.resources
+                    .templates
+                    .add_inline("ifelse", &name, condition),
+            )
         } else {
             None
         };
@@ -551,7 +548,8 @@ impl PipelineBuilder {
 
         let schema_key = if let Some(schema) = &schema_template {
             Some(
-                self.templates
+                self.resources
+                    .templates
                     .add_inline("json_generation_step", &name, schema),
             )
         } else {
@@ -710,11 +708,13 @@ impl PipelineBuilder {
         debug!("Added validate JSON step");
 
         let schema_key = self
+            .resources
             .templates
             .add_inline("validatejson_schema", &name, &schema);
-        let instance_key = self
-            .templates
-            .add_inline("validatejson_instance", &name, &instance);
+        let instance_key =
+            self.resources
+                .templates
+                .add_inline("validatejson_instance", &name, &instance);
         self.steps
             .push(StepType::ValidateJson(ValidateJsonStep::new(
                 name,
@@ -744,14 +744,20 @@ impl PipelineBuilder {
     pub fn add_filter_step(&mut self, name: String, condition: String) {
         debug!("Added filter step");
 
-        let condition_key = self.templates.add_inline("filter", &name, &condition);
+        let condition_key = self
+            .resources
+            .templates
+            .add_inline("filter", &name, &condition);
         self.steps
             .push(StepType::Filter(FilterStep::new(name, condition_key)));
     }
 
     pub fn add_mutate_step(&mut self, name: String, mutation: String, output: String) {
         debug!("Added mutate step");
-        let mutation_key = self.templates.add_inline("mutate", &name, &mutation);
+        let mutation_key = self
+            .resources
+            .templates
+            .add_inline("mutate", &name, &mutation);
         self.steps.push(StepType::Mutate(MutateStep::new(
             name,
             mutation_key,
@@ -763,7 +769,10 @@ impl PipelineBuilder {
     pub fn add_new_column_step(&mut self, name: String, mutation: String, output: String) {
         debug!("Added new column step");
 
-        let new_column_key = self.templates.add_inline("new_column", &name, &mutation);
+        let new_column_key = self
+            .resources
+            .templates
+            .add_inline("new_column", &name, &mutation);
         self.steps.push(StepType::Mutate(MutateStep::new(
             name,
             new_column_key,
@@ -806,7 +815,7 @@ impl PipelineBuilder {
     }
 
     pub fn compile(&self) {
-        self.templates.compile().unwrap();
+        self.resources.templates.compile().unwrap();
     }
 
     #[pyo3(signature = (level=None, target=None, file=None))]
@@ -1005,7 +1014,7 @@ impl PipelineBuilder {
                         .unwrap(),
                     );
 
-                    let dataset = self.datasets.get(name).ok_or_err(name)?;
+                    let dataset = self.resources.datasets.get(name).ok_or_err(name)?;
                     let mut inc = 0;
                     // macros to reduce duplicated iteration logic for datasets
                     macro_rules! process_dataset {
@@ -1046,9 +1055,10 @@ impl PipelineBuilder {
 
                     macro_rules! process_dataset_mix {
                         ($dataset:expr) => {{
-                            let iter_results =
-                                stream::iter($dataset.stream_mix(&self.datasets.resources)?.map(
-                                    |json_row| {
+                            let iter_results = stream::iter(
+                                $dataset
+                                    .stream_mix(&self.resources.datasets.resources)?
+                                    .map(|json_row| {
                                         let bar = &bar;
                                         let sender = sender.clone();
                                         process_progress_bar(bar, &self.running);
@@ -1074,11 +1084,11 @@ impl PipelineBuilder {
                                             send_progress_event(&sender, inc);
                                             Ok(())
                                         }
-                                    },
-                                ))
-                                .buffered(self.workers)
-                                .collect::<Vec<_>>()
-                                .await;
+                                    }),
+                            )
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
                             for result in iter_results {
                                 if let Err(e) = result {
                                     bail!(e)
@@ -1188,10 +1198,10 @@ async fn process_steps(
             ($step_ident:ident) => {{
                 context = $step_ident
                     .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
+                        &pipeline.resources.datasets.resources,
+                        &pipeline.resources.templates,
+                        &pipeline.resources.llms.resources,
+                        &pipeline.resources.embeddings.resources,
                         &context,
                         pipeline.metadata.state.clone(),
                     )
@@ -1203,10 +1213,10 @@ async fn process_steps(
             StepType::IfElse(if_step) => {
                 let check_result = if_step
                     .check(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
+                        &pipeline.resources.datasets.resources,
+                        &pipeline.resources.templates,
+                        &pipeline.resources.llms.resources,
+                        &pipeline.resources.embeddings.resources,
                         &context,
                     )
                     .await?;
@@ -1529,29 +1539,6 @@ pub enum Dataset {
         delimiter: String,
         has_header: bool,
     },
-}
-
-#[derive(Default, Clone)]
-pub struct Resources<T> {
-    resources: HashMap<String, T>,
-}
-
-impl<T> Resources<T> {
-    pub fn add(&mut self, name: String, resource: T) {
-        self.resources.insert(name, resource);
-    }
-
-    pub fn list(&self) -> Vec<String> {
-        self.resources.keys().cloned().collect()
-    }
-
-    pub fn get(&self, name: &str) -> Option<&T> {
-        self.resources.get(name)
-    }
-
-    pub fn remove(&mut self, name: &str) -> Option<T> {
-        self.resources.remove(name)
-    }
 }
 
 fn map_step(step: &Step, templates: &mut Templates) -> StepType {
