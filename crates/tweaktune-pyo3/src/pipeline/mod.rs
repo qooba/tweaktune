@@ -1198,10 +1198,7 @@ async fn process_steps(
             ($step_ident:ident) => {{
                 context = $step_ident
                     .process(
-                        &pipeline.resources.datasets.resources,
-                        &pipeline.resources.templates,
-                        &pipeline.resources.llms.resources,
-                        &pipeline.resources.embeddings.resources,
+                        &pipeline.resources,
                         &context,
                         pipeline.metadata.state.clone(),
                     )

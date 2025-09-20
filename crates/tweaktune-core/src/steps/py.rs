@@ -6,6 +6,7 @@ use crate::{
     state::State,
     steps::{Step, StepContext, StepStatus},
     templates::Templates,
+    PipelineResources,
 };
 use anyhow::Result;
 use log::error;
@@ -26,10 +27,7 @@ impl PyStep {
 impl Step for PyStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, LLMType>,
-        _embeddings: &HashMap<String, EmbeddingsType>,
+        _resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
@@ -72,10 +70,7 @@ impl PyValidator {
 impl Step for PyValidator {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, LLMType>,
-        _embeddings: &HashMap<String, EmbeddingsType>,
+        _resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {

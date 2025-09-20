@@ -6,6 +6,7 @@ use crate::{
     state::State,
     steps::{Step, StepContext, StepStatus},
     templates::Templates,
+    PipelineResources,
 };
 use anyhow::Result;
 use log::{debug, error};
@@ -105,20 +106,17 @@ impl TextGenerationStep {
 impl Step for TextGenerationStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
         let result = self
             .generate(
-                _datasets,
-                templates,
-                llms,
-                _embeddings,
+                &resources.datasets.resources,
+                &resources.templates,
+                &resources.llms.resources,
+                &resources.embeddings.resources,
                 &context,
                 None,
                 self.max_tokens,
@@ -187,17 +185,16 @@ impl JsonGenerationStep {
 impl Step for JsonGenerationStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
         let json_schema = if let Some(schema_key) = &self.schema_key {
-            let schema = templates.render(schema_key.clone(), context.data.clone())?;
+            let schema = resources
+                .templates
+                .render(schema_key.clone(), context.data.clone())?;
 
             let full_schema: Value = serde_json::from_str(&schema).unwrap();
 
@@ -231,10 +228,10 @@ impl Step for JsonGenerationStep {
         let result = self
             .generation_step
             .generate(
-                _datasets,
-                templates,
-                llms,
-                _embeddings,
+                &resources.datasets.resources,
+                &resources.templates,
+                &resources.llms.resources,
+                &resources.embeddings.resources,
                 &context,
                 json_schema,
                 self.max_tokens,

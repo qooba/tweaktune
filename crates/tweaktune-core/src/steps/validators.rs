@@ -3,6 +3,7 @@ use crate::common::validators::{
     validate_tool_format_messages,
 };
 use crate::state::State;
+use crate::PipelineResources;
 use crate::{
     datasets::DatasetType,
     embeddings::{self},
@@ -34,16 +35,15 @@ impl ValidateJsonStep {
 impl Step for ValidateJsonStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
-        let schema = templates.render(self.schema.clone(), context.data.clone())?;
+        let schema = resources
+            .templates
+            .render(self.schema.clone(), context.data.clone())?;
         let full_schema: Value = serde_json::from_str(&schema).unwrap();
 
         let properties = if let Value::String(v) = full_schema["properties"].clone() {
@@ -59,7 +59,9 @@ impl Step for ValidateJsonStep {
             "additionalProperties": false,
         });
 
-        let instance_json = templates.render(self.instance.clone(), context.data.clone())?;
+        let instance_json = resources
+            .templates
+            .render(self.instance.clone(), context.data.clone())?;
 
         match serde_json::from_str(&instance_json) {
             Ok(instance) => {
@@ -96,10 +98,7 @@ impl ToolsValidateStep {
 impl Step for ToolsValidateStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        _resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
@@ -150,10 +149,7 @@ impl ToolsNormalizeStep {
 impl Step for ToolsNormalizeStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        _resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
@@ -202,10 +198,7 @@ impl ConversationValidateStep {
 impl Step for ConversationValidateStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        _resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {

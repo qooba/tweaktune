@@ -1,15 +1,12 @@
 use crate::{
-    datasets::DatasetType,
-    embeddings::{self},
-    llms::{self},
     state::State,
     steps::{Step, StepContext, StepStatus},
-    templates::Templates,
+    PipelineResources,
 };
 use anyhow::Result;
 use log::error;
+use std::fs::File;
 use std::io::Write;
-use std::{collections::HashMap, fs::File};
 
 pub struct JsonlWriterStep {
     pub name: String,
@@ -37,17 +34,16 @@ impl JsonlWriterStep {
 impl Step for JsonlWriterStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
         let file = File::options().append(true).create(true).open(&self.path)?;
         let mut writer = std::io::BufWriter::new(file);
         let row = if let Some(template) = &self.template {
-            templates.render(template.clone(), context.data.clone())
+            resources
+                .templates
+                .render(template.clone(), context.data.clone())
         } else if let Some(value) = &self.value {
             if let Some(v) = context.get(value) {
                 if let Some(inner) = v.as_str() {
@@ -109,10 +105,7 @@ impl CsvWriterStep {
 impl Step for CsvWriterStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        _resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {

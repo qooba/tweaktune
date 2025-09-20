@@ -23,6 +23,7 @@ use crate::{
         writers::{CsvWriterStep, JsonlWriterStep},
     },
     templates::Templates,
+    PipelineResources,
 };
 use anyhow::Result;
 use log::error;
@@ -85,10 +86,7 @@ impl Default for StepContext {
 pub trait Step {
     fn process(
         &self,
-        datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        llms: &HashMap<String, llms::LLMType>,
-        embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
         state: Option<State>,
     ) -> impl std::future::Future<Output = Result<StepContext>>;
@@ -191,10 +189,7 @@ impl IfElseStep {
 impl Step for IfElseStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, LLMType>,
-        _embeddings: &HashMap<String, EmbeddingsType>,
+        _resources: &PipelineResources,
         _context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
@@ -221,15 +216,14 @@ impl RenderStep {
 impl Step for RenderStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
-        let rendered = templates.render(self.template.clone(), context.data.clone())?;
+        let rendered = resources
+            .templates
+            .render(self.template.clone(), context.data.clone())?;
         context.set(&self.output, rendered);
         Ok(context)
     }
@@ -254,15 +248,14 @@ impl PrintStep {
 impl Step for PrintStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
         let mut row = if let Some(template) = self.template.clone() {
-            templates.render(template.clone(), context.data.clone())?
+            resources
+                .templates
+                .render(template.clone(), context.data.clone())?
         } else if let Some(columns) = self.columns.clone() {
             let mut row = String::new();
             for (i, column) in columns.iter().enumerate() {
@@ -337,22 +330,20 @@ impl DataSamplerStep {
 impl Step for DataSamplerStep {
     async fn process(
         &self,
-        datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
-        let dataset_type = datasets
+        let dataset_type = resources
+            .datasets
             .get(&self.dataset)
             .ok_or_err(&self.dataset)
             .unwrap();
 
         let json_rows = if let DatasetType::Mixed(mixed_dataset) = dataset_type {
-            mixed_dataset.sample(self.size.unwrap(), datasets)?
+            mixed_dataset.sample(self.size.unwrap(), &resources.datasets.resources)?
         } else {
             let df = match dataset_type {
                 DatasetType::Polars(polars_dataset) => polars_dataset.df(),
@@ -409,10 +400,7 @@ impl ChunkStep {
 impl Step for ChunkStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        _resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
@@ -452,10 +440,7 @@ impl IntoListStep {
 impl Step for IntoListStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        _resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {

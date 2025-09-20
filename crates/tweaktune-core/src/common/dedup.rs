@@ -1,4 +1,3 @@
-use anyhow::Result;
 use serde_json::Value;
 use simhash::{hamming_distance, simhash};
 use unicode_normalization::UnicodeNormalization;
@@ -85,6 +84,7 @@ fn word_shingles(text: &str, shingle_size: usize) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::Result;
     use serde_json::json;
 
     #[test]

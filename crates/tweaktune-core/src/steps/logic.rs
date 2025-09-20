@@ -1,14 +1,10 @@
 use crate::{
-    datasets::DatasetType,
-    embeddings::{self},
-    llms::{self},
     state::State,
     steps::{Step, StepContext, StepStatus},
-    templates::Templates,
+    PipelineResources,
 };
 use anyhow::Result;
 use log::error;
-use std::collections::HashMap;
 
 pub struct FilterStep {
     pub name: String,
@@ -24,15 +20,14 @@ impl FilterStep {
 impl Step for FilterStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
         let mut context = context.clone();
-        let rendered = templates.render(self.condition.clone(), context.data.clone())?;
+        let rendered = resources
+            .templates
+            .render(self.condition.clone(), context.data.clone())?;
         if let Ok(v) = serde_json::from_str::<bool>(&rendered) {
             if !v {
                 context.set_status(StepStatus::Failed);
@@ -64,10 +59,7 @@ impl MutateStep {
 impl Step for MutateStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
@@ -78,12 +70,14 @@ impl Step for MutateStep {
             return Ok(context);
         }
 
-        let rendered = templates.render(self.condition.clone(), context.data.clone())?;
+        let rendered = resources
+            .templates
+            .render(self.condition.clone(), context.data.clone())?;
         match serde_json::from_str::<serde_json::Value>(&rendered) {
             Ok(v) => {
                 context.set(&self.output, v);
             }
-            Err(e) => {
+            Err(_) => {
                 context.set(&self.output, serde_json::Value::String(rendered));
             }
         }

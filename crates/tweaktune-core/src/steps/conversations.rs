@@ -1,15 +1,12 @@
 use crate::{
     common::validators::validate_tool_format_messages,
-    datasets::DatasetType,
-    embeddings, llms,
     state::State,
-    steps::{self, Step, StepContext, StepStatus},
-    templates::Templates,
+    steps::{Step, StepContext, StepStatus},
+    PipelineResources,
 };
 use anyhow::Result;
 use log::error;
 use serde_json::{json, Value};
-use std::collections::HashMap;
 
 pub struct RenderToolCallStep {
     pub name: String,
@@ -32,10 +29,7 @@ impl RenderToolCallStep {
 impl Step for RenderToolCallStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        _resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {
@@ -233,10 +227,7 @@ impl RenderConversationStep {
 impl Step for RenderConversationStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        _resources: &PipelineResources,
         context: &StepContext,
         _state: Option<State>,
     ) -> Result<StepContext> {

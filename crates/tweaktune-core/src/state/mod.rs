@@ -257,6 +257,8 @@ mod tests {
         let c = q ^ 0b11;
         let d = q ^ 0xFFFF_FFFF;
 
+        state.add_run("run1", "/tmp/log", None).await?;
+        state.add_item("item1", "run1", 0, None).await?;
         state.add_simhash("item1", "k2", a as i64).await?;
         state.add_simhash("item1", "k2", b as i64).await?;
         state.add_simhash("item1", "k2", c as i64).await?;
