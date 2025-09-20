@@ -1,17 +1,11 @@
 use crate::{
     common::ResultExt,
-    datasets::DatasetType,
-    embeddings::EmbeddingsType,
-    llms::LLMType,
-    state::State,
     steps::{Step, StepContext, StepStatus},
-    templates::Templates,
     PipelineResources,
 };
 use anyhow::Result;
 use log::error;
 use pyo3::prelude::*;
-use std::collections::HashMap;
 
 pub struct PyStep {
     pub name: String,

@@ -3,7 +3,6 @@ use crate::{
     datasets::DatasetType,
     embeddings::{self},
     llms::{self, LLM},
-    state::State,
     steps::{Step, StepContext, StepStatus},
     templates::Templates,
     PipelineResources,

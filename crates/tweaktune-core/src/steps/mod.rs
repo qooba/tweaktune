@@ -10,7 +10,6 @@ use crate::{
     datasets::{Dataset, DatasetType},
     embeddings::EmbeddingsType,
     llms::LLMType,
-    state::State,
     steps::{
         conversations::{RenderConversationStep, RenderToolCallStep},
         generators::{JsonGenerationStep, TextGenerationStep},

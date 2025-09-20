@@ -68,7 +68,7 @@ fn canonicalize_json(input: &Value) -> Option<String> {
     serde_json_canonicalizer::to_string(input).ok()
 }
 
-fn word_shingles(text: &str, shingle_size: usize) -> Vec<String> {
+fn _word_shingles(text: &str, shingle_size: usize) -> Vec<String> {
     let words: Vec<&str> = text.split_whitespace().collect();
     let mut shingles = Vec::new();
     if words.len() < shingle_size {
