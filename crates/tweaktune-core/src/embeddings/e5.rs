@@ -7,15 +7,17 @@ use candle_nn::VarBuilder;
 use candle_transformers::models::bert::{BertModel, Config as BertConfig};
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokenizers::{PaddingParams, Tokenizer};
 
 pub const E5_MODEL_REPO: &str = "intfloat/e5-small-v2";
 
-static E5_INSTANCE: OnceCell<Arc<Mutex<E5Model>>> = OnceCell::new();
+static E5_INSTANCES: OnceCell<Mutex<HashMap<String, Arc<Mutex<E5Model>>>>> = OnceCell::new();
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct E5Spec {
+    pub name: String,
     pub model_repo: Option<String>,
     pub device: Option<String>,
     pub hf_token: Option<String>,
@@ -30,21 +32,34 @@ pub struct E5Model {
 }
 
 impl E5Model {
-    pub fn lazy<'a>(spec: E5Spec) -> Result<&'a Arc<Mutex<E5Model>>> {
-        if E5_INSTANCE.get().is_none() {
-            let e5_model = E5Model::load(spec)?;
-            let _ = E5_INSTANCE.set(Arc::new(Mutex::new(e5_model))).is_ok();
-        };
+    pub fn lazy(spec: E5Spec) -> Result<Arc<Mutex<E5Model>>> {
+        let name = spec.name.clone();
 
-        Ok(E5_INSTANCE.get().expect("E5_INSTANCE"))
+        if E5_INSTANCES.get().is_none() {
+            let _ = E5_INSTANCES.set(Mutex::new(HashMap::new()));
+        }
+
+        let map = E5_INSTANCES.get().expect("E5_INSTANCES");
+        {
+            let guard = map.lock().map_anyhow_err()?;
+            if let Some(existing) = guard.get(&name) {
+                return Ok(existing.clone());
+            }
+        }
+
+        let e5_model = E5Model::load(spec)?;
+        let arc = Arc::new(Mutex::new(e5_model));
+        let mut guard = map.lock().map_anyhow_err()?;
+        guard.insert(name, arc.clone());
+        Ok(arc)
     }
 
-    pub fn embeddings(input: Vec<String>) -> Result<Vec<Vec<f32>>> {
-        let model = E5_INSTANCE
-            .get()
-            .ok_or_err("E5_MODEL")?
-            .lock()
-            .map_anyhow_err()?;
+    pub fn embeddings_with_name(name: Option<&str>, input: Vec<String>) -> Result<Vec<Vec<f32>>> {
+        let name = name.unwrap_or("default");
+        let map = E5_INSTANCES.get().ok_or_err("E5_INSTANCES")?;
+        let guard = map.lock().map_anyhow_err()?;
+        let instance = guard.get(name).ok_or_err("E5_MODEL_MISSING")?;
+        let model = instance.lock().map_anyhow_err()?;
         let embeddings_data = model.embed(input)?;
         Ok(embeddings_data)
     }
