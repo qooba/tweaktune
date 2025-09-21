@@ -11,6 +11,7 @@ pub mod datasets;
 pub mod embeddings;
 pub mod llms;
 pub mod readers;
+pub mod seq2seq;
 pub mod state;
 pub mod steps;
 pub mod templates;
