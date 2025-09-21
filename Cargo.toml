@@ -37,9 +37,9 @@ base64 = "0.22.1"
 blake3 = "1.8.2"
 #byteorder = "1.4.3"
 bytes = "1.10.1"
-#candle-core = "0.9.1"
-#candle-nn = "0.9.1"
-#candle-transformers = "0.9.1"
+candle-core = "0.9.1"
+candle-nn = "0.9.1"
+candle-transformers = "0.9.1"
 #candle-core = { git = "https://github.com/qooba/candle.git", rev="9a9bc6d" }
 #candle-nn = { git = "https://github.com/qooba/candle.git", rev="9a9bc6d"  }
 #candle-transformers = { git = "https://github.com/qooba/candle.git", rev="9a9bc6d" }

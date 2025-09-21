@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
+use candle_core::Device;
 use log::error;
 use once_cell::sync::Lazy;
 use once_cell::sync::OnceCell;
@@ -105,6 +106,17 @@ pub fn generate_token(length: usize) -> String {
     (0..length)
         .map(|_| rng.sample(Alphanumeric) as char)
         .collect()
+}
+
+pub fn parse_device(device_type: Option<String>) -> Result<Device> {
+    let device_type = device_type.unwrap_or("cpu".to_string());
+
+    let device = if device_type == "cpu" {
+        Device::Cpu
+    } else {
+        Device::new_cuda(0).unwrap()
+    };
+    Ok(device)
 }
 
 pub fn hf_hub_get_path(
