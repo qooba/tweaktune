@@ -1,8 +1,9 @@
-use crate::common::parse_device;
 use crate::common::{hf_hub_get, hf_hub_get_multiple, hf_hub_get_path};
+use crate::common::{parse_device, ResultExt};
 use anyhow::{Error as E, Result};
-use candle_core::{DType, Device};
+use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
+use candle_transformers::generation::LogitsProcessor;
 use candle_transformers::models::t5;
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
@@ -136,167 +137,99 @@ impl Seq2SeqModel {
         })
     }
 
-    /*
-    pub fn forward() -> Result<()> {
-        let args = Args::parse();
+    pub fn lazy(spec: Seq2SeqSpec) -> Result<Arc<Mutex<Seq2SeqModel>>> {
+        let name = spec.name.clone();
 
-        let _guard = if args.tracing {
-            let (chrome_layer, guard) = ChromeLayerBuilder::new().build();
-            tracing_subscriber::registry().with(chrome_layer).init();
-            Some(guard)
-        } else {
-            None
-        };
+        if SEQ2SEQ_INSTANCES.get().is_none() {
+            let _ = SEQ2SEQ_INSTANCES.set(Mutex::new(HashMap::new()));
+        }
 
-        let (builder, mut tokenizer) = T5ModelBuilder::load(&args)?;
-        let device = &builder.device;
-        match args.prompt {
-            Some(prompt) => {
-                let tokens = tokenizer
-                    .encode(prompt, true)
-                    .map_err(E::msg)?
-                    .get_ids()
-                    .to_vec();
-                let input_token_ids = Tensor::new(&tokens[..], device)?.unsqueeze(0)?;
-                if !args.decode {
-                    let mut model = builder.build_encoder()?;
-                    let start = std::time::Instant::now();
-                    let ys = model.forward(&input_token_ids)?;
-                    println!("{ys}");
-                    println!("Took {:?}", start.elapsed());
-                } else {
-                    let mut model = builder.build_conditional_generation()?;
-                    let mut output_token_ids = [builder
-                        .config
-                        .decoder_start_token_id
-                        .unwrap_or(builder.config.pad_token_id)
-                        as u32]
-                    .to_vec();
-                    if let Some(decoder_prompt) = &args.decoder_prompt {
-                        print!("{decoder_prompt}");
-                        output_token_ids.extend(
-                            tokenizer
-                                .encode(decoder_prompt.to_string(), false)
-                                .map_err(E::msg)?
-                                .get_ids()
-                                .to_vec(),
-                        );
-                    }
-                    let temperature = if args.temperature <= 0. {
-                        None
-                    } else {
-                        Some(args.temperature)
-                    };
-                    let mut logits_processor =
-                        LogitsProcessor::new(299792458, temperature, args.top_p);
-                    let encoder_output = model.encode(&input_token_ids)?;
-                    let start = std::time::Instant::now();
-
-                    for index in 0.. {
-                        if output_token_ids.len() > 512 {
-                            break;
-                        }
-                        let decoder_token_ids = if index == 0 || !builder.config.use_cache {
-                            Tensor::new(output_token_ids.as_slice(), device)?.unsqueeze(0)?
-                        } else {
-                            let last_token = *output_token_ids.last().unwrap();
-                            Tensor::new(&[last_token], device)?.unsqueeze(0)?
-                        };
-                        let logits = model
-                            .decode(&decoder_token_ids, &encoder_output)?
-                            .squeeze(0)?;
-                        let logits = if args.repeat_penalty == 1. {
-                            logits
-                        } else {
-                            let start_at =
-                                output_token_ids.len().saturating_sub(args.repeat_last_n);
-                            candle_transformers::utils::apply_repeat_penalty(
-                                &logits,
-                                args.repeat_penalty,
-                                &output_token_ids[start_at..],
-                            )?
-                        };
-
-                        let next_token_id = logits_processor.sample(&logits)?;
-                        if next_token_id as usize == builder.config.eos_token_id {
-                            break;
-                        }
-                        output_token_ids.push(next_token_id);
-                        if let Some(text) = tokenizer.id_to_token(next_token_id) {
-                            let text = text.replace('▁', " ").replace("<0x0A>", "\n");
-                            print!("{text}");
-                            std::io::stdout().flush()?;
-                        }
-                    }
-                    let dt = start.elapsed();
-                    println!(
-                        "\n{} tokens generated ({:.2} token/s)\n",
-                        output_token_ids.len(),
-                        output_token_ids.len() as f64 / dt.as_secs_f64(),
-                    );
-                }
-            }
-            None => {
-                let mut model = builder.build_encoder()?;
-                let sentences = [
-                    "The cat sits outside",
-                    "A man is playing guitar",
-                    "I love pasta",
-                    "The new movie is awesome",
-                    "The cat plays in the garden",
-                    "A woman watches TV",
-                    "The new movie is so great",
-                    "Do you like pizza?",
-                ];
-                let n_sentences = sentences.len();
-                let mut all_embeddings = Vec::with_capacity(n_sentences);
-                for sentence in sentences {
-                    let tokens = tokenizer
-                        .encode(sentence, true)
-                        .map_err(E::msg)?
-                        .get_ids()
-                        .to_vec();
-                    let token_ids = Tensor::new(&tokens[..], model.device())?.unsqueeze(0)?;
-                    let embeddings = model.forward(&token_ids)?;
-                    println!("generated embeddings {:?}", embeddings.shape());
-                    // Apply some avg-pooling by taking the mean embedding value for all tokens (including padding)
-                    let (_n_sentence, n_tokens, _hidden_size) = embeddings.dims3()?;
-                    let embeddings = (embeddings.sum(1)? / (n_tokens as f64))?;
-                    let embeddings = if args.normalize_embeddings {
-                        normalize_l2(&embeddings)?
-                    } else {
-                        embeddings
-                    };
-                    println!("pooled embeddings {:?}", embeddings.shape());
-                    all_embeddings.push(embeddings)
-                }
-
-                let mut similarities = vec![];
-                for (i, e_i) in all_embeddings.iter().enumerate() {
-                    for (j, e_j) in all_embeddings
-                        .iter()
-                        .enumerate()
-                        .take(n_sentences)
-                        .skip(i + 1)
-                    {
-                        let sum_ij = (e_i * e_j)?.sum_all()?.to_scalar::<f32>()?;
-                        let sum_i2 = (e_i * e_i)?.sum_all()?.to_scalar::<f32>()?;
-                        let sum_j2 = (e_j * e_j)?.sum_all()?.to_scalar::<f32>()?;
-                        let cosine_similarity = sum_ij / (sum_i2 * sum_j2).sqrt();
-                        similarities.push((cosine_similarity, i, j))
-                    }
-                }
-                similarities.sort_by(|u, v| v.0.total_cmp(&u.0));
-                for &(score, i, j) in similarities[..5].iter() {
-                    println!("score: {score:.2} '{}' '{}'", sentences[i], sentences[j])
-                }
+        let map = SEQ2SEQ_INSTANCES.get().expect("SEQ2SEQ_INSTANCES");
+        {
+            let guard = map.lock().map_anyhow_err()?;
+            if let Some(existing) = guard.get(&name) {
+                return Ok(existing.clone());
             }
         }
-        Ok(())
+
+        let seq2seq_model = Seq2SeqModel::load(spec)?;
+        let arc = Arc::new(Mutex::new(seq2seq_model));
+        let mut guard = map.lock().map_anyhow_err()?;
+        guard.insert(name, arc.clone());
+        Ok(arc)
     }
 
-    pub fn normalize_l2(v: &Tensor) -> Result<Tensor> {
-        Ok(v.broadcast_div(&v.sqr()?.sum_keepdim(1)?.sqrt()?)?)
+    pub fn forward(&self, prompt: String, decoder_prompt: Option<String>) -> Result<String> {
+        let mut model = self.model.clone();
+
+        let tokens = self
+            .tokenizer
+            .encode(prompt, true)
+            .map_err(E::msg)?
+            .get_ids()
+            .to_vec();
+        let input_token_ids = Tensor::new(&tokens[..], &self.device)?.unsqueeze(0)?;
+        let mut output_token_ids = [self
+            .config
+            .decoder_start_token_id
+            .unwrap_or(self.config.pad_token_id) as u32]
+        .to_vec();
+        if let Some(decoder_prompt) = &decoder_prompt {
+            print!("{decoder_prompt}");
+            output_token_ids.extend(
+                self.tokenizer
+                    .encode(decoder_prompt.to_string(), false)
+                    .map_err(E::msg)?
+                    .get_ids()
+                    .to_vec(),
+            );
+        }
+        let temperature = if self.spec.temperature <= 0. {
+            None
+        } else {
+            Some(self.spec.temperature)
+        };
+        let mut logits_processor = LogitsProcessor::new(299792458, temperature, self.spec.top_p);
+        let encoder_output = model.encode(&input_token_ids)?;
+
+        for index in 0.. {
+            if output_token_ids.len() > 512 {
+                break;
+            }
+            let decoder_token_ids = if index == 0 || !self.config.use_cache {
+                Tensor::new(output_token_ids.as_slice(), &self.device)?.unsqueeze(0)?
+            } else {
+                let last_token = *output_token_ids.last().unwrap();
+                Tensor::new(&[last_token], &self.device)?.unsqueeze(0)?
+            };
+            let logits = model
+                .decode(&decoder_token_ids, &encoder_output)?
+                .squeeze(0)?;
+            let logits = if self.spec.repeat_penalty == 1. {
+                logits
+            } else {
+                let start_at = output_token_ids
+                    .len()
+                    .saturating_sub(self.spec.repeat_last_n);
+                candle_transformers::utils::apply_repeat_penalty(
+                    &logits,
+                    self.spec.repeat_penalty,
+                    &output_token_ids[start_at..],
+                )?
+            };
+
+            let next_token_id = logits_processor.sample(&logits)?;
+            if next_token_id as usize == self.config.eos_token_id {
+                break;
+            }
+            output_token_ids.push(next_token_id);
+        }
+
+        let output = self
+            .tokenizer
+            .decode(&output_token_ids, true)
+            .map_anyhow_err()?;
+
+        Ok(output)
     }
-    */
 }

@@ -54,29 +54,6 @@ impl E5Model {
         Ok(arc)
     }
 
-    pub fn embeddings_with_name(name: Option<&str>, input: Vec<String>) -> Result<Vec<Vec<f32>>> {
-        let name = name.unwrap_or("default");
-        let map = E5_INSTANCES.get().ok_or_err("E5_INSTANCES")?;
-        let guard = map.lock().map_anyhow_err()?;
-        let instance = guard.get(name).ok_or_err("E5_MODEL_MISSING")?;
-        let model = instance.lock().map_anyhow_err()?;
-        let embeddings_data = model.embed(input)?;
-        Ok(embeddings_data)
-    }
-
-    pub fn init(spec: E5Spec) -> Result<()> {
-        let e5_model_repo = &spec.model_repo.expect("model_repo");
-        let _weights = hf_hub_get(
-            e5_model_repo,
-            "model.safetensors",
-            spec.hf_token.clone(),
-            None,
-        )?;
-        let _tokenizer = hf_hub_get(e5_model_repo, "tokenizer.json", spec.hf_token.clone(), None)?;
-        let _candle_config = hf_hub_get(e5_model_repo, "config.json", spec.hf_token, None)?;
-        Ok(())
-    }
-
     pub fn load(spec: E5Spec) -> Result<E5Model> {
         let spec_clone = spec.clone();
         let model_repo = spec.model_repo.clone().expect("model_repo");
