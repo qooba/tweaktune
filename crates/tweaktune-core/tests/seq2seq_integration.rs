@@ -20,7 +20,7 @@ fn seq2seq_integration_test() -> Result<(), anyhow::Error> {
         .map_err(|e| anyhow::anyhow!("lock error: {:?}", e))?;
 
     // Simple sanity: call embed with an input
-    let input = "translate to Polish: A beautiful cat sits on the windowsill.".to_string();
+    let input = "paraphrase in Polish: Chcę kupić pomidory malinowe w Biedronce.".to_string();
     let timer = std::time::Instant::now();
     let mut output = String::new();
     for _ in 0..1 {
