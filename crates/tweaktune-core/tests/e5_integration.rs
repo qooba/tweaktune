@@ -1,8 +1,10 @@
 #![cfg(feature = "integration-tests")]
+use core::time;
 //RUN_E5_INTEGRATION=1 cargo test -p tweaktune-core --features integration-tests -- --nocapture
 use std::{env, println};
 use tweaktune_core::embeddings::e5::{E5Model, E5Spec, E5_MODEL_REPO};
 use tweaktune_core::embeddings::Embeddings;
+use tweaktune_core::templates::embed;
 
 #[test]
 fn e5_integration_test() -> Result<(), anyhow::Error> {
@@ -26,7 +28,13 @@ fn e5_integration_test() -> Result<(), anyhow::Error> {
 
     // Simple sanity: call embed with an input
     let input = vec!["hello world".to_string()];
-    let emb = guard.embed(input)?;
+    let timer = std::time::Instant::now();
+    let mut emb = Vec::new();
+    for _ in 0..3 {
+        emb = guard.embed(input.clone())?;
+    }
+    let elapsed = timer.elapsed();
+    println!("3 inferences took {:?}", elapsed);
     println!("Embeddings: {:?}", emb);
     assert!(!emb.is_empty());
     Ok(())

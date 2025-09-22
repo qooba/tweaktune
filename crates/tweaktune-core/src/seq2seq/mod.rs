@@ -27,7 +27,7 @@ pub enum Which {
 
 impl Default for Which {
     fn default() -> Self {
-        Self::T5Small
+        Self::Mt5Small
     }
 }
 
@@ -47,6 +47,27 @@ pub struct Seq2SeqSpec {
     pub repeat_penalty: f32,
     pub repeat_last_n: usize,
     pub which: Option<Which>,
+}
+
+impl Default for Seq2SeqSpec {
+    fn default() -> Self {
+        Self {
+            name: "t5_small".to_string(),
+            device: None,
+            model_id: None,
+            revision: None,
+            model_file: None,
+            tokenizer_file: None,
+            config_file: None,
+            disable_cache: false,
+            hf_token: None,
+            temperature: 0.8,
+            top_p: None,
+            repeat_penalty: 1.1,
+            repeat_last_n: 64,
+            which: Some(Which::T5Small),
+        }
+    }
 }
 
 pub struct Seq2SeqModel {
