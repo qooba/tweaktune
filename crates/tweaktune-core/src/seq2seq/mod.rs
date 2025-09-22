@@ -25,6 +25,12 @@ pub enum Which {
     Mt5Large,
 }
 
+impl Default for Which {
+    fn default() -> Self {
+        Self::T5Small
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Seq2SeqSpec {
     pub name: String,
@@ -34,17 +40,13 @@ pub struct Seq2SeqSpec {
     pub model_file: Option<String>,
     pub tokenizer_file: Option<String>,
     pub config_file: Option<String>,
-    pub decode: bool,
     pub disable_cache: bool,
-    pub prompt: Option<String>,
-    pub decoder_prompt: Option<String>,
     pub hf_token: Option<String>,
-    pub normalize_embeddings: bool,
     pub temperature: f64,
     pub top_p: Option<f64>,
     pub repeat_penalty: f32,
     pub repeat_last_n: usize,
-    pub which: Which,
+    pub which: Option<Which>,
 }
 
 pub struct Seq2SeqModel {
@@ -59,7 +61,8 @@ impl Seq2SeqModel {
     pub fn load(spec: Seq2SeqSpec) -> Result<Seq2SeqModel> {
         let sp = spec.clone();
         let device = parse_device(spec.device)?;
-        let (default_model, default_revision) = match spec.which {
+        let which = spec.which.unwrap_or_default();
+        let (default_model, default_revision) = match which {
             Which::T5Base => ("t5-base", "main"),
             Which::T5Small => ("t5-small", "refs/pr/15"),
             Which::T5Large => ("t5-large", "main"),
@@ -76,16 +79,19 @@ impl Seq2SeqModel {
             (None, Some(revision)) => (default_model, revision),
             (None, None) => (default_model, default_revision),
         };
-
+        let config_filename = match &spec.config_file {
+            None => "config.json",
+            Some(f) => f,
+        };
         let _candle_config = hf_hub_get(
             &model_id,
-            "config.json",
+            config_filename,
             spec.hf_token.clone(),
             Some(revision),
         )?;
 
         let (tokenizer_repo_id, tokenizer_file) = match &spec.tokenizer_file {
-            None => match spec.which {
+            None => match which {
                 Which::Mt5Base => ("lmz/mt5-tokenizers", "mt5-base.tokenizer.json"),
                 Which::Mt5Small => ("lmz/mt5-tokenizers", "mt5-small.tokenizer.json"),
                 Which::Mt5Large => ("lmz/mt5-tokenizers", "mt5-large.tokenizer.json"),
