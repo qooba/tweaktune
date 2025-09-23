@@ -1,4 +1,5 @@
 pub mod conversations;
+pub mod embeddings;
 pub mod generators;
 pub mod logic;
 pub mod py;

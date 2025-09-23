@@ -1,6 +1,7 @@
 #![cfg(feature = "integration-tests")]
 use core::time;
 //RUN_E5_INTEGRATION=1 cargo test -p tweaktune-core --features integration-tests -- --nocapture
+use candle_transformers::models::flux::model;
 use std::{env, println};
 use tweaktune_core::embeddings::e5::{E5Model, E5Spec, E5_MODEL_REPO};
 use tweaktune_core::embeddings::Embeddings;
@@ -13,9 +14,10 @@ fn e5_integration_test() -> Result<(), anyhow::Error> {
         return Ok(());
     }
 
+    let model_repo = "intfloat/multilingual-e5-small";
     let spec = E5Spec {
         name: "test".to_string(),
-        model_repo: Some(E5_MODEL_REPO.to_string()),
+        model_repo: Some(model_repo.to_string()),
         device: None,
         hf_token: env::var("HF_TOKEN").ok(),
     };
