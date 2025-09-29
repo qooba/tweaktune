@@ -59,6 +59,7 @@ dotenv = "0.15.0"
 env_logger = { version = "0.11.8" }
 futures = "0.3.25"
 futures-util = "0.3.30"
+half = "2.6.0"
 hf-hub = "0.4.3"
 #hf-hub = { git = "https://github.com/qooba/hf-hub.git", branch = "remove-native-tls-ok", version = "0.3.2", features = ["tokio"] }
 #indexmap = "2.10.0"
@@ -69,7 +70,7 @@ jsonschema = { version = "0.32.1" }
 #kube = { version = "0.99.0", features = ["runtime", "derive"] }
 #k8s-openapi = { version = "0.24.0", features = ["latest"] }
 #lancedb = { version = "0.5.2", default-features = false, features=["polars"] }
-#lancedb = { version = "0.19.0", default-features = false }
+# lancedb = { version = "0.22.0", default-features = false }
 lingua = { version = "1.7.2", default-features = false, features=["english", "polish", "russian", "spanish", "french", "german", "italian", "portuguese", "dutch", "chinese", "japanese"] }
 log = "0.4.27"
 minijinja = {version="2.11.0", features=["loader", "json"]}
@@ -88,6 +89,7 @@ polars-utils = { version ="0.50.0" }
 rand = "0.9.2"
 regex = "1"
 reqwest = { version = "0.12.23", features = ["json", "rustls-tls", "blocking", "stream"], default-features = false}
+# rusqlite = { version = "0.37.0", features = ["bundled"] }
 #rustls = { version = "0.23.31" }
 #safetensors = "0.6.2"
 #schemars = "1.0.4"
@@ -99,6 +101,7 @@ serde_arrow = { version="0.13.5", features=["arrow-55"] }
 simhash = "0.2.0"
 simplelog = {version = "0.12.2"}
 sqlx = { version = "0.8.6", features = ["postgres", "sqlite", "macros", "runtime-tokio"] }
+sqlite-vec = "0.1.6"
 murmur3 = { version="0.5" }
 probminhash = "0.1.12"
 #tar = "0.4"

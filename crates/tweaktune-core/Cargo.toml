@@ -18,6 +18,7 @@ candle-core = { workspace = true }
 candle-nn = { workspace = true }
 candle-transformers = { workspace = true }
 csv = { workspace = true }
+half = { workspace = true }
 hf-hub = { workspace = true }
 jsonschema = { workspace = true}
 lingua = { workspace = true}
@@ -32,6 +33,7 @@ polars-utils = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 reqwest = { workspace = true }
+# rusqlite = { workspace = true }
 serde = { workspace = true }
 serde_arrow = { workspace = true, features = ["arrow-54"]}
 serde_json = { workspace = true }
@@ -39,6 +41,7 @@ serde_json_canonicalizer = { workspace = true }
 serde_yaml = { workspace = true }
 simhash = { workspace = true }
 sqlx = { workspace = true }
+sqlite-vec = { workspace = true }
 murmur3 = { workspace = true }
 probminhash = { workspace = true }
 text-splitter = { workspace = true }

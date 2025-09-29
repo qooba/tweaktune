@@ -5489,6 +5489,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlite-vec"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ec77b84fb8dd5f0f8def127226db83b5d1152c5bf367f09af03998b76ba554a"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "sqlparser"
 version = "0.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6304,6 +6313,7 @@ dependencies = [
  "candle-nn",
  "candle-transformers",
  "csv",
+ "half",
  "hf-hub",
  "jsonschema",
  "lingua",
@@ -6326,6 +6336,7 @@ dependencies = [
  "serde_json_canonicalizer",
  "serde_yaml",
  "simhash",
+ "sqlite-vec",
  "sqlx",
  "tempfile",
  "text-splitter",

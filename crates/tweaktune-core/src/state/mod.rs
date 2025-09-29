@@ -6,6 +6,12 @@ use sqlx::{
 };
 use std::{path::Path, str::FromStr};
 
+// unsafe {
+//     libsqlite3_sys::sqlite3_auto_extension(Some(std::mem::transmute(
+//         sqlite_vec::sqlite3_vec_init as *const (),
+//     )));
+// }
+
 pub async fn open_state_db(db_path: &Path) -> Result<SqlitePool, sqlx::Error> {
     if let Some(dir) = db_path.parent() {
         tokio::fs::create_dir_all(dir).await?;

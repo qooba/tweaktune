@@ -76,3 +76,46 @@ impl Embeddings for OpenAIEmbeddings {
         Ok(embeddings)
     }
 }
+
+fn quantize_f32_to_f16(rows: &[Vec<f32>]) -> Vec<Vec<u16>> {
+    rows.iter()
+        .map(|vec| {
+            vec.iter()
+                .map(|&x| half::f16::from_f32(x).to_bits())
+                .collect()
+        })
+        .collect()
+}
+
+fn dequantize_f16_to_f32(input: &[Vec<u16>]) -> Vec<f32> {
+    input
+        .iter()
+        .flat_map(|vec| vec.iter().map(|&x| half::f16::from_bits(x).to_f32()))
+        .collect()
+}
+
+fn f16_to_blob(input: &[Vec<u16>]) -> Vec<u8> {
+    let mut blob = Vec::with_capacity(input.len() * input[0].len() * 2);
+    for row in input {
+        for &val in row {
+            blob.extend_from_slice(&val.to_le_bytes());
+        }
+    }
+    blob
+}
+
+fn blob_to_f16(blob: &[u8], dim: usize) -> Vec<Vec<u16>> {
+    let num_rows = blob.len() / (dim * 2);
+    let mut result = Vec::with_capacity(num_rows);
+    for i in 0..num_rows {
+        let start = i * dim * 2;
+        let end = start + dim * 2;
+        let row_bytes = &blob[start..end];
+        let row: Vec<u16> = row_bytes
+            .chunks(2)
+            .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+            .collect();
+        result.push(row);
+    }
+    result
+}
