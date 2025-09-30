@@ -81,5 +81,15 @@ CREATE INDEX IF NOT EXISTS ix_simhashes_s5 ON simhashes(key,s5);
 CREATE INDEX IF NOT EXISTS ix_simhashes_s6 ON simhashes(key,s6);
 CREATE INDEX IF NOT EXISTS ix_simhashes_s7 ON simhashes(key,s7);
 
+
+CREATE TABLE IF NOT EXISTS embeddings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+	item_id TEXT,
+	key TEXT NOT NULL,
+    embedding blob,
+	created_at DATETIME NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(item_id) REFERENCES items(item_id) ON DELETE CASCADE
+);
+
 PRAGMA user_version = 1;
 

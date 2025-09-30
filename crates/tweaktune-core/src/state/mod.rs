@@ -1,4 +1,7 @@
+use libsqlite3_sys as ffi;
+use once_cell::sync::Lazy;
 use serde_json::Value as JsonValue;
+use sqlite_vec::sqlite3_vec_init;
 use sqlx::Row;
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
@@ -12,7 +15,19 @@ use std::{path::Path, str::FromStr};
 //     )));
 // }
 
+static EXTENSION_REGISTERED: Lazy<()> = Lazy::new(|| unsafe {
+    let rc = libsqlite3_sys::sqlite3_auto_extension(Some(std::mem::transmute(
+        sqlite3_vec_init as *const (),
+    )));
+
+    if rc != ffi::SQLITE_OK {
+        panic!("Failed to register sqlite3_vec_init extension: {}", rc);
+    }
+});
+
 pub async fn open_state_db(db_path: &Path) -> Result<SqlitePool, sqlx::Error> {
+    Lazy::force(&EXTENSION_REGISTERED);
+
     if let Some(dir) = db_path.parent() {
         tokio::fs::create_dir_all(dir).await?;
     }
