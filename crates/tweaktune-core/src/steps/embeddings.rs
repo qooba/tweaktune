@@ -1,31 +1,30 @@
 use crate::{
     embeddings::{e5::E5Model, Embeddings, EmbeddingsType},
     steps::{Step, StepContext, StepStatus},
-    templates::embed,
     PipelineResources,
 };
 use anyhow::Result;
-use log::error;
+use log::{error, info};
 
-pub struct EmbeddingStep {
+pub struct CheckEmbeddingStep {
     pub name: String,
     pub embedding: String,
     pub input: String,
-    pub output: String,
+    pub treshold: f32,
 }
 
-impl EmbeddingStep {
-    pub fn new(name: String, embedding: String, input: String, output: String) -> Self {
+impl CheckEmbeddingStep {
+    pub fn new(name: String, embedding: String, input: String, treshold: f32) -> Self {
         Self {
             name,
             embedding,
             input,
-            output,
+            treshold,
         }
     }
 }
 
-impl Step for EmbeddingStep {
+impl Step for CheckEmbeddingStep {
     async fn process(
         &self,
         resources: &PipelineResources,
@@ -55,7 +54,27 @@ impl Step for EmbeddingStep {
                             .map_err(|e| anyhow::anyhow!("lock error: {:?}", e))?;
 
                         let emb = guard.embed(vec![text.to_string()])?;
-                        context.set(&self.output, emb);
+                        if let Some(state) = resources.state.as_ref() {
+                            let nearest = state
+                                .knn_embeddings(&self.input.clone(), &emb[0], 1)
+                                .await?;
+
+                            if !nearest.is_empty() && (nearest[0].1 - 1.0).abs() < self.treshold {
+                                info!(target: "steps_embeddings", "✅ Similar embedding found for input");
+                                context.set_status(StepStatus::Failed);
+                            } else {
+                                state
+                                    .add_embedding(&context.id.to_string(), &self.input, &emb[0])
+                                    .await?;
+                            }
+                            // if let Err(e) = state
+                            //     .add_hash(&context.id.to_string(), &self.input, &hash.clone())
+                            //     .await
+                            // {
+                            //     error!(target: "steps_quality", "🐔 Hash validation failed to add hash: {}", e);
+                            //     context.set_status(StepStatus::Failed);
+                            // }
+                        }
                     }
                     _ => {
                         error!(target: "steps_embeddings", "🐔 Unsupported embedding type");

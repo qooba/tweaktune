@@ -303,6 +303,16 @@ class Pipeline:
             raise ValueError("Invalid Embeddings type")
         
         return self
+
+    def with_embedings_api(self, name: str, base_url: str, api_key: str, model: str):
+        self.builder.with_embeddings_api(name, base_url, api_key, model)
+        self.graph.config.llms.append(config_item("EMBEDDINGS"))
+        return self
+
+    def with_embedings_e5(self, name: str, model_repo: str):
+        self.builder.with_embeddings_e5(name, model_repo)
+        self.graph.config.llms.append(config_item("EMBEDDINGS"))
+        return self
     
     def with_workers(self, workers: int):
         self.builder.with_workers(workers)
@@ -505,6 +515,12 @@ class PipelineRunner:
 
     def check_simhash(self, input: str, treshold: int = 3, name: str = "CHECK-SIMHASH"):
         self.builder.add_check_simhash_step(self.__name(name), treshold, input)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self;
+
+    def check_embedding(self, input: str, embedding: str, treshold: int = 3, name: str = "CHECK-EMBEDDING"):
+        self.builder.add_check_embeddings_step(self.__name(name), input, embedding, treshold)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self;

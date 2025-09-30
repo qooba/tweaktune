@@ -22,6 +22,7 @@ use tweaktune_core::embeddings::e5::{E5Model, E5Spec};
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::conversations::{RenderConversationStep, RenderToolCallStep};
+use tweaktune_core::steps::embeddings::CheckEmbeddingStep;
 use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep};
 use tweaktune_core::steps::{
     logic::{FilterStep, MutateStep},
@@ -828,6 +829,20 @@ impl PipelineBuilder {
             )));
     }
 
+    pub fn add_check_embeddings_step(
+        &mut self,
+        name: String,
+        input: String,
+        embedding: String,
+        treshold: f32,
+    ) {
+        debug!("Added check embeddings step");
+        self.steps
+            .push(StepType::CheckEmbedding(CheckEmbeddingStep::new(
+                name, embedding, input, treshold,
+            )));
+    }
+
     pub fn compile(&self) {
         self.resources.templates.compile().unwrap();
     }
@@ -1266,6 +1281,7 @@ async fn process_steps(
             }
             StepType::CheckHash(check_hash_step) => process_common!(check_hash_step),
             StepType::CheckSimHash(check_sim_hash_step) => process_common!(check_sim_hash_step),
+            StepType::CheckEmbedding(embedding_step) => process_common!(embedding_step),
         }
     }
 

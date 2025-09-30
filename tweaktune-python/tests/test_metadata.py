@@ -15,12 +15,14 @@ def test_metadata(request, output_dir):
     (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_template("output", """{"hello": "{{value}}"}""")
+        .with_embedings_e5(name="e5-small", model_repo="intfloat/e5-small")
     .iter_range(number)
         .log("info")
         .add_column("question", lambda data: f"Hello! What is the weather ! How are you ! I want to buy {products[data['index']]}? How much does it cost?")
         .add_column("call", lambda data: {"name": "test", "arguments": {"x": data["index"]}})
         .check_hash(input="call")
         .check_simhash(input="question", treshold=1)
+        .check_embedding(input="question", embedding="e5-small", treshold=0.01)
         .write_jsonl(path=output_file, template="output")
     .run())
 
@@ -57,4 +59,9 @@ def test_metadata(request, output_dir):
     simhashes = cursor.fetchall()
     print(simhashes)
     assert len(simhashes) == number
+
+    cursor.execute("SELECT * FROM embeddings;")
+    embeddings = cursor.fetchall()
+    print(embeddings)
+    assert len(embeddings) == number
 

@@ -13,6 +13,7 @@ use crate::{
     llms::LLMType,
     steps::{
         conversations::{RenderConversationStep, RenderToolCallStep},
+        embeddings::CheckEmbeddingStep,
         generators::{JsonGenerationStep, TextGenerationStep},
         logic::{FilterStep, MutateStep},
         py::{PyStep, PyValidator},
@@ -115,6 +116,7 @@ pub enum StepType {
     RenderToolCall(RenderToolCallStep),
     CheckHash(CheckHashStep),
     CheckSimHash(CheckSimHashStep),
+    CheckEmbedding(CheckEmbeddingStep),
 }
 
 pub struct IfElseStep {
