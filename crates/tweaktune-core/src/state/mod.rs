@@ -187,69 +187,7 @@ impl State {
         Ok(())
     }
 
-    /// KNN search for embeddings (in Rust): fetch candidates for `key`, deserialize
-    /// stored blob embeddings (f32 LE), compute cosine similarity against `query` and
-    /// return up to `k` nearest neighbors as tuples (item_id, similarity).
     pub async fn knn_embeddings(
-        &self,
-        key: &str,
-        query: &[f32],
-        k: usize,
-    ) -> Result<Vec<(Option<String>, f32)>, sqlx::Error> {
-        let rows = sqlx::query("SELECT embedding, item_id FROM embeddings WHERE key = ?")
-            .bind(key)
-            .fetch_all(&self.db)
-            .await?;
-
-        // Precompute query norm
-        let q_norm = query.iter().map(|v| v * v).sum::<f32>().sqrt();
-
-        let mut candidates: Vec<(Option<String>, f32)> = Vec::new();
-
-        for r in rows.into_iter() {
-            let blob: Option<Vec<u8>> = r.get("embedding");
-            let item_id: Option<String> = r.get("item_id");
-
-            if let Some(b) = blob {
-                if b.len() % 4 != 0 {
-                    continue; // invalid blob
-                }
-
-                // deserialize to f32 vector (little-endian)
-                let mut v = Vec::with_capacity(b.len() / 4);
-                for chunk in b.chunks_exact(4) {
-                    let arr = [chunk[0], chunk[1], chunk[2], chunk[3]];
-                    v.push(f32::from_le_bytes(arr));
-                }
-
-                if v.len() != query.len() {
-                    // skip mismatched dimensions
-                    continue;
-                }
-
-                // cosine similarity
-                let dot = v.iter().zip(query.iter()).map(|(a, b)| a * b).sum::<f32>();
-                let v_norm = v.iter().map(|x| x * x).sum::<f32>().sqrt();
-                let sim = if q_norm == 0.0 || v_norm == 0.0 {
-                    0.0
-                } else {
-                    dot / (q_norm * v_norm)
-                };
-
-                candidates.push((item_id, sim));
-            }
-        }
-
-        // sort by similarity desc and take k
-        candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        candidates.truncate(k);
-        Ok(candidates)
-    }
-
-    /// KNN using sqlite-vec SQL functions. This performs the distance computation
-    /// inside SQLite using `vec_distance_cosine` and `vec_f32` and returns
-    /// (item_id, similarity) ordered by similarity descending.
-    pub async fn knn_embeddings_sql(
         &self,
         key: &str,
         query: &[f32],
@@ -424,38 +362,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_embeddings_flow() -> Result<(), sqlx::Error> {
-        let tmp = TempDir::new().unwrap();
-        let path = tmp.path().to_str().unwrap();
-        let state = State::new(path).await?;
-
-        state.add_run("run_emb", "/tmp/log", None).await?;
-        state.add_item("item_emb_1", "run_emb", 0, None).await?;
-        state.add_item("item_emb_2", "run_emb", 1, None).await?;
-
-        // two simple 3-d vectors: one identical to query, one orthogonal
-        let a = vec![1.0f32, 0.0, 0.0];
-        let b = vec![0.0f32, 1.0, 0.0];
-        let q = vec![1.0f32, 0.0, 0.0];
-
-        state.add_embedding("item_emb_1", "ek", &a).await?;
-        state.add_embedding("item_emb_2", "ek", &b).await?;
-
-        let res = state.knn_embeddings("ek", &q, 2).await?;
-        assert_eq!(res.len(), 2);
-
-        // first result should be item_emb_1 with similarity 1.0
-        assert_eq!(res[0].0.as_deref(), Some("item_emb_1"));
-        assert!((res[0].1 - 1.0).abs() < 1e-6);
-
-        // second result should have lower similarity
-        assert_eq!(res[1].0.as_deref(), Some("item_emb_2"));
-        assert!(res[1].1 < res[0].1);
-
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn test_knn_embeddings_sql() -> Result<(), sqlx::Error> {
         let tmp = TempDir::new().unwrap();
         let path = tmp.path().to_str().unwrap();
@@ -472,7 +378,7 @@ mod tests {
         state.add_embedding("item_sql_1", "sek", &a).await?;
         state.add_embedding("item_sql_2", "sek", &b).await?;
 
-        let res = state.knn_embeddings_sql("sek", &q, 2).await?;
+        let res = state.knn_embeddings("sek", &q, 2).await?;
         assert_eq!(res.len(), 2);
         assert_eq!(res[0].0.as_deref(), Some("item_sql_1"));
         // similarity for identical vectors should be near 1.0

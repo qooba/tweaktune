@@ -18,6 +18,7 @@ use tweaktune_core::datasets::{
     CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
     PolarsDataset,
 };
+use tweaktune_core::embeddings::e5::{E5Model, E5Spec};
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::conversations::{RenderConversationStep, RenderToolCallStep};
@@ -356,6 +357,20 @@ impl PipelineBuilder {
             name.clone(),
             EmbeddingsType::OpenAI(OpenAIEmbeddings::new(name, base_url, api_key, model)),
         );
+    }
+
+    pub fn with_embeddings_e5(&mut self, name: String, model_repo: String) {
+        debug!("Added E5 embeddings: {}", &name);
+
+        let spec = E5Spec {
+            name: name.clone(),
+            model_repo: Some(model_repo.clone()),
+            device: None,
+            hf_token: None,
+        };
+        self.resources
+            .embeddings
+            .add(name.clone(), EmbeddingsType::E5(spec));
     }
 
     pub fn with_jinja_template(&mut self, name: String, template: String) {
