@@ -415,6 +415,12 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
+    def add_random(self, output: str, start: int, stop:int, name: str = "ADD-RANDOM"):
+        self.builder.add_new_column_step(self.__name(name), f"\"{start},{stop}\"|random_range", output)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
     def filter(self, condition: Union[Callable, str], name: str = "FILTER"):
         if isinstance(condition, Callable):
             def condition_wrapper(context):

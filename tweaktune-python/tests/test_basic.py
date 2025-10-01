@@ -8,13 +8,14 @@ def test_basic(request, output_dir, metadata):
 
     (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
-        .with_template("output", """{"hello": "{{value}}"}""")
+        .with_template("output", """{"hello": "{{value}}", "number": {{"1,10"|random_range}}}""")
     .iter_range(number)
+        .add_random("value", 1, 100)
         .write_jsonl(path=output_file, template="output")
     .run())
 
     lines = open(output_file, "r").readlines()
-    
+    print(lines)
     assert len(lines) == number
 
 def test_basic_j2(request, output_dir, j2_file, metadata):

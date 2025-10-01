@@ -5,8 +5,8 @@ use crate::steps::StepContextData;
 use anyhow::{bail, Result};
 use log::{debug, error};
 use minijinja::Environment;
-use rand::rng;
 use rand::seq::SliceRandom;
+use rand::{rng, Rng};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -107,6 +107,34 @@ impl Templates {
                     value
                 }
             }
+        });
+
+        e.add_filter("random_range", |value: String| {
+            let bounds: Vec<&str> = value.split(',').collect();
+            if bounds.len() != 2 {
+                error!(target: "templates_err", "🐔 random_range filter requires two comma-separated arguments");
+                return value;
+            }
+            let start: i64 = match bounds[0].trim().parse() {
+                Ok(n) => n,
+                Err(_) => {
+                    error!(target: "templates_err", "🐔 Failed to parse start of range as integer");
+                    return value;
+                }
+            };
+            let end: i64 = match bounds[1].trim().parse() {
+                Ok(n) => n,
+                Err(_) => {
+                    error!(target: "templates_err", "🐔 Failed to parse end of range as integer");
+                    return value;
+                }
+            };
+            if start >= end {
+                error!(target: "templates_err", "🐔 random_int filter requires start < end");
+                return value;
+            }
+            let rand_int = rand::rng().random_range(start..end);
+            rand_int.to_string()
         });
 
         e.add_filter("hash", |value: String| {

@@ -72,7 +72,8 @@ jsonschema = { version = "0.32.1" }
 #lancedb = { version = "0.5.2", default-features = false, features=["polars"] }
 # lancedb = { version = "0.22.0", default-features = false }
 libsqlite3-sys = { version = "0.30", features = ["bundled"] }
-lingua = { version = "1.7.2", default-features = false, features=["english", "polish", "russian", "spanish", "french", "german", "italian", "portuguese", "dutch", "chinese", "japanese"] }
+#lingua = { version = "1.7.2", default-features = false, features=["english", "polish", "russian", "spanish", "french", "german", "italian", "portuguese", "dutch", "chinese", "japanese"] }
+lingua = { version = "1.7.2", default-features = false, features=["english", "polish"] }
 log = "0.4.27"
 minijinja = {version="2.11.0", features=["loader", "json"]}
 #mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs.git", rev="ddc63f1e0433356789cd875c3e39df16df0d0a43" }
