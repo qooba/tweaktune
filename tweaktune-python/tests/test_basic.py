@@ -15,7 +15,6 @@ def test_basic(request, output_dir, metadata):
     .run())
 
     lines = open(output_file, "r").readlines()
-    print(lines)
     assert len(lines) == number
 
 def test_basic_j2(request, output_dir, j2_file, metadata):

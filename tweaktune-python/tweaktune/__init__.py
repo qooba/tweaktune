@@ -525,8 +525,8 @@ class PipelineRunner:
         self.step_index += 1
         return self;
 
-    def check_embedding(self, input: str, embedding: str, treshold: int = 3, name: str = "CHECK-EMBEDDING"):
-        self.builder.add_check_embeddings_step(self.__name(name), input, embedding, treshold)
+    def check_embedding(self, input: str, embedding: str, treshold: int = 3, similarity_output: str = None, name: str = "CHECK-EMBEDDING"):
+        self.builder.add_check_embeddings_step(self.__name(name), input, embedding, treshold, similarity_output)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self;

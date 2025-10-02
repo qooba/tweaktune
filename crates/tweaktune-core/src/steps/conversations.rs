@@ -251,6 +251,38 @@ impl Step for RenderConversationStep {
             let tools = context
                 .get(t)
                 .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", t))?;
+
+            //check each tool if it has parameters.properties string deserialize it to json
+            let tools = match tools.clone() {
+                Value::Array(arr) => Value::Array(
+                    arr.into_iter()
+                        .map(|mut tool| {
+                            if let Value::Object(ref mut obj) = tool {
+                                if let Some(Value::Object(ref mut params_obj)) = obj.get_mut("parameters") {
+                                    if let Some(props) = params_obj.get_mut("properties") {
+                                        if props.is_string() {
+                                            let props_str = props.as_str().unwrap();
+                                            let props_json: Value =
+                                                serde_json::from_str(props_str).unwrap_or_else(|_| {
+                                                    error!(target: "conversation_step", "🐔 Failed to parse tool properties JSON: {}", props_str);
+                                                    json!({})
+
+                                                });
+                                            *props = props_json;
+                                        }
+                                    }
+                                }
+                            }
+                            tool
+                        })
+                        .collect::<Vec<Value>>(),
+                ),
+                _ => {
+                        error!(target: "conversation_validation_step", "🐔 Invalid tool format");
+                        return Ok(context);
+                }
+            };
+
             json!({ "messages": conversations_steps, "tools": tools, "id": context.id })
         } else {
             json!({ "messages": conversations_steps, "id": context.id })

@@ -835,11 +835,16 @@ impl PipelineBuilder {
         input: String,
         embedding: String,
         treshold: f32,
+        similarity_output: Option<String>,
     ) {
         debug!("Added check embeddings step");
         self.steps
             .push(StepType::CheckEmbedding(CheckEmbeddingStep::new(
-                name, embedding, input, treshold,
+                name,
+                embedding,
+                input,
+                treshold,
+                similarity_output,
             )));
     }
 

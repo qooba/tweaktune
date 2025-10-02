@@ -11,15 +11,23 @@ pub struct CheckEmbeddingStep {
     pub embedding: String,
     pub input: String,
     pub treshold: f32,
+    pub similarity_output: Option<String>,
 }
 
 impl CheckEmbeddingStep {
-    pub fn new(name: String, embedding: String, input: String, treshold: f32) -> Self {
+    pub fn new(
+        name: String,
+        embedding: String,
+        input: String,
+        treshold: f32,
+        similarity_output: Option<String>,
+    ) -> Self {
         Self {
             name,
             embedding,
             input,
             treshold,
+            similarity_output,
         }
     }
 }
@@ -66,6 +74,14 @@ impl Step for CheckEmbeddingStep {
                                 state
                                     .add_embedding(&context.id.to_string(), &self.input, &emb[0])
                                     .await?;
+                                if let Some(output) = &self.similarity_output {
+                                    if !nearest.is_empty() {
+                                        let similarity = (nearest[0].1 - 1.0).abs();
+                                        context.set(output, similarity);
+                                    } else {
+                                        context.set(output, 0.0);
+                                    }
+                                }
                             }
                             // if let Err(e) = state
                             //     .add_hash(&context.id.to_string(), &self.input, &hash.clone())

@@ -261,3 +261,43 @@ impl Step for JsonGenerationStep {
         Ok(context)
     }
 }
+
+pub struct JudgeStep {
+    pub name: String,
+    pub json_generation_step: JsonGenerationStep,
+    pub output: String,
+    pub conversation_key: String,
+}
+
+impl JudgeStep {
+    pub fn new(
+        name: String,
+        template: String,
+        llm: String,
+        judge_output: String,
+        conversation_key: String,
+        system_template: Option<String>,
+        json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+        schema_key: Option<String>,
+    ) -> Self {
+        Self {
+            json_generation_step: JsonGenerationStep::new(
+                name.clone(),
+                template,
+                llm,
+                judge_output.clone(),
+                None,
+                system_template,
+                json_schema,
+                max_tokens,
+                temperature,
+                schema_key,
+            ),
+            name,
+            output: judge_output,
+            conversation_key,
+        }
+    }
+}
