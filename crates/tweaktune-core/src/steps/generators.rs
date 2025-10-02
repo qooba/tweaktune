@@ -269,12 +269,13 @@ pub struct JudgeStep {
     pub conversation_key: String,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl JudgeStep {
     pub fn new(
         name: String,
         template: String,
         llm: String,
-        judge_output: String,
+        output: String,
         conversation_key: String,
         system_template: Option<String>,
         json_schema: Option<String>,
@@ -287,7 +288,7 @@ impl JudgeStep {
                 name.clone(),
                 template,
                 llm,
-                judge_output.clone(),
+                output.clone(),
                 None,
                 system_template,
                 json_schema,
@@ -296,7 +297,7 @@ impl JudgeStep {
                 schema_key,
             ),
             name,
-            output: judge_output,
+            output,
             conversation_key,
         }
     }
