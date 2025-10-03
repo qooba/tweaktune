@@ -320,7 +320,15 @@ impl Step for JudgeConversationStep {
             return Ok(context);
         }
 
-        let messages = context.data[&self.input].get("messages");
+        let conversation = context.data[&self.input].clone();
+        let conversation = if conversation.is_string() {
+            serde_json::from_str::<Value>(conversation.as_str().unwrap())
+                .unwrap_or_else(|_| conversation.clone())
+        } else {
+            conversation
+        };
+
+        let messages = conversation.get("messages");
         if let Some(m) = messages {
             context.data["conversation_messages".to_string()] = m.clone();
         } else {
