@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::thread;
-use tweaktune_core::common::{deserialize, run_async, SerializationType};
+use tweaktune_core::common::{blake3_hash, deserialize, run_async, SerializationType};
 use tweaktune_core::datasets::{
     CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
     PolarsDataset,
@@ -588,6 +588,60 @@ impl PipelineBuilder {
         if let Some(schema_key) = schema_key {
             self.add_validatejson_step(name.clone(), schema_key, output.clone());
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (name, template, llm, output, json_path=None, system_template=None, json_schema=None, max_tokens=None, temperature=None))]
+    pub fn add_judge_step(
+        &mut self,
+        name: String,
+        template: Option<String>,
+        llm: String,
+        output: String,
+        json_path: Option<String>,
+        system_template: Option<String>,
+        json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) {
+        debug!("Added judge step with llm: {}", &llm);
+        let temperature = temperature.or(Some(0.0));
+        let max_tokens = max_tokens.or(Some(1024));
+        let template = if let Some(template) = template {
+            template
+        } else {
+            let key = blake3_hash(&format!("{}_judge_template_default", &name));
+
+            self.resources.templates.templates.insert(
+                key.clone(),
+                tweaktune_core::templates::embed::JUDGE_TEMPLATE.to_string(),
+            );
+            key
+        };
+
+        let json_schema = if let Some(js) = json_schema {
+            js
+        } else {
+            json!({
+                "name": "JudgeResponse",
+                "schema": {"properties": {"intent_alignment": {"description": "How well the response aligns with the user\'s intent.", "maximum": 5, "minimum": 1, "title": "Intent Alignment", "type": "integer"}, "tool_choice_accuracy": {"description": "Accuracy of the chosen tool for the task.", "maximum": 5, "minimum": 1, "title": "Tool Choice Accuracy", "type": "integer"}, "argument_accuracy": {"description": "Correctness of the arguments provided to the tool.", "maximum": 5, "minimum": 1, "title": "Argument Accuracy", "type": "integer"}, "response_quality": {"description": "Overall quality of the response.", "maximum": 5, "minimum": 1, "title": "Response Quality", "type": "integer"}, "overall_coherence": {"description": "Coherence and logical flow of the response.", "maximum": 5, "minimum": 1, "title": "Overall Coherence", "type": "integer"}, "safety": {"description": "Safety and appropriateness of the response.", "maximum": 5, "minimum": 1, "title": "Safety", "type": "integer"}, "faithfulness": {"description": "Rationale for faithfulness score.", "title": "Faithfulness", "type": "string"}, "clarity": {"description": "Rationale for clarity score.", "title": "Clarity", "type": "string"}, "conciseness": {"description": "Rationale for conciseness score.", "title": "Conciseness", "type": "string"}, "relevance": {"description": "Rationale for relevance score.", "title": "Relevance", "type": "string"}, "creativity": {"description": "Rationale for creativity score.", "title": "Creativity", "type": "string"}}, "required": ["intent_alignment", "tool_choice_accuracy", "argument_accuracy", "response_quality", "overall_coherence", "safety", "faithfulness", "clarity", "conciseness", "relevance", "creativity"], "title": "JudgeResponse", "type": "object", "additionalProperties": false},
+                "strict": true
+            }).to_string()
+        };
+
+        self.steps
+            .push(StepType::JsonGeneration(JsonGenerationStep::new(
+                name.clone(),
+                template,
+                llm,
+                output.clone(),
+                json_path,
+                system_template,
+                Some(json_schema),
+                max_tokens,
+                temperature,
+                None,
+            )));
     }
 
     #[pyo3(signature = (name, path, template=None, value=None))]
@@ -1444,15 +1498,6 @@ impl StepsChain {
             dataset,
             size,
             output,
-        });
-    }
-
-    pub fn add_judge_step(&mut self, name: String, template: String, llm: String) {
-        debug!("Added judge step: {}", &name);
-        self.steps.push(Step::Judge {
-            name,
-            template,
-            llm,
         });
     }
 

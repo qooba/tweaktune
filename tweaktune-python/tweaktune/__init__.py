@@ -573,8 +573,18 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
-    def judge(self, template: str, llm: str, name: str = "JUDGE"):
-        self.builder.add_judge_step(self.__name(name), template, llm)
+    def judge(self, llm: str, output: str, response_format: BaseModel, system_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, template: Optional[str] = None, name: str = "JUDGE"):
+        schema = None
+        if response_format:
+            schema = {
+                "name": response_format.__class__.__name__,
+                "schema": response_format.model_json_schema(),
+                "strict": True
+            }
+            schema["schema"]["additionalProperties"] = False
+            schema = json.dumps(schema)
+
+        self.builder.add_judge_step(self.__name(name), template, llm, output, None, system_template, schema, max_tokens, temperature)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
