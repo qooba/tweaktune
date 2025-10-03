@@ -14,7 +14,7 @@ use crate::{
     steps::{
         conversations::{RenderConversationStep, RenderToolCallStep},
         embeddings::CheckEmbeddingStep,
-        generators::{JsonGenerationStep, TextGenerationStep},
+        generators::{JsonGenerationStep, JudgeConversationStep, TextGenerationStep},
         logic::{FilterStep, MutateStep},
         py::{PyStep, PyValidator},
         quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep},
@@ -117,6 +117,7 @@ pub enum StepType {
     CheckHash(CheckHashStep),
     CheckSimHash(CheckSimHashStep),
     CheckEmbedding(CheckEmbeddingStep),
+    JudgeConversation(JudgeConversationStep),
 }
 
 pub struct IfElseStep {

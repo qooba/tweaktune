@@ -6225,6 +6225,7 @@ dependencies = [
  "csv",
  "half",
  "hf-hub",
+ "include_dir",
  "jsonschema",
  "libsqlite3-sys",
  "lingua",

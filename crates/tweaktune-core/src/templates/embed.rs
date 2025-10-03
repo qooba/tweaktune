@@ -1,6 +1,25 @@
-pub static CHAT_TEMPLATE_BIELIK: &str = include_str!("../../templates/chat_templates/bielik.j2");
+use include_dir::{include_dir, Dir};
 
-pub static CONVERSATIONS_MESSAGES: &str = include_str!("../../templates/conversations/messages.j2");
+pub static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
-pub static JUDGE_TEMPLATE: &str = include_str!("../../templates/judges/judge.j2");
-pub static JUDGE_TEMPLATE_PL: &str = include_str!("../../templates/judges/judge_pl.j2");
+pub enum ChateTemplate {
+    Bielik,
+}
+
+pub fn chat_templates(name: &str) -> Option<&'static str> {
+    TEMPLATES_DIR
+        .get_file(format!("chat_templates/{name}.j2"))
+        .and_then(|f| f.contents_utf8())
+}
+
+pub fn conversation_templates(name: &str) -> Option<&'static str> {
+    TEMPLATES_DIR
+        .get_file(format!("conversations/{name}.j2"))
+        .and_then(|f| f.contents_utf8())
+}
+
+pub fn judge_templates(name: &str, language: &str) -> Option<&'static str> {
+    TEMPLATES_DIR
+        .get_file(format!("judges/{name}_{language}.j2"))
+        .and_then(|f| f.contents_utf8())
+}

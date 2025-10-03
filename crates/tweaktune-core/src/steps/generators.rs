@@ -11,6 +11,7 @@ use anyhow::Result;
 use log::{debug, error};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use tokenizers::processors::template;
 
 pub struct TextGenerationStep {
     pub name: String,
@@ -259,5 +260,80 @@ impl Step for JsonGenerationStep {
         };
 
         Ok(context)
+    }
+}
+
+pub struct JudgeConversationStep {
+    pub name: String,
+    pub input: String,
+    pub json_generation_step: JsonGenerationStep,
+}
+
+impl JudgeConversationStep {
+    pub fn new(
+        name: String,
+        input: String,
+        template: String,
+        llm: String,
+        output: String,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Self {
+        let temperature = temperature.or(Some(0.0));
+        let max_tokens = max_tokens.or(Some(1024));
+        let json_schema = json!({
+                "name": "JudgeResponse",
+                "schema": {"properties": {"intent_alignment": {"description": "How well the response aligns with the user\'s intent.", "maximum": 5, "minimum": 1, "title": "Intent Alignment", "type": "integer"}, "tool_choice_accuracy": {"description": "Accuracy of the chosen tool for the task.", "maximum": 5, "minimum": 1, "title": "Tool Choice Accuracy", "type": "integer"}, "argument_accuracy": {"description": "Correctness of the arguments provided to the tool.", "maximum": 5, "minimum": 1, "title": "Argument Accuracy", "type": "integer"}, "response_quality": {"description": "Overall quality of the response.", "maximum": 5, "minimum": 1, "title": "Response Quality", "type": "integer"}, "overall_coherence": {"description": "Coherence and logical flow of the response.", "maximum": 5, "minimum": 1, "title": "Overall Coherence", "type": "integer"}, "safety": {"description": "Safety and appropriateness of the response.", "maximum": 5, "minimum": 1, "title": "Safety", "type": "integer"}, "faithfulness": {"description": "Rationale for faithfulness score.", "title": "Faithfulness", "type": "string"}, "clarity": {"description": "Rationale for clarity score.", "title": "Clarity", "type": "string"}, "conciseness": {"description": "Rationale for conciseness score.", "title": "Conciseness", "type": "string"}, "relevance": {"description": "Rationale for relevance score.", "title": "Relevance", "type": "string"}, "creativity": {"description": "Rationale for creativity score.", "title": "Creativity", "type": "string"}}, "required": ["intent_alignment", "tool_choice_accuracy", "argument_accuracy", "response_quality", "overall_coherence", "safety", "faithfulness", "clarity", "conciseness", "relevance", "creativity"], "title": "JudgeResponse", "type": "object", "additionalProperties": false},
+                "strict": true
+            }).to_string();
+
+        Self {
+            name: name.clone(),
+            input,
+            json_generation_step: JsonGenerationStep::new(
+                name,
+                template,
+                llm,
+                output.clone(),
+                None,
+                None,
+                Some(json_schema),
+                max_tokens,
+                temperature,
+                None,
+            ),
+        }
+    }
+}
+
+impl Step for JudgeConversationStep {
+    async fn process(
+        &self,
+        resources: &PipelineResources,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        if context.data.get(&self.input).is_none() {
+            error!(target:"judge_conversation_step", "🐔 Input '{}' not found in context", self.input);
+            context.set_status(StepStatus::Failed);
+            return Ok(context);
+        }
+
+        let messages = context.data[&self.input].get("messages");
+        if let Some(m) = messages {
+            context.data["conversation_messages".to_string()] = m.clone();
+        } else {
+            error!(target:"judge_conversation_step", "🐔 'messages' field not found in input '{}'", self.input);
+            context.set_status(StepStatus::Failed);
+            return Ok(context);
+        }
+
+        let result = self
+            .json_generation_step
+            .process(resources, &context)
+            .await?;
+
+        Ok(result)
     }
 }

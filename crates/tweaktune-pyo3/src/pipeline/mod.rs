@@ -23,6 +23,7 @@ use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::conversations::{RenderConversationStep, RenderToolCallStep};
 use tweaktune_core::steps::embeddings::CheckEmbeddingStep;
+use tweaktune_core::steps::generators::JudgeConversationStep;
 use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep};
 use tweaktune_core::steps::{
     logic::{FilterStep, MutateStep},
@@ -591,56 +592,38 @@ impl PipelineBuilder {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (name, template, llm, output, json_path=None, system_template=None, json_schema=None, max_tokens=None, temperature=None))]
-    pub fn add_judge_step(
+    pub fn add_judge_conversation_step(
         &mut self,
         name: String,
-        template: Option<String>,
+        input: String,
         llm: String,
         output: String,
-        json_path: Option<String>,
-        system_template: Option<String>,
-        json_schema: Option<String>,
+        language: Option<String>,
+        judge_type: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) {
         debug!("Added judge step with llm: {}", &llm);
-        let temperature = temperature.or(Some(0.0));
-        let max_tokens = max_tokens.or(Some(1024));
-        let template = if let Some(template) = template {
-            template
-        } else {
-            let key = blake3_hash(&format!("{}_judge_template_default", &name));
+        let language = language.unwrap_or("en".to_string());
+        let judge_type = judge_type.unwrap_or("tools_calling".to_string());
+        let template = blake3_hash(&format!("{}_{}_{}", &name, &language, &judge_type));
 
-            self.resources.templates.templates.insert(
-                key.clone(),
-                tweaktune_core::templates::embed::JUDGE_TEMPLATE.to_string(),
-            );
-            key
-        };
-
-        let json_schema = if let Some(js) = json_schema {
-            js
-        } else {
-            json!({
-                "name": "JudgeResponse",
-                "schema": {"properties": {"intent_alignment": {"description": "How well the response aligns with the user\'s intent.", "maximum": 5, "minimum": 1, "title": "Intent Alignment", "type": "integer"}, "tool_choice_accuracy": {"description": "Accuracy of the chosen tool for the task.", "maximum": 5, "minimum": 1, "title": "Tool Choice Accuracy", "type": "integer"}, "argument_accuracy": {"description": "Correctness of the arguments provided to the tool.", "maximum": 5, "minimum": 1, "title": "Argument Accuracy", "type": "integer"}, "response_quality": {"description": "Overall quality of the response.", "maximum": 5, "minimum": 1, "title": "Response Quality", "type": "integer"}, "overall_coherence": {"description": "Coherence and logical flow of the response.", "maximum": 5, "minimum": 1, "title": "Overall Coherence", "type": "integer"}, "safety": {"description": "Safety and appropriateness of the response.", "maximum": 5, "minimum": 1, "title": "Safety", "type": "integer"}, "faithfulness": {"description": "Rationale for faithfulness score.", "title": "Faithfulness", "type": "string"}, "clarity": {"description": "Rationale for clarity score.", "title": "Clarity", "type": "string"}, "conciseness": {"description": "Rationale for conciseness score.", "title": "Conciseness", "type": "string"}, "relevance": {"description": "Rationale for relevance score.", "title": "Relevance", "type": "string"}, "creativity": {"description": "Rationale for creativity score.", "title": "Creativity", "type": "string"}}, "required": ["intent_alignment", "tool_choice_accuracy", "argument_accuracy", "response_quality", "overall_coherence", "safety", "faithfulness", "clarity", "conciseness", "relevance", "creativity"], "title": "JudgeResponse", "type": "object", "additionalProperties": false},
-                "strict": true
-            }).to_string()
-        };
+        self.resources.templates.templates.insert(
+            template.clone(),
+            tweaktune_core::templates::embed::judge_templates(&judge_type, &language)
+                .unwrap()
+                .to_string(),
+        );
 
         self.steps
-            .push(StepType::JsonGeneration(JsonGenerationStep::new(
+            .push(StepType::JudgeConversation(JudgeConversationStep::new(
                 name.clone(),
+                input,
                 template,
                 llm,
                 output.clone(),
-                json_path,
-                system_template,
-                Some(json_schema),
                 max_tokens,
                 temperature,
-                None,
             )));
     }
 
@@ -1341,6 +1324,9 @@ async fn process_steps(
             StepType::CheckHash(check_hash_step) => process_common!(check_hash_step),
             StepType::CheckSimHash(check_sim_hash_step) => process_common!(check_sim_hash_step),
             StepType::CheckEmbedding(embedding_step) => process_common!(embedding_step),
+            StepType::JudgeConversation(judge_conversation_step) => {
+                process_common!(judge_conversation_step)
+            }
         }
     }
 
