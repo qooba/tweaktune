@@ -272,6 +272,7 @@ pub struct JudgeConversationStep {
     pub name: String,
     pub input: String,
     pub judge_type: JudgeType,
+    pub attach_to_conversation: bool,
     pub json_generation_step: JsonGenerationStep,
 }
 
@@ -305,6 +306,7 @@ impl JudgeConversationStep {
             name: name.clone(),
             input,
             judge_type,
+            attach_to_conversation,
             json_generation_step: JsonGenerationStep::new(
                 name,
                 template,
@@ -365,6 +367,21 @@ impl Step for JudgeConversationStep {
             .json_generation_step
             .process(resources, &context)
             .await?;
+
+        if !matches!(result.status, StepStatus::Failed) && self.attach_to_conversation {
+            let judge = result.data.get(&self.json_generation_step.output);
+            if let Some(j) = judge {
+                let mut updated_conversation = conversation.clone();
+                updated_conversation["judge"] = j.clone();
+                let mut result = result.clone();
+                result.set(&self.input.clone(), updated_conversation);
+                return Ok(result);
+            } else {
+                error!(target:"judge_conversation_step", "🐔 Judge output '{}' not found in context", self.json_generation_step.output);
+                context.set_status(StepStatus::Failed);
+                return Ok(context);
+            }
+        }
 
         Ok(result)
     }
