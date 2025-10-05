@@ -626,6 +626,8 @@ impl PipelineBuilder {
 
         let judge_type = if judge_type == "tools_calling" {
             JudgeType::ToolsCalling
+        } else if judge_type == "tools_calling_lite" {
+            JudgeType::ToolsCallingLite
         } else {
             JudgeType::OpenEnded
         };

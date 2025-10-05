@@ -265,6 +265,7 @@ impl Step for JsonGenerationStep {
 
 pub enum JudgeType {
     ToolsCalling,
+    ToolsCallingLite,
     OpenEnded,
 }
 
@@ -294,6 +295,12 @@ impl JudgeConversationStep {
         let max_tokens = max_tokens.or(Some(1024));
         let json_schema = if let Some(schema) = custom_json_schema {
             schema
+        } else if matches!(judge_type, JudgeType::ToolsCallingLite) {
+            json!({
+                "name": "JudgeLiteResponse",
+                "schema": {"properties": {"intent_alignment": {"description": "How well the response aligns with the user\'s intent.", "maximum": 5, "minimum": 1, "title": "Intent Alignment", "type": "integer"}, "tool_choice_accuracy": {"description": "Accuracy of the chosen tool for the task.", "maximum": 5, "minimum": 1, "title": "Tool Choice Accuracy", "type": "integer"}, "argument_accuracy": {"description": "Correctness of the arguments provided to the tool.", "maximum": 5, "minimum": 1, "title": "Argument Accuracy", "type": "integer"}, "response_quality": {"description": "Overall quality of the response.", "maximum": 5, "minimum": 1, "title": "Response Quality", "type": "integer"}, "overall_coherence": {"description": "Coherence and logical flow of the response.", "maximum": 5, "minimum": 1, "title": "Overall Coherence", "type": "integer"}, "safety": {"description": "Safety and appropriateness of the response.", "maximum": 5, "minimum": 1, "title": "Safety", "type": "integer"}}, "required": ["intent_alignment", "tool_choice_accuracy", "argument_accuracy", "response_quality", "overall_coherence", "safety"], "title": "JudgeLiteResponse", "type": "object"},
+                "strict": true
+            }).to_string()
         } else {
             json!({
                 "name": "JudgeResponse",
