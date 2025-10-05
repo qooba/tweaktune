@@ -2,6 +2,7 @@ use crate::common::ResultExt;
 use crate::logging::{BusEvent, ChannelWriter, LogsCollector};
 use anyhow::{bail, Result};
 use chrono::Local;
+use comfy_table::Attribute;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, error, info};
@@ -601,6 +602,7 @@ impl PipelineBuilder {
         output: String,
         language: Option<String>,
         judge_type: Option<String>,
+        attach_to_conversation: Option<bool>,
         custom_template: Option<String>,
         custom_json_schema: Option<String>,
         max_tokens: Option<u32>,
@@ -628,6 +630,8 @@ impl PipelineBuilder {
             JudgeType::OpenEnded
         };
 
+        let attach_to_conversation = attach_to_conversation.unwrap_or(false);
+
         self.steps
             .push(StepType::JudgeConversation(JudgeConversationStep::new(
                 name.clone(),
@@ -636,6 +640,7 @@ impl PipelineBuilder {
                 llm,
                 output.clone(),
                 judge_type,
+                attach_to_conversation,
                 custom_json_schema,
                 max_tokens,
                 temperature,

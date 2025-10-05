@@ -47,10 +47,7 @@ impl Step for JsonlWriterStep {
                 if let Some(inner) = v.as_str() {
                     Ok(inner.to_string())
                 } else {
-                    error!(target: "json_writer_step", "🐔 Value must be a string");
-                    let mut context = context.clone();
-                    context.set_status(StepStatus::Failed);
-                    return Ok(context);
+                    Ok(v.to_string())
                 }
             } else {
                 error!(target: "json_writer_step", "🐔 Value '{}' not found in context for JsonlWriterStep", value);

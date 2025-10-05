@@ -294,7 +294,7 @@ impl Step for RenderConversationStep {
             return Ok(context);
         }
 
-        context.set(&self.output, rendered.to_string());
+        context.set(&self.output, rendered);
         Ok(context)
     }
 }

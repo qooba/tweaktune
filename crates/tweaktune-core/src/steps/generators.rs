@@ -284,13 +284,14 @@ impl JudgeConversationStep {
         llm: String,
         output: String,
         judge_type: JudgeType,
-        json_schema: Option<String>,
+        attach_to_conversation: bool,
+        custom_json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Self {
         let temperature = temperature.or(Some(0.0));
         let max_tokens = max_tokens.or(Some(1024));
-        let json_schema = if let Some(schema) = json_schema {
+        let json_schema = if let Some(schema) = custom_json_schema {
             schema
         } else {
             json!({
