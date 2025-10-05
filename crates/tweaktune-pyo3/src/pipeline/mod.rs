@@ -5,6 +5,7 @@ use chrono::Local;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, error, info};
+use polars::io::json;
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
 use serde_json::json;
 use simplelog::*;
@@ -23,7 +24,7 @@ use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::conversations::{RenderConversationStep, RenderToolCallStep};
 use tweaktune_core::steps::embeddings::CheckEmbeddingStep;
-use tweaktune_core::steps::generators::JudgeConversationStep;
+use tweaktune_core::steps::generators::{JudgeConversationStep, JudgeType};
 use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep};
 use tweaktune_core::steps::{
     logic::{FilterStep, MutateStep},
@@ -600,20 +601,32 @@ impl PipelineBuilder {
         output: String,
         language: Option<String>,
         judge_type: Option<String>,
+        custom_template: Option<String>,
+        custom_json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) {
         debug!("Added judge step with llm: {}", &llm);
         let language = language.unwrap_or("en".to_string());
         let judge_type = judge_type.unwrap_or("tools_calling".to_string());
-        let template = blake3_hash(&format!("{}_{}_{}", &name, &language, &judge_type));
+        let template = if let Some(tmpl) = custom_template {
+            tmpl
+        } else {
+            let tmpl = blake3_hash(&format!("{}_{}_{}", &name, &language, &judge_type));
+            self.resources.templates.templates.insert(
+                tmpl.clone(),
+                tweaktune_core::templates::embed::judge_templates(&judge_type, &language)
+                    .unwrap()
+                    .to_string(),
+            );
+            tmpl
+        };
 
-        self.resources.templates.templates.insert(
-            template.clone(),
-            tweaktune_core::templates::embed::judge_templates(&judge_type, &language)
-                .unwrap()
-                .to_string(),
-        );
+        let judge_type = if judge_type == "tools_calling" {
+            JudgeType::ToolsCalling
+        } else {
+            JudgeType::OpenEnded
+        };
 
         self.steps
             .push(StepType::JudgeConversation(JudgeConversationStep::new(
@@ -622,6 +635,8 @@ impl PipelineBuilder {
                 template,
                 llm,
                 output.clone(),
+                judge_type,
+                custom_json_schema,
                 max_tokens,
                 temperature,
             )));
