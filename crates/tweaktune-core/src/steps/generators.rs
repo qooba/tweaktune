@@ -267,6 +267,7 @@ pub enum JudgeType {
     ToolsCalling,
     ToolsCallingLite,
     OpenEnded,
+    Custom,
 }
 
 pub struct JudgeConversationStep {

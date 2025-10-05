@@ -109,10 +109,12 @@ def test_step_add_column(request, output_dir, data_dir, arrow_dataset, metadata)
     (Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
-        .with_template("output", """{"new_column_3": {{new_column_3}} }""")
+        .with_template("output", """{"new_column_3": {{new_column_3}}, "new_column_4": {{new_column_4}}, "new_column_5": {{new_column_5}} }""")
     .iter_range(10)
         .add_column("new_column_2", "1 + 1")
         .add_column("new_column_3", "new_column_2 + 1")
+        .add_column("new_column_4", lambda data: {"val": 4, "val2": {"subval": 5}})
+        .add_column("new_column_5", "new_column_4.val2.subval")
         .write_jsonl(path=output_file, template="output")
     .run())
 
@@ -121,6 +123,9 @@ def test_step_add_column(request, output_dir, data_dir, arrow_dataset, metadata)
     assert len(lines) == 10
     assert "new_column_3" in item
     assert item["new_column_3"] == 3
+    assert item["new_column_4"]["val"] == 4
+    assert item["new_column_4"]["val2"]["subval"] == 5
+    assert item["new_column_5"] == 5
 
 
 def test_step_filter_lambda(request, output_dir, data_dir, arrow_dataset, metadata):

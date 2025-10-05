@@ -1,4 +1,4 @@
-from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings, Metadata
+from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings, Metadata, JudgeType
 from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
 from tweaktune.common import LogLevel, StepStatus, record_batches_to_ipc_bytes, package_installation_hint
 from tweaktune.tools import pydantic_to_json_schema, function_to_json_schema
@@ -573,7 +573,7 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def judge_conversation(self, input: str, llm: str, output: str, language: str = "en", judge_type: str = "tools_calling", attach_to_conversation: bool = True, custom_template: str = None, custom_json_schema: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "JUDGE-CONVERSATION"):
+    def judge_conversation(self, input: str, llm: str, output: str, language: str = "en", judge_type: JudgeType = JudgeType.ToolsCalling, attach_to_conversation: bool = False, custom_template: str = None, custom_json_schema: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "JUDGE-CONVERSATION"):
         self.builder.add_judge_conversation_step(self.__name(name), input, llm, output, language, judge_type, attach_to_conversation, custom_template, custom_json_schema, max_tokens, temperature)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1

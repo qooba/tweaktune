@@ -2,11 +2,10 @@ use crate::common::ResultExt;
 use crate::logging::{BusEvent, ChannelWriter, LogsCollector};
 use anyhow::{bail, Result};
 use chrono::Local;
-use comfy_table::Attribute;
+use core::fmt;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, error, info};
-use polars::io::json;
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
 use serde_json::json;
 use simplelog::*;
@@ -20,12 +19,12 @@ use tweaktune_core::datasets::{
     CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
     PolarsDataset,
 };
-use tweaktune_core::embeddings::e5::{E5Model, E5Spec};
+use tweaktune_core::embeddings::e5::E5Spec;
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
 use tweaktune_core::steps::conversations::{RenderConversationStep, RenderToolCallStep};
 use tweaktune_core::steps::embeddings::CheckEmbeddingStep;
-use tweaktune_core::steps::generators::{JudgeConversationStep, JudgeType};
+use tweaktune_core::steps::generators::{JudgeConversationStep, JudgeType as JudgeTypeCore};
 use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep};
 use tweaktune_core::steps::{
     logic::{FilterStep, MutateStep},
@@ -49,6 +48,38 @@ use tweaktune_core::{
     },
     templates::Templates,
 };
+
+#[pyclass]
+#[derive(Debug, Clone)]
+pub enum JudgeType {
+    ToolsCalling,
+    ToolsCallingLite,
+    OpenEnded,
+    Custom,
+}
+
+impl From<JudgeType> for JudgeTypeCore {
+    fn from(judge_type: JudgeType) -> Self {
+        match judge_type {
+            JudgeType::ToolsCalling => JudgeTypeCore::ToolsCalling,
+            JudgeType::ToolsCallingLite => JudgeTypeCore::ToolsCallingLite,
+            JudgeType::OpenEnded => JudgeTypeCore::OpenEnded,
+            JudgeType::Custom => JudgeTypeCore::Custom,
+        }
+    }
+}
+
+impl fmt::Display for JudgeType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            JudgeType::ToolsCalling => "tools_calling",
+            JudgeType::ToolsCallingLite => "tools_calling_lite",
+            JudgeType::OpenEnded => "open_ended",
+            JudgeType::Custom => "custom",
+        };
+        write!(f, "{}", s)
+    }
+}
 
 #[pyclass]
 #[derive(Clone)]
@@ -601,7 +632,7 @@ impl PipelineBuilder {
         llm: String,
         output: String,
         language: Option<String>,
-        judge_type: Option<String>,
+        judge_type: Option<JudgeType>,
         attach_to_conversation: Option<bool>,
         custom_template: Option<String>,
         custom_json_schema: Option<String>,
@@ -610,26 +641,29 @@ impl PipelineBuilder {
     ) {
         debug!("Added judge step with llm: {}", &llm);
         let language = language.unwrap_or("en".to_string());
-        let judge_type = judge_type.unwrap_or("tools_calling".to_string());
+        let judge_type = judge_type.unwrap_or(JudgeType::ToolsCalling);
         let template = if let Some(tmpl) = custom_template {
             tmpl
         } else {
             let tmpl = blake3_hash(&format!("{}_{}_{}", &name, &language, &judge_type));
             self.resources.templates.templates.insert(
                 tmpl.clone(),
-                tweaktune_core::templates::embed::judge_templates(&judge_type, &language)
-                    .unwrap()
-                    .to_string(),
+                tweaktune_core::templates::embed::judge_templates(
+                    &judge_type.to_string(),
+                    &language,
+                )
+                .unwrap()
+                .to_string(),
             );
             tmpl
         };
 
-        let judge_type = if judge_type == "tools_calling" {
-            JudgeType::ToolsCalling
-        } else if judge_type == "tools_calling_lite" {
-            JudgeType::ToolsCallingLite
+        let judge_type = if matches!(judge_type, JudgeType::ToolsCalling) {
+            JudgeTypeCore::ToolsCalling
+        } else if matches!(judge_type, JudgeType::ToolsCallingLite) {
+            JudgeTypeCore::ToolsCallingLite
         } else {
-            JudgeType::OpenEnded
+            JudgeTypeCore::OpenEnded
         };
 
         let attach_to_conversation = attach_to_conversation.unwrap_or(false);
