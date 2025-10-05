@@ -12,14 +12,22 @@ pub struct RenderToolCallStep {
     pub tool_name: String,
     pub arguments: String,
     pub output: String,
+    pub additional_template: Option<String>,
 }
 
 impl RenderToolCallStep {
-    pub fn new(name: String, tool_name: String, arguments: String, output: String) -> Self {
+    pub fn new(
+        name: String,
+        tool_name: String,
+        arguments: String,
+        output: String,
+        additional_template: Option<String>,
+    ) -> Self {
         Self {
             name,
             tool_name,
             arguments,
+            additional_template,
             output,
         }
     }
@@ -28,7 +36,7 @@ impl RenderToolCallStep {
 impl Step for RenderToolCallStep {
     async fn process(
         &self,
-        _resources: &PipelineResources,
+        resources: &PipelineResources,
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
@@ -47,6 +55,14 @@ impl Step for RenderToolCallStep {
             }
         });
         context.set(&self.output, rendered);
+
+        if let Some(tmpl) = self.additional_template.as_ref() {
+            let rendered = resources
+                .templates
+                .render(tmpl.clone(), context.data.clone())?;
+
+            context.set(&self.output, rendered);
+        }
         Ok(context)
     }
 }

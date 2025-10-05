@@ -804,11 +804,16 @@ impl PipelineBuilder {
         tool_name: String,
         arguments: String,
         output: String,
+        additional_template: Option<String>,
     ) {
         debug!("Added render tool call step");
         self.steps
             .push(StepType::RenderToolCall(RenderToolCallStep::new(
-                name, tool_name, arguments, output,
+                name,
+                tool_name,
+                arguments,
+                output,
+                additional_template,
             )));
     }
 

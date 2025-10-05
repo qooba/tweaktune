@@ -503,12 +503,12 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def render_tool_call(self, arguments: str, output: str, tool: str = None, tool_name: str = None, name: str = "RENDER-TOOL-CALL"):
+    def render_tool_call(self, arguments: str, output: str, tool: str = None, tool_name: str = None, additional_template: Optional[str] = None, name: str = "RENDER-TOOL-CALL"):
         if tool:
             tool_name = f"{self.__name(name)}-TOOL"
             self.builder.add_new_column_step(self.__name(name), tool, output=tool_name)
             
-        self.builder.add_render_tool_call_step(self.__name(name), tool_name, arguments, output);
+        self.builder.add_render_tool_call_step(self.__name(name), tool_name, arguments, output, additional_template);
         self.graph.steps.append(step_item(name=self.__name(name)));
         self.step_index += 1;
         return self;
