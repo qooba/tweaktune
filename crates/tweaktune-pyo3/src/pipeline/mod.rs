@@ -54,7 +54,7 @@ use tweaktune_core::{
 pub enum JudgeType {
     ToolsCalling,
     ToolsCallingLite,
-    OpenEnded,
+    Conversation,
     Custom,
 }
 
@@ -63,7 +63,7 @@ impl From<JudgeType> for JudgeTypeCore {
         match judge_type {
             JudgeType::ToolsCalling => JudgeTypeCore::ToolsCalling,
             JudgeType::ToolsCallingLite => JudgeTypeCore::ToolsCallingLite,
-            JudgeType::OpenEnded => JudgeTypeCore::OpenEnded,
+            JudgeType::Conversation => JudgeTypeCore::Conversation,
             JudgeType::Custom => JudgeTypeCore::Custom,
         }
     }
@@ -74,7 +74,7 @@ impl fmt::Display for JudgeType {
         let s = match self {
             JudgeType::ToolsCalling => "tools_calling",
             JudgeType::ToolsCallingLite => "tools_calling_lite",
-            JudgeType::OpenEnded => "open_ended",
+            JudgeType::Conversation => "conversation",
             JudgeType::Custom => "custom",
         };
         write!(f, "{}", s)
@@ -663,7 +663,7 @@ impl PipelineBuilder {
         } else if matches!(judge_type, JudgeType::ToolsCallingLite) {
             JudgeTypeCore::ToolsCallingLite
         } else {
-            JudgeTypeCore::OpenEnded
+            JudgeTypeCore::Conversation
         };
 
         let attach_to_conversation = attach_to_conversation.unwrap_or(false);

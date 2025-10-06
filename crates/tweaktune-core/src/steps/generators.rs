@@ -266,7 +266,7 @@ impl Step for JsonGenerationStep {
 pub enum JudgeType {
     ToolsCalling,
     ToolsCallingLite,
-    OpenEnded,
+    Conversation,
     Custom,
 }
 
@@ -302,12 +302,19 @@ impl JudgeConversationStep {
                 "schema": {"properties": {"intent_alignment": {"description": "How well the response aligns with the user\'s intent.", "maximum": 5, "minimum": 1, "title": "Intent Alignment", "type": "integer"}, "tool_choice_accuracy": {"description": "Accuracy of the chosen tool for the task.", "maximum": 5, "minimum": 1, "title": "Tool Choice Accuracy", "type": "integer"}, "argument_accuracy": {"description": "Correctness of the arguments provided to the tool.", "maximum": 5, "minimum": 1, "title": "Argument Accuracy", "type": "integer"}, "response_quality": {"description": "Overall quality of the response.", "maximum": 5, "minimum": 1, "title": "Response Quality", "type": "integer"}, "overall_coherence": {"description": "Coherence and logical flow of the response.", "maximum": 5, "minimum": 1, "title": "Overall Coherence", "type": "integer"}, "safety": {"description": "Safety and appropriateness of the response.", "maximum": 5, "minimum": 1, "title": "Safety", "type": "integer"}}, "required": ["intent_alignment", "tool_choice_accuracy", "argument_accuracy", "response_quality", "overall_coherence", "safety"], "title": "JudgeLiteResponse", "type": "object"},
                 "strict": true
             }).to_string()
-        } else {
+        } else if matches!(judge_type, JudgeType::ToolsCalling) {
             json!({
-                "name": "JudgeResponse",
+                "name": "JudgeToolsCallingResponse",
                 "schema": {"properties": {"intent_alignment": {"description": "How well the response aligns with the user\'s intent.", "maximum": 5, "minimum": 1, "title": "Intent Alignment", "type": "integer"}, "tool_choice_accuracy": {"description": "Accuracy of the chosen tool for the task.", "maximum": 5, "minimum": 1, "title": "Tool Choice Accuracy", "type": "integer"}, "argument_accuracy": {"description": "Correctness of the arguments provided to the tool.", "maximum": 5, "minimum": 1, "title": "Argument Accuracy", "type": "integer"}, "response_quality": {"description": "Overall quality of the response.", "maximum": 5, "minimum": 1, "title": "Response Quality", "type": "integer"}, "overall_coherence": {"description": "Coherence and logical flow of the response.", "maximum": 5, "minimum": 1, "title": "Overall Coherence", "type": "integer"}, "safety": {"description": "Safety and appropriateness of the response.", "maximum": 5, "minimum": 1, "title": "Safety", "type": "integer"}, "faithfulness": {"description": "Rationale for faithfulness score.", "title": "Faithfulness", "type": "string"}, "clarity": {"description": "Rationale for clarity score.", "title": "Clarity", "type": "string"}, "conciseness": {"description": "Rationale for conciseness score.", "title": "Conciseness", "type": "string"}, "relevance": {"description": "Rationale for relevance score.", "title": "Relevance", "type": "string"}, "creativity": {"description": "Rationale for creativity score.", "title": "Creativity", "type": "string"}}, "required": ["intent_alignment", "tool_choice_accuracy", "argument_accuracy", "response_quality", "overall_coherence", "safety", "faithfulness", "clarity", "conciseness", "relevance", "creativity"], "title": "JudgeResponse", "type": "object", "additionalProperties": false},
                 "strict": true
             }).to_string()
+        } else {
+            json!({
+                "name": "JudgeConversationResponse",
+                "schema": {"properties": {"task_success": {"description": "How well the response fulfills the user\'s request.", "maximum": 5, "minimum": 1, "title": "Task Success", "type": "integer"}, "faithfulness": {"description": "Accuracy and truthfulness of the response.", "maximum": 5, "minimum": 1, "title": "Faithfulness", "type": "integer"}, "coherence": {"description": "Logical flow and consistency of the response.", "maximum": 5, "minimum": 1, "title": "Coherence", "type": "integer"}, "naturalness": {"description": "How natural and human-like the response is.", "maximum": 5, "minimum": 1, "title": "Naturalness", "type": "integer"}, "instruction_following": {"description": "Adherence to any extra instructions provided.", "maximum": 5, "minimum": 1, "title": "Instruction Following", "type": "integer"}, "format_quality": {"description": "Quality of the response format (e.g., JSON structure).", "maximum": 5, "minimum": 1, "title": "Format Quality", "type": "integer"}, "safety": {"description": "The extent to which the response avoids harmful or inappropriate content.", "maximum": 5, "minimum": 1, "title": "Safety", "type": "integer"}, "rationale": {"description": "Overall rationale for the scores assigned.", "title": "Rationale", "type": "string"}}, "required": ["task_success", "faithfulness", "coherence", "naturalness", "instruction_following", "format_quality", "safety", "rationale"], "title": "JudgeConversationResponse", "type": "object"},
+                "strict": true
+            })
+            .to_string()
         };
 
         Self {

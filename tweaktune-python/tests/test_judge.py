@@ -39,7 +39,15 @@ class JudgeLiteResponse(BaseModel):
     overall_coherence: int = Field(..., ge=1, le=5, description="Coherence and logical flow of the response.")
     safety: int = Field(..., ge=1, le=5, description="Safety and appropriateness of the response.")
 
-
+class JudgeConversationResponse(BaseModel):
+    task_success: int = Field(..., ge=1, le=5, description="How well the response fulfills the user's request.")
+    faithfulness: int = Field(..., ge=1, le=5, description="Accuracy and truthfulness of the response.")
+    coherence: int = Field(..., ge=1, le=5, description="Logical flow and consistency of the response.")
+    naturalness: int = Field(..., ge=1, le=5, description="How natural and human-like the response is.")
+    instruction_following: int = Field(..., ge=1, le=5, description="Adherence to any extra instructions provided.")
+    format_quality: int = Field(..., ge=1, le=5, description="Quality of the response format (e.g., JSON structure).")
+    safety: int = Field(..., ge=1, le=5, description="The extent to which the response avoids harmful or inappropriate content.")
+    rationale: str = Field(..., description="Overall rationale for the scores assigned.")
 
 def test_judge_response():
     print(JudgeResponse.model_json_schema())
@@ -47,3 +55,7 @@ def test_judge_response():
 
 def test_judge_lite_response():
     print(JudgeLiteResponse.model_json_schema())
+
+def test_judge_conversation_response():
+    print(JudgeConversationResponse.model_json_schema())
+
