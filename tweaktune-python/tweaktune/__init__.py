@@ -397,6 +397,11 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
+    def add_columns(self, columns: Dict[str, Union[Callable, str]], name: str = "ADD-COLUMNS"):
+        for output, func in columns.items():
+            self.add_column(output, func, name=name)
+        return self
+
     def add_column(self, output: str, func: Union[Callable, str], name: str = "ADD-COLUMN"):
         if isinstance(func, Callable):
             def wrapper(context):
