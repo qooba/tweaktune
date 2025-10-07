@@ -56,10 +56,17 @@ impl Step for ValidateJsonStep {
 
         match serde_json::from_str(&instance_json) {
             Ok(instance) => {
-                let is_valid = jsonschema::is_valid(&schema_value, &instance);
+                let is_valid = match jsonschema::validator_for(&schema_value) {
+                    Ok(validator) => validator.is_valid(&instance),
+                    Err(e) => {
+                        error!(target: "validate_json_step", "🐔 Failed to create JSON schema validator: {e}");
+                        context.set_status(StepStatus::Failed);
+                        return Ok(context);
+                    }
+                };
 
                 if !is_valid {
-                    error!(target: "validate_json_step", "🐔 Failed to validate JSON: {} with schema {}", instance, schema_value);
+                    error!(target: "validate_json_step", "🐔 Failed to validate JSON: {instance} with schema {schema_value}");
                     context.set_status(StepStatus::Failed);
                 }
 
