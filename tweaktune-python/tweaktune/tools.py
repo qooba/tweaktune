@@ -102,6 +102,10 @@ def normalize_schema(schema):
             prop.pop("title", None)
         schema["properties"] = json.dumps(schema["properties"], ensure_ascii=False)
     schema["additionalProperties"] = False
+
+    if "required" not in schema:
+        schema["required"] = []
+
     return schema
 
 class ToolFunction(BaseModel):
