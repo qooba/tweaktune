@@ -380,6 +380,18 @@ pub fn normalize_tool(value: &Value) -> Result<Value> {
         }
     }
 
+    if let Some(Value::Object(o)) = out.get_mut("parameters") {
+        if let Some(Value::Object(props)) = o.get_mut("properties") {
+            if let Some(req) = props.remove("required") {
+                if o.get("required").is_none() {
+                    o.insert("required".to_string(), req);
+                }
+            }
+        } else if o.get("required").is_none() {
+            o.insert("required".to_string(), Value::Array(Vec::new()));
+        }
+    }
+
     Ok(Value::Object(out))
 }
 

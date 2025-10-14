@@ -749,7 +749,8 @@ impl PipelineBuilder {
         output: String,
     ) {
         self.add_data_sampler_step(name.clone(), dataset, size, output.clone());
-        self.add_validatetools_step(name.clone(), output);
+        self.add_normalizetools_step(name.clone(), output.clone(), output.clone());
+        self.add_validatetools_step(name, output);
     }
 
     pub fn add_data_read_step(&mut self, name: String, dataset: String, output: String) {
@@ -820,14 +821,16 @@ impl PipelineBuilder {
     pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
         debug!("Added validate JSON step");
 
-        let schema_key = self
-            .resources
-            .templates
-            .add_inline("validatejson_schema", &name, &schema);
-        let instance_key =
-            self.resources
-                .templates
-                .add_inline("validatejson_instance", &name, &instance);
+        let schema_key = self.resources.templates.add_inline(
+            "validatejson_schema",
+            &name,
+            &format!("{schema}|tojson"),
+        );
+        let instance_key = self.resources.templates.add_inline(
+            "validatejson_instance",
+            &name,
+            &format!("{instance}|tojson"),
+        );
         self.steps
             .push(StepType::ValidateJson(ValidateJsonStep::new(
                 name,
