@@ -868,8 +868,19 @@ impl PipelineBuilder {
             .push(StepType::Filter(FilterStep::new(name, condition_key)));
     }
 
-    pub fn add_mutate_step(&mut self, name: String, mutation: String, output: String) {
+    pub fn add_mutate_step(
+        &mut self,
+        name: String,
+        mutation: String,
+        is_json: bool,
+        output: String,
+    ) {
         debug!("Added mutate step");
+        let mutation = if is_json {
+            format!("{mutation}|tojson")
+        } else {
+            mutation
+        };
         let mutation_key = self
             .resources
             .templates
@@ -882,8 +893,19 @@ impl PipelineBuilder {
         )));
     }
 
-    pub fn add_new_column_step(&mut self, name: String, mutation: String, output: String) {
+    pub fn add_new_column_step(
+        &mut self,
+        name: String,
+        mutation: String,
+        is_json: bool,
+        output: String,
+    ) {
         debug!("Added new column step");
+        let mutation = if is_json {
+            format!("{mutation}|tojson")
+        } else {
+            mutation
+        };
 
         let new_column_key = self
             .resources

@@ -402,7 +402,7 @@ class PipelineRunner:
             self.add_column(output, func, name=name)
         return self
 
-    def add_column(self, output: str, func: Union[Callable, str], name: str = "ADD-COLUMN"):
+    def add_column(self, output: str, func: Union[Callable, str], is_json: bool = True, name: str = "ADD-COLUMN"):
         if isinstance(func, Callable):
             def wrapper(context):
                 if output in context["data"]:
@@ -412,7 +412,7 @@ class PipelineRunner:
 
             self.map(wrapper, name=name)
         elif isinstance(func, str):
-            self.builder.add_new_column_step(self.__name(name), func, output)
+            self.builder.add_new_column_step(self.__name(name), func, is_json, output)
         else:
             raise ValueError("Either lambda_func or func must be provided.")
         
@@ -421,7 +421,7 @@ class PipelineRunner:
         return self
 
     def add_random(self, output: str, start: int, stop:int, name: str = "ADD-RANDOM"):
-        self.builder.add_new_column_step(self.__name(name), f"\"{start},{stop}\"|random_range", output)
+        self.builder.add_new_column_step(self.__name(name), f"\"{start},{stop}\"|random_range", False, output)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
@@ -443,7 +443,7 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
-    def mutate(self, output: str, func: Union[Callable, str], name: str = "MUTATE"):
+    def mutate(self, output: str, func: Union[Callable, str], is_json: bool = True, name: str = "MUTATE"):
         if isinstance(func, Callable):
             def wrapper(context):
                 context["data"][output] = func(context["data"][output])
@@ -451,7 +451,7 @@ class PipelineRunner:
 
             self.map(wrapper, name=name)
         elif isinstance(func, str):
-            self.builder.add_mutate_step(self.__name(name), func, output)
+            self.builder.add_mutate_step(self.__name(name), func, is_json, output)
         else:
             raise ValueError("Either lambda_func or func must be provided.")
 
@@ -511,7 +511,7 @@ class PipelineRunner:
     def render_tool_call(self, arguments: str, output: str, tool: str = None, tool_name: str = None, additional_template: Optional[str] = None, name: str = "RENDER-TOOL-CALL"):
         if tool:
             tool_name = f"{self.__name(name)}-TOOL"
-            self.builder.add_new_column_step(self.__name(name), tool, output=tool_name)
+            self.builder.add_new_column_step(self.__name(name), tool, True, output=tool_name)
             
         self.builder.add_render_tool_call_step(self.__name(name), tool_name, arguments, output, additional_template);
         self.graph.steps.append(step_item(name=self.__name(name)));
