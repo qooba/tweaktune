@@ -1,5 +1,21 @@
 use pyo3::prelude::*;
+use tweaktune_core::templates::embed::chat_templates;
 use tweaktune_core::templates::ChatTemplate;
+
+#[pyclass]
+#[derive(Debug)]
+pub enum EmbedChatTemplates {
+    Bielik,
+}
+
+#[pymethods]
+impl EmbedChatTemplates {
+    pub fn template(&self) -> PyResult<String> {
+        match self {
+            EmbedChatTemplates::Bielik => Ok(chat_templates("bielik").unwrap().to_string()),
+        }
+    }
+}
 
 #[pyclass]
 pub struct ChatTemplateBuilder {

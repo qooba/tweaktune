@@ -1,5 +1,6 @@
 use crate::common::{create_rows_stream, df_to_values};
 use crate::config::read_config;
+use crate::dictionaries::phf_to_df;
 use crate::readers::build_reader;
 use anyhow::Result;
 use polars::prelude::*;
@@ -29,6 +30,7 @@ pub enum DatasetType {
     Csv(CsvDataset),
     Parquet(ParquetDataset),
     Mixed(MixedDataset),
+    PhfSet(PhfSetDataset),
 }
 
 #[derive(Clone)]
@@ -306,6 +308,25 @@ impl Dataset for JsonListDataset {
 }
 
 #[derive(Clone)]
+pub struct PhfSetDataset {
+    _name: String,
+    df: DataFrame,
+}
+
+impl PhfSetDataset {
+    pub fn new(name: String, phf: &phf::Set<&'static str>) -> Result<Self> {
+        let df: DataFrame = phf_to_df(phf, "value");
+        Ok(Self { _name: name, df })
+    }
+}
+
+impl Dataset for PhfSetDataset {
+    fn df(&self) -> &DataFrame {
+        &self.df
+    }
+}
+
+#[derive(Clone)]
 pub struct MixedDataset {
     _name: String,
     selected_datasets: Vec<String>,
@@ -379,6 +400,7 @@ impl MixedDataset {
                 DatasetType::Parquet(parquet_dataset) => parquet_dataset.df().slice(val, 1),
                 DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df().slice(val, 1),
                 DatasetType::Mixed(_mixed_dataset) => unimplemented!(),
+                DatasetType::PhfSet(phf_set_dataset) => phf_set_dataset.df().slice(val, 1),
             };
 
             let df_values = df_to_values(&df).unwrap();
@@ -734,17 +756,14 @@ struct OpenApiProperty {
 
 #[cfg(test)]
 mod tests {
-    use crate::datasets::OpenApiDataset;
     use anyhow::Result;
-    use rand::seq::SliceRandom;
-    use rand::thread_rng;
     // use serde_json;
 
     #[test]
     fn it_works() -> Result<()> {
         //let url = "https://petstore3.swagger.io/api/v3/openapi.json";
-        let url = "http://localhost:8085/openapi.json";
-        let _spec = OpenApiDataset::new("test".to_string(), url.to_string());
+        // let url = "http://localhost:8085/openapi.json";
+        // let _spec = OpenApiDataset::new("test".to_string(), url.to_string());
 
         // println!(
         //     "spec: {:?}",

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::{debug, error};
+use log::error;
 use pyo3::prelude::*;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -322,6 +322,7 @@ impl LLM for ApiLLM {
             .expect("HTTP client not initialized")
             .post(&self.url)
             .header(&self.api_key_header.0, &self.api_key_header.1)
+            .header("Content-Type", "application/json")
             .json(&request)
             .send()
             .await?
@@ -351,13 +352,19 @@ impl LLM for ApiLLM {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatCompletionRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     pub messages: Vec<ChatMessage>,
     pub max_tokens: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub seed: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub response_format: Option<serde_json::Value>,
 }
 

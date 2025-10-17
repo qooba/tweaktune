@@ -23,7 +23,7 @@ def class_to_schema(model: BaseModel) -> dict:
 def pydantic_to_json_schema(model: BaseModel) -> dict:
     return json.dumps(class_to_schema(model), ensure_ascii=False)
 
-def function_to_schema(func: callable) -> BaseModel:
+def function_to_schema(func: callable, include_response: bool = False) -> BaseModel:
     """
     Converts a function with annotated parameters to json schema https://json-schema.org/
     including descriptions from Field(..., description=...).
@@ -56,7 +56,18 @@ def function_to_schema(func: callable) -> BaseModel:
     schema = normalize_schema(schema)
     schema.pop("title", None)
 
-    return {
+    response_schema = None
+    if include_response:
+        # Detect if the function has a Pydantic return type and attach its schema
+        return_type = func_params.get("return", sig.return_annotation)
+        try:
+            if return_type is not inspect._empty and isinstance(return_type, type) and issubclass(return_type, BaseModel):
+                # pass the class; class_to_schema works with Pydantic classes
+                response_schema = class_to_schema(return_type)
+        except Exception:
+            response_schema = None
+
+    result = {
         "type": "function",
         "name": func_name,
         "description": func.__doc__,
@@ -64,8 +75,14 @@ def function_to_schema(func: callable) -> BaseModel:
         "strict": True,
     }
 
-def function_to_json_schema(func: callable) -> BaseModel:
-    return json.dumps(function_to_schema(func), ensure_ascii=False)
+    if response_schema:
+        # add an additional response entry containing the Pydantic model schema
+        result["response"] = response_schema
+
+    return result
+
+def function_to_json_schema(func: callable, include_response: bool = False) -> BaseModel:
+    return json.dumps(function_to_schema(func, include_response=include_response), ensure_ascii=False)
 
 def normalize_schema(schema):
     defs = schema.pop("$defs", {})
@@ -85,6 +102,10 @@ def normalize_schema(schema):
             prop.pop("title", None)
         schema["properties"] = json.dumps(schema["properties"], ensure_ascii=False)
     schema["additionalProperties"] = False
+
+    if "required" not in schema:
+        schema["required"] = []
+
     return schema
 
 class ToolFunction(BaseModel):

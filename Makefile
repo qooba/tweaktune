@@ -29,5 +29,5 @@ fmt:
 test:
 #	RUST_LOG=debug cargo test --release common::tests::test_extract_json -- --nocapture
 #	cargo test --release datasets::tests::it_works -- --nocapture
-
+	export RUSTFLAGS="-C link-args=-lpython3.10" && \
 	cargo test --release steps::tests::schema_validate2 -- --nocapture

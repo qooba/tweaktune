@@ -1,0 +1,172 @@
+use crate::{
+    common::dedup::{hash_value, simhash_value},
+    steps::{Step, StepContext, StepStatus},
+    PipelineResources,
+};
+use anyhow::Result;
+use lingua::{LanguageDetector, LanguageDetectorBuilder};
+use log::error;
+
+pub struct CheckLanguageStep {
+    pub name: String,
+    pub input: String,
+    pub language: String,
+    pub precision: f64,
+    pub detector: LanguageDetector,
+}
+
+impl CheckLanguageStep {
+    pub fn new(
+        name: String,
+        input: String,
+        language: String,
+        precision: f64,
+        detect_languages: Vec<String>,
+    ) -> Self {
+        let languages = detect_languages
+            .iter()
+            .filter_map(|lang| lang.parse().ok())
+            .collect::<Vec<_>>();
+        let detector = LanguageDetectorBuilder::from_languages(&languages).build();
+        Self {
+            name,
+            input,
+            language,
+            precision,
+            detector,
+        }
+    }
+}
+
+impl Step for CheckLanguageStep {
+    async fn process(
+        &self,
+        _resources: &PipelineResources,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        match context.data.get(&self.input) {
+            Some(value) => {
+                if let Some(text) = value.as_str() {
+                    let detected = self
+                        .detector
+                        .compute_language_confidence(text, self.language.parse()?);
+                    if detected < self.precision {
+                        error!(target: "steps_quality", "🐔 Language detection failed: {} < {}", detected, self.precision);
+                        context.set_status(StepStatus::Failed);
+                    }
+                } else {
+                    error!(target: "steps_quality", "🐔 Language detection input is not a string");
+                    context.set_status(StepStatus::Failed);
+                }
+            }
+            None => {
+                error!(target: "steps_quality", "🐔 Language detection input not found");
+                context.set_status(StepStatus::Failed);
+            }
+        }
+
+        Ok(context)
+    }
+}
+
+pub struct CheckHashStep {
+    pub name: String,
+    pub input: String,
+}
+
+impl CheckHashStep {
+    pub fn new(name: String, input: String) -> Self {
+        Self { name, input }
+    }
+}
+
+impl Step for CheckHashStep {
+    async fn process(
+        &self,
+        resources: &PipelineResources,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        match context.data.get(&self.input) {
+            Some(value) => {
+                let hash = hash_value(value);
+                if let Some(state) = resources.state.as_ref() {
+                    if let Err(e) = state
+                        .add_hash(&context.id.to_string(), &self.input, &hash.clone())
+                        .await
+                    {
+                        error!(target: "steps_quality", "🐔 Hash validation failed to add hash: {}", e);
+                        context.set_status(StepStatus::Failed);
+                    }
+                }
+            }
+            None => {
+                error!(target: "steps_quality", "🐔 Hash validation input not found");
+                context.set_status(StepStatus::Failed);
+            }
+        }
+
+        Ok(context)
+    }
+}
+
+pub struct CheckSimHashStep {
+    pub name: String,
+    pub input: String,
+    pub threshold: u32,
+}
+
+impl CheckSimHashStep {
+    pub fn new(name: String, input: String, threshold: u32) -> Self {
+        Self {
+            name,
+            input,
+            threshold,
+        }
+    }
+}
+
+impl Step for CheckSimHashStep {
+    async fn process(
+        &self,
+        resources: &PipelineResources,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        match context.data.get(&self.input) {
+            Some(value) => {
+                let hash = simhash_value(value);
+
+                if let Some(state) = resources.state.as_ref() {
+                    let similar_items = state.knn_simhash(&self.input, hash, 10).await?;
+                    if !similar_items.is_empty() {
+                        let (sim, dist, item_id) = &similar_items[0];
+                        if *dist <= self.threshold {
+                            error!(target: "steps_quality", "🐔 Simhash validation failed: found similar item with distance {} (item_id: {:?}, simhash: {:016X})", dist, item_id, sim);
+                            context.set_status(StepStatus::Failed);
+                            return Ok(context);
+                        }
+                    }
+
+                    if let Err(e) = state
+                        .add_simhash(&context.id.to_string(), &self.input, hash as i64)
+                        .await
+                    {
+                        error!(target: "steps_quality", "🐔 Hash validation failed to add hash: {}", e);
+                        context.set_status(StepStatus::Failed);
+                    }
+                }
+            }
+            None => {
+                error!(target: "steps_quality", "🐔 Hash validation input not found");
+                context.set_status(StepStatus::Failed);
+            }
+        }
+
+        Ok(context)
+    }
+}

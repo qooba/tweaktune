@@ -1,4 +1,5 @@
-from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings
+from polars import sql
+from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings, Metadata, JudgeType, InternalDatasetType
 from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
 from tweaktune.common import LogLevel, StepStatus, record_batches_to_ipc_bytes, package_installation_hint
 from tweaktune.tools import pydantic_to_json_schema, function_to_json_schema
@@ -59,8 +60,10 @@ class Graph(BaseModel):
 
 
 class Pipeline:
-    def __init__(self):
-        self.builder = PipelineBuilder()
+    def __init__(self, name: Optional[str] = None, metadata: Optional[Metadata] = None):
+        if name is None:
+            name = os.path.splitext(os.path.basename(__file__))[0]
+        self.builder = PipelineBuilder(name, metadata)
         self.graph = Graph()
 
     def with_openapi_dataset(self, name: str, path_or_url: str):
@@ -71,7 +74,7 @@ class Pipeline:
 
     def with_tools_dataset(self, name: str, tools: List[callable]):
         """Converts a list of functions to json schema and adds them to the pipeline."""
-        json_list = [function_to_json_schema(tool) for tool in tools]
+        json_list = [function_to_json_schema(tool, include_response=True) for tool in tools]
         self.builder.with_json_list_dataset(name, json_list, None)
         self.graph.config.datasets.append(config_item(name))
         return self
@@ -82,7 +85,13 @@ class Pipeline:
         self.builder.with_json_list_dataset(name, json_list, None)
         self.graph.config.datasets.append(config_item(name))
         return self
-    
+
+    def with_internal_dataset(self, dataset: InternalDatasetType):
+        """Adds an internal dataset to the pipeline."""
+        self.builder.with_internal_dataset(dataset)
+        self.graph.config.datasets.append(config_item(str(dataset)))
+        return self
+
     def with_dicts_dataset(self, name: str, dicts: List[dict], sql: str = None):
         """Converts a list of dictionaries to json schema and adds them to the pipeline."""
         json_list = [json.dumps(d) for d in dicts]
@@ -301,6 +310,16 @@ class Pipeline:
             raise ValueError("Invalid Embeddings type")
         
         return self
+
+    def with_embedings_api(self, name: str, base_url: str, api_key: str, model: str):
+        self.builder.with_embeddings_api(name, base_url, api_key, model)
+        self.graph.config.llms.append(config_item("EMBEDDINGS"))
+        return self
+
+    def with_embedings_e5(self, name: str, model_repo: str):
+        self.builder.with_embeddings_e5(name, model_repo)
+        self.graph.config.llms.append(config_item("EMBEDDINGS"))
+        return self
     
     def with_workers(self, workers: int):
         self.builder.with_workers(workers)
@@ -354,6 +373,7 @@ class PipelineRunner:
         self.builder = builder
         self.step_index = 0
         self.graph = graph if graph else Graph()
+        self.logger = False
 
     def __name(self, name: str):
         return f"{name}--{self.step_index}"
@@ -364,10 +384,14 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
-    def ifelse(self, condition: Callable, then_chain: Chain, else_chain: Chain, name: str = "PY-IFELSE"):
+    def ifelse(self, condition: Union[Callable, str], then_chain: Chain, else_chain: Chain, name: str = "PY-IFELSE"):
         name = self.__name(name)
-        step = type(name.replace("-","_"), (object,), {'check': lambda self, context: condition(context)})()
-        self.builder.add_ifelse_step(name, PyConditionWrapper(step), then_chain.steps_chain, else_chain.steps_chain)
+        if isinstance(condition, Callable):
+            step = type(name.replace("-","_"), (object,), {'check': lambda self, context: condition(context)})()
+            self.builder.add_ifelse_step(name, PyConditionWrapper(step), None, then_chain.steps_chain, else_chain.steps_chain)
+        elif isinstance(condition, str):
+            self.builder.add_ifelse_step(name, None, condition, then_chain.steps_chain, else_chain.steps_chain)
+            
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
@@ -380,36 +404,64 @@ class PipelineRunner:
         self.step_index += 1
         return self
     
-    def add_column(self, output: str, func: Callable, name: str = "PY-ADD-COLUMN"):
-        def wrapper(context):
-            if output in context["data"]:
-                print("Warning: Output column already exists, overwriting it.")
-            context["data"][output] = func(context["data"])
-            return context
+    def add_columns(self, columns: Dict[str, Union[Callable, str]], name: str = "ADD-COLUMNS"):
+        for output, func in columns.items():
+            self.add_column(output, func, name=name)
+        return self
 
-        self.map(wrapper, name=name)
-        del self.graph.steps[-1]
+    def add_column(self, output: str, func: Union[Callable, str], is_json: bool = True, name: str = "ADD-COLUMN"):
+        if isinstance(func, Callable):
+            def wrapper(context):
+                if output in context["data"]:
+                    print("Warning: Output column already exists, overwriting it.")
+                context["data"][output] = func(context["data"])
+                return context
+
+            self.map(wrapper, name=name)
+        elif isinstance(func, str):
+            self.builder.add_new_column_step(self.__name(name), func, is_json, output)
+        else:
+            raise ValueError("Either lambda_func or func must be provided.")
+        
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
-    def filter(self, condition: Callable, name: str = "PY-FILTER"):
-        def condition_wrapper(context):
-            if not condition(context["data"]):
-                context["status"] = StepStatus.FAILED.value
-            return context
+    def add_random(self, output: str, start: int, stop:int, name: str = "ADD-RANDOM"):
+        self.builder.add_new_column_step(self.__name(name), f"\"{start},{stop}\"|random_range", False, output)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
 
-        self.map(condition_wrapper, name=name)
+    def filter(self, condition: Union[Callable, str], name: str = "FILTER"):
+        if isinstance(condition, Callable):
+            def condition_wrapper(context):
+                if not condition(context["data"]):
+                    context["status"] = StepStatus.FAILED.value
+                return context
+
+            self.map(condition_wrapper, name=name)
+        elif isinstance(condition, str):
+            self.builder.add_filter_step(self.__name(name), condition)
+        else:
+            raise ValueError("Either lambda_condition or condition must be provided.")
+        
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
     
-    def mutate(self, output: str, func: Callable, name: str = "PY-ADD-COLUMN"):
-        def wrapper(context):
-            context["data"][output] = func(context["data"][output])
-            return context
+    def mutate(self, output: str, func: Union[Callable, str], is_json: bool = True, name: str = "MUTATE"):
+        if isinstance(func, Callable):
+            def wrapper(context):
+                context["data"][output] = func(context["data"][output])
+                return context
 
-        self.map(wrapper, name=name)
+            self.map(wrapper, name=name)
+        elif isinstance(func, str):
+            self.builder.add_mutate_step(self.__name(name), func, is_json, output)
+        else:
+            raise ValueError("Either lambda_func or func must be provided.")
+
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
@@ -445,14 +497,78 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
+    def sample_tools(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
+        self.builder.add_tool_sampler_step(self.__name(name), dataset, size, output)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
     def render(self, template: str, output: str, name: str = "RENDER"):
         self.builder.add_render_step(self.__name(name), template, output)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
-    
+
+    def render_conversation(self, conversation: str, output: str, tools: Optional[str] = None, separator: Optional[str] = "|", name: str = "RENDER-CONVERSATION"):   
+        self.builder.add_render_conversation_step(self.__name(name), conversation, output, tools, separator)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
+    def render_tool_call(self, arguments: str, output: str, tool: str = None, tool_name: str = None, additional_template: Optional[str] = None, name: str = "RENDER-TOOL-CALL"):
+        if tool:
+            tool_name = f"{self.__name(name)}-TOOL"
+            self.builder.add_new_column_step(self.__name(name), tool, True, output=tool_name)
+            
+        self.builder.add_render_tool_call_step(self.__name(name), tool_name, arguments, output, additional_template);
+        self.graph.steps.append(step_item(name=self.__name(name)));
+        self.step_index += 1;
+        return self;
+
+    def check_hash(self, input: str, name: str = "CHECK-HASH"):
+        self.builder.add_check_hash_step(self.__name(name), input)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self;
+
+    def check_simhash(self, input: str, treshold: int = 3, name: str = "CHECK-SIMHASH"):
+        self.builder.add_check_simhash_step(self.__name(name), treshold, input)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self;
+
+    def check_embedding(self, input: str, embedding: str, treshold: int = 3, similarity_output: str = None, name: str = "CHECK-EMBEDDING"):
+        self.builder.add_check_embeddings_step(self.__name(name), input, embedding, treshold, similarity_output)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self;
+
     def validate_json(self, schema: str, instance: str, name: str = "VALIDATE-JSON"):
         self.builder.add_validatejson_step(self.__name(name), schema, instance)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
+    def validate_tools(self, instances: str, name: str = "VALIDATE-TOOLS"):
+        self.builder.add_validatetools_step(self.__name(name), instances)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+    
+    def validate_conversation(self, instances: str, name: str = "VALIDATE-CONVERSATION"):
+        self.builder.add_validateconversation_step(self.__name(name), instances)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
+    def normalize_tools(self, instances: str, output: str, name: str = "NORMALIZE-TOOLS"):
+        self.builder.add_normalizetools_step(self.__name(name), instances, output)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+    
+    def into_list(self, inputs: List[str], output: str, name: str = "INTO-LIST"):
+        self.builder.add_into_list_step(self.__name(name), inputs, output)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
@@ -468,9 +584,9 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
-    
-    def judge(self, template: str, llm: str, name: str = "JUDGE"):
-        self.builder.add_judge_step(self.__name(name), template, llm)
+
+    def judge_conversation(self, input: str, llm: str, output: str, language: str = "en", judge_type: JudgeType = JudgeType.ToolsCalling, attach_to_conversation: bool = False, custom_template: str = None, custom_json_schema: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "JUDGE-CONVERSATION"):
+        self.builder.add_judge_conversation_step(self.__name(name), input, llm, output, language, judge_type, attach_to_conversation, custom_template, custom_json_schema, max_tokens, temperature)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
@@ -481,8 +597,14 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def write_jsonl(self, path: str, template: str, name: str = "WRITE-JSONL"):
-        self.builder.add_write_jsonl_step(self.__name(name), path, template)
+    def check_language(self, input: str, language: str, precision: float, detect_languages: List[str], name: str = "CHECK-LANGUAGE"):
+        self.builder.add_check_language_step(self.__name(name), input, language, precision, detect_languages);
+        self.graph.steps.append(step_item(name=self.__name(name)));
+        self.step_index += 1;
+        return self;
+
+    def write_jsonl(self, path: str, template: Optional[str] = None, value: Optional[str] = "output", name: str = "WRITE-JSONL"):
+        self.builder.add_write_jsonl_step(self.__name(name), path, template, value)
         self.graph.steps.append(step_item(name=self.__name(name)))
         return self
     
@@ -507,11 +629,16 @@ class PipelineRunner:
         return self
 
     def log(self, level: str = LogLevel.ERROR.value, target: str = None):
-        file = os.path.splitext(os.path.basename(sys.argv[0]))[0]
-        self.builder.log(level, target, file)
+        #file = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        self.builder.log(level, target, None)
+        self.logger = True
         return self
     
     def run(self):
+        if not self.logger:
+            self.log(LogLevel.ERROR.value, None)
+            self.logger = True
+
         self.builder.compile()
         return self.builder.run()
     

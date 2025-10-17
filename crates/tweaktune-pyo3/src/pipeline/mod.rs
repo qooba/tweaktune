@@ -1,67 +1,163 @@
 use crate::common::ResultExt;
-use crate::logging::{BusEvent, ChannelWriter};
+use crate::logging::{BusEvent, ChannelWriter, LogsCollector};
 use anyhow::{bail, Result};
 use chrono::Local;
+use core::fmt;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
-use log::{error, info};
+use log::{debug, error, info};
 use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
 use serde_json::json;
 use simplelog::*;
 use std::fs::{create_dir_all, File};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::thread;
-use std::{collections::HashMap, sync::Arc};
-use tokio::runtime::Runtime;
-use tweaktune_core::common::{deserialize, SerializationType};
+use tweaktune_core::common::{blake3_hash, deserialize, run_async, SerializationType};
 use tweaktune_core::datasets::{
     CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
-    PolarsDataset,
+    PhfSetDataset, PolarsDataset,
 };
+use tweaktune_core::embeddings::e5::E5Spec;
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
-use tweaktune_core::steps::{ChunkStep, IfElseStep, RenderStep, ValidateJsonStep};
+use tweaktune_core::steps::conversations::{RenderConversationStep, RenderToolCallStep};
+use tweaktune_core::steps::embeddings::CheckEmbeddingStep;
+use tweaktune_core::steps::generators::{JudgeConversationStep, JudgeType as JudgeTypeCore};
+use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep};
+use tweaktune_core::steps::{
+    logic::{FilterStep, MutateStep},
+    validators::{
+        ConversationValidateStep, ToolsNormalizeStep, ToolsValidateStep, ValidateJsonStep,
+    },
+    ChunkStep, IfElseStep, IntoListStep, RenderStep,
+};
+use tweaktune_core::PipelineResources;
 use tweaktune_core::{
     common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{ApiLLM, LLMType},
+    state::State,
     steps::{
-        CsvWriterStep, DataSamplerStep, JsonGenerationStep, JsonlWriterStep, PrintStep, PyStep,
-        PyValidator, Step as StepCore, StepContext, StepStatus, StepType, TextGenerationStep,
+        generators::{JsonGenerationStep, TextGenerationStep},
+        py::{PyStep, PyValidator},
+        writers::{CsvWriterStep, JsonlWriterStep},
+        DataSamplerStep, PrintStep, Step as StepCore, StepContext, StepStatus, StepType,
     },
     templates::Templates,
 };
 
 #[pyclass]
+#[derive(Debug, Clone)]
+pub enum InternalDatasetType {
+    Openings,
+}
+
+impl fmt::Display for InternalDatasetType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            InternalDatasetType::Openings => "openings",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone)]
+pub enum JudgeType {
+    ToolsCalling,
+    ToolsCallingLite,
+    Conversation,
+    Custom,
+}
+
+impl From<JudgeType> for JudgeTypeCore {
+    fn from(judge_type: JudgeType) -> Self {
+        match judge_type {
+            JudgeType::ToolsCalling => JudgeTypeCore::ToolsCalling,
+            JudgeType::ToolsCallingLite => JudgeTypeCore::ToolsCallingLite,
+            JudgeType::Conversation => JudgeTypeCore::Conversation,
+            JudgeType::Custom => JudgeTypeCore::Custom,
+        }
+    }
+}
+
+impl fmt::Display for JudgeType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            JudgeType::ToolsCalling => "tools_calling",
+            JudgeType::ToolsCallingLite => "tools_calling_lite",
+            JudgeType::Conversation => "conversation",
+            JudgeType::Custom => "custom",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+#[pyclass]
+#[derive(Clone)]
+pub struct Metadata {
+    pub path: String,
+    pub enabled: bool,
+}
+
+#[pymethods]
+impl Metadata {
+    #[new]
+    pub fn new(path: String, enabled: bool) -> Self {
+        if enabled {
+            create_dir_all(&path).unwrap();
+            create_dir_all(format!("{}/{}", &path, "logs")).unwrap();
+            create_dir_all(format!("{}/{}", &path, "state")).unwrap();
+
+            Self { path, enabled }
+        } else {
+            Self { path, enabled }
+        }
+    }
+}
+
+#[pyclass]
 pub struct PipelineBuilder {
+    id: uuid::Uuid,
+    name: String,
     workers: usize,
-    datasets: Resources<DatasetType>,
-    templates: Templates,
-    llms: Resources<LLMType>,
-    embeddings: Resources<EmbeddingsType>,
+    resources: PipelineResources,
     steps: Vec<StepType>,
     iter_by: IterBy,
     running: Arc<AtomicBool>,
+    logs_collector: Arc<LogsCollector>,
+    log_path: Option<String>,
+    metadata: Metadata,
 }
 
 #[pymethods]
 impl PipelineBuilder {
     #[new]
-    pub fn new() -> Self {
+    pub fn new(name: String, metadata: Option<Metadata>) -> Self {
+        let metadata = if let Some(metadata) = metadata {
+            metadata
+        } else {
+            Metadata::new(format!(".tweaktune/{}/", &name), true)
+        };
+
+        let state = if metadata.enabled {
+            run_async(async {
+                State::new(&format!("{}/{}", &metadata.path, "state"))
+                    .await
+                    .ok()
+            })
+        } else {
+            None
+        };
+
         Self {
+            id: uuid::Uuid::new_v4(),
+            name,
             workers: 1,
-            datasets: Resources {
-                resources: HashMap::new(),
-            },
-            templates: Templates::default(),
-            llms: Resources {
-                resources: HashMap::new(),
-            },
-            embeddings: Resources {
-                resources: HashMap::new(),
-            },
+            resources: PipelineResources::new(state),
             steps: vec![],
             iter_by: IterBy::Range {
                 start: 0,
@@ -69,17 +165,20 @@ impl PipelineBuilder {
                 step: 1,
             },
             running: Arc::new(AtomicBool::new(false)),
+            logs_collector: Arc::new(LogsCollector::new()),
+            log_path: None,
+            metadata,
         }
     }
 
     pub fn with_workers(&mut self, workers: usize) {
         self.workers = workers;
-        info!("Setting workers to {}", workers);
+        debug!("Setting workers to {}", workers);
     }
 
     pub fn with_openapi_dataset(&mut self, name: String, path_or_url: String) -> PyResult<()> {
-        info!("Added OPEN_API dataset: {}", &name);
-        self.datasets.add(
+        debug!("Added OPEN_API dataset: {}", &name);
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::OpenApi(OpenApiDataset::new(name, path_or_url)?),
         );
@@ -93,8 +192,8 @@ impl PipelineBuilder {
         json_list: Vec<String>,
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added JSON_LIST dataset: {}", &name);
-        self.datasets.add(
+        debug!("Added JSON_LIST dataset: {}", &name);
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::JsonList(JsonListDataset::new(name, json_list, sql)?),
         );
@@ -108,8 +207,8 @@ impl PipelineBuilder {
         path: String,
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added JSONL dataset: {}", &name);
-        self.datasets.add(
+        debug!("Added JSONL dataset: {}", &name);
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Jsonl(JsonlDataset::new(name, path, sql)?),
         );
@@ -117,8 +216,8 @@ impl PipelineBuilder {
     }
 
     pub fn with_polars_dataset(&mut self, name: String, path: String, sql: String) -> PyResult<()> {
-        info!("Added POLARS dataset: {}", &name);
-        self.datasets.add(
+        debug!("Added POLARS dataset: {}", &name);
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Polars(PolarsDataset::new(name, path, Some(sql))?),
         );
@@ -132,8 +231,8 @@ impl PipelineBuilder {
         path: String,
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added JSON dataset: {}", &name);
-        self.datasets.add(
+        debug!("Added JSON dataset: {}", &name);
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Json(JsonDataset::new(name, path, sql)?),
         );
@@ -141,11 +240,46 @@ impl PipelineBuilder {
     }
 
     pub fn with_mixed_dataset(&mut self, name: String, datasets: Vec<String>) -> PyResult<()> {
-        info!("Added MIXED dataset: {}", &name);
-        self.datasets.add(
+        debug!("Added MIXED dataset: {}", &name);
+        self.resources.datasets.add(
             name.clone(),
-            DatasetType::Mixed(MixedDataset::new(name, datasets, &self.datasets.resources)?),
+            DatasetType::Mixed(MixedDataset::new(
+                name,
+                datasets,
+                &self.resources.datasets.resources,
+            )?),
         );
+        Ok(())
+    }
+
+    pub fn with_internal_dataset(&mut self, dataset: InternalDatasetType) -> PyResult<()> {
+        debug!("Added Internal dataset {dataset}");
+
+        match dataset {
+            InternalDatasetType::Openings => {
+                self.resources.datasets.add(
+                    format!("{dataset}::question"),
+                    DatasetType::PhfSet(PhfSetDataset::new(
+                        format!("{dataset}::question"),
+                        &tweaktune_core::dictionaries::openings::QUESTION,
+                    )?),
+                );
+                self.resources.datasets.add(
+                    format!("{dataset}::ask"),
+                    DatasetType::PhfSet(PhfSetDataset::new(
+                        format!("{dataset}::ask"),
+                        &tweaktune_core::dictionaries::openings::ASK,
+                    )?),
+                );
+                self.resources.datasets.add(
+                    format!("{dataset}::neutral"),
+                    DatasetType::PhfSet(PhfSetDataset::new(
+                        format!("{dataset}::neutral"),
+                        &tweaktune_core::dictionaries::openings::NEUTRAL,
+                    )?),
+                );
+            }
+        }
         Ok(())
     }
 
@@ -156,8 +290,8 @@ impl PipelineBuilder {
         path: String,
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added Parquet dataset: {}", &name);
-        self.datasets.add(
+        debug!("Added Parquet dataset: {}", &name);
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Parquet(ParquetDataset::new(name, path, sql)?),
         );
@@ -171,9 +305,9 @@ impl PipelineBuilder {
         ipc_data: &[u8],
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added Ipc dataset: {}", &name);
+        debug!("Added Ipc dataset: {}", &name);
 
-        self.datasets.add(
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Ipc(IpcDataset::new(name, ipc_data, sql)?),
         );
@@ -189,8 +323,8 @@ impl PipelineBuilder {
         has_header: bool,
         sql: Option<String>,
     ) -> PyResult<()> {
-        info!("Added CSV dataset: {}", &name);
-        self.datasets.add(
+        debug!("Added CSV dataset: {}", &name);
+        self.resources.datasets.add(
             name.clone(),
             DatasetType::Csv(CsvDataset::new(
                 name,
@@ -212,8 +346,8 @@ impl PipelineBuilder {
         max_tokens: u32,
         temperature: f32,
     ) {
-        info!("Added LLM API: {}", &name);
-        self.llms.add(
+        debug!("Added LLM API: {}", &name);
+        self.resources.llms.add(
             name.clone(),
             LLMType::Api(ApiLLM::new(
                 name,
@@ -236,8 +370,8 @@ impl PipelineBuilder {
         max_tokens: u32,
         temperature: f32,
     ) {
-        info!("Added LLM API: {}", &name);
-        self.llms.add(
+        debug!("Added LLM API: {}", &name);
+        self.resources.llms.add(
             name.clone(),
             LLMType::Api(ApiLLM::new(
                 name,
@@ -259,8 +393,8 @@ impl PipelineBuilder {
         max_tokens: u32,
         temperature: f32,
     ) {
-        info!("Added LLM API: {}", &name);
-        self.llms.add(
+        debug!("Added LLM API: {}", &name);
+        self.resources.llms.add(
             name.clone(),
             LLMType::Api(ApiLLM::new(
                 name,
@@ -277,16 +411,16 @@ impl PipelineBuilder {
     }
 
     pub fn with_llm_unsloth(&mut self, name: String, py_func: PyObject) {
-        info!("Added LLM UNSLOTH: {}", &name);
-        self.llms.add(
+        debug!("Added LLM UNSLOTH: {}", &name);
+        self.resources.llms.add(
             name.clone(),
             LLMType::Unsloth(UnslothLLM::new(name, py_func)),
         );
     }
 
     pub fn with_llm_mistralrs(&mut self, name: String, py_func: PyObject) {
-        info!("Added LLM MISTRALRS: {}", &name);
-        self.llms.add(
+        debug!("Added LLM MISTRALRS: {}", &name);
+        self.resources.llms.add(
             name.clone(),
             LLMType::Mistralrs(MistralrsLLM::new(name, py_func)),
         );
@@ -299,16 +433,30 @@ impl PipelineBuilder {
         api_key: String,
         model: String,
     ) {
-        info!("Added OpenAI embeddings: {}", &name);
-        self.embeddings.add(
+        debug!("Added OpenAI embeddings: {}", &name);
+        self.resources.embeddings.add(
             name.clone(),
             EmbeddingsType::OpenAI(OpenAIEmbeddings::new(name, base_url, api_key, model)),
         );
     }
 
+    pub fn with_embeddings_e5(&mut self, name: String, model_repo: String) {
+        debug!("Added E5 embeddings: {}", &name);
+
+        let spec = E5Spec {
+            name: name.clone(),
+            model_repo: Some(model_repo.clone()),
+            device: None,
+            hf_token: None,
+        };
+        self.resources
+            .embeddings
+            .add(name.clone(), EmbeddingsType::E5(spec));
+    }
+
     pub fn with_jinja_template(&mut self, name: String, template: String) {
-        info!("Added Jinja template: {}", &name);
-        self.templates.add(name, template);
+        debug!("Added Jinja template: {}", &name);
+        self.resources.templates.add(name, template);
     }
 
     #[pyo3(signature = (path, op_config=None))]
@@ -322,8 +470,8 @@ impl PipelineBuilder {
                             if let Ok(template) =
                                 read_to_string(template_path_str, op_config.clone())
                             {
-                                info!("Added Jinja template: {}", &name);
-                                self.templates.add(name.to_string(), template);
+                                debug!("Added Jinja template: {}", &name);
+                                self.resources.templates.add(name.to_string(), template);
                             } else {
                                 error!("Failed to read template file: {}", template_path.display());
                             }
@@ -343,9 +491,9 @@ impl PipelineBuilder {
 
     #[pyo3(signature = (name, path, op_config=None))]
     pub fn with_j2_template(&mut self, name: String, path: String, op_config: Option<String>) {
-        info!("Added Jinja template: {}", &name);
+        debug!("Added Jinja template: {}", &name);
         let template = read_to_string(&path, op_config).unwrap();
-        self.templates.add(name, template);
+        self.resources.templates.add(name, template);
     }
 
     #[pyo3(signature = (path, op_config=None))]
@@ -361,8 +509,8 @@ impl PipelineBuilder {
         let template = read_to_string(&path, op_config).unwrap();
         let templates = deserialize::<Templates>(&template, serialization_type).unwrap();
         for (name, template) in templates.templates {
-            info!("Adding template: {}", &name);
-            self.templates.add(name, template);
+            debug!("Adding template: {}", &name);
+            self.resources.templates.add(name, template);
         }
     }
 
@@ -375,23 +523,24 @@ impl PipelineBuilder {
     }
 
     pub fn add_py_step(&mut self, name: String, py_func: PyObject) {
-        info!("Added Python step: {}", &name);
+        debug!("Added Python step: {}", &name);
         self.steps.push(StepType::Py(PyStep::new(name, py_func)));
     }
 
     pub fn add_ifelse_step(
         &mut self,
         name: String,
-        condition: PyObject,
+        py_condition: Option<PyObject>,
+        condition: Option<String>,
         then_steps: PyRef<StepsChain>,
         else_steps: PyRef<StepsChain>,
     ) {
-        info!("Added Ifelse step: {}", &name);
+        debug!("Added Ifelse step: {}", &name);
 
         let then_steps = then_steps
             .steps
             .iter()
-            .map(|step| map_step(step, &mut self.templates))
+            .map(|step| map_step(step, &mut self.resources.templates))
             .collect::<Vec<_>>();
 
         let else_steps = if !else_steps.steps.is_empty() {
@@ -399,22 +548,49 @@ impl PipelineBuilder {
                 else_steps
                     .steps
                     .iter()
-                    .map(|step| map_step(step, &mut self.templates))
+                    .map(|step| map_step(step, &mut self.resources.templates))
                     .collect::<Vec<_>>(),
             )
         } else {
             None
         };
 
+        let condition_key = if let Some(condition) = &condition {
+            Some(
+                self.resources
+                    .templates
+                    .add_inline("ifelse", &name, condition),
+            )
+        } else {
+            None
+        };
+
         self.steps.push(StepType::IfElse(IfElseStep::new(
-            name, condition, then_steps, else_steps,
+            name,
+            py_condition,
+            condition_key,
+            then_steps,
+            else_steps,
         )));
     }
 
     pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
-        info!("Added Python validator step: {}", &name);
+        debug!("Added Python validator step: {}", &name);
         self.steps
             .push(StepType::PyValidator(PyValidator::new(name, py_func)));
+    }
+
+    pub fn add_into_list_step(&mut self, name: String, inputs: Vec<String>, output: String) {
+        debug!("Added IntoList step: {}", &name);
+        self.steps
+            .push(StepType::IntoList(IntoListStep::new(name, inputs, output)));
+    }
+
+    pub fn add_validate_conversation_step(&mut self, name: String, conversation: String) {
+        debug!("Added conversation validation step: {}", &name);
+        self.steps.push(StepType::ConversationValidate(
+            ConversationValidateStep::new(name, conversation),
+        ));
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -429,7 +605,7 @@ impl PipelineBuilder {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) {
-        info!(
+        debug!(
             "Added text generation step with llm: {}, template: {}",
             &llm, &template
         );
@@ -460,39 +636,110 @@ impl PipelineBuilder {
         temperature: Option<f32>,
         schema_template: Option<String>,
     ) {
-        info!(
+        debug!(
             "Added JSON generation step with template: {}, llm: {}",
             &llm, &template
         );
 
         let schema_key = if let Some(schema) = &schema_template {
-            let schema_key = format!("json_generation_step_{}_{}", name, schema);
-            self.templates
-                .add(schema_key.clone(), format!("{{{{{}}}}}", schema.clone()));
-            Some(schema_key)
+            Some(
+                self.resources
+                    .templates
+                    .add_inline("json_generation_step", &name, schema),
+            )
         } else {
             None
         };
 
         self.steps
             .push(StepType::JsonGeneration(JsonGenerationStep::new(
-                name,
+                name.clone(),
                 template,
                 llm,
-                output,
+                output.clone(),
                 json_path,
                 system_template,
                 json_schema,
                 max_tokens,
                 temperature,
-                schema_key,
+                schema_key.clone(),
+            )));
+
+        if let Some(schema_key) = schema_key {
+            self.add_validatejson_step(name.clone(), schema_key, output.clone());
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_judge_conversation_step(
+        &mut self,
+        name: String,
+        input: String,
+        llm: String,
+        output: String,
+        language: Option<String>,
+        judge_type: Option<JudgeType>,
+        attach_to_conversation: Option<bool>,
+        custom_template: Option<String>,
+        custom_json_schema: Option<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) {
+        debug!("Added judge step with llm: {}", &llm);
+        let language = language.unwrap_or("en".to_string());
+        let judge_type = judge_type.unwrap_or(JudgeType::ToolsCalling);
+        let template = if let Some(tmpl) = custom_template {
+            tmpl
+        } else {
+            let tmpl = blake3_hash(&format!("{}_{}_{}", &name, &language, &judge_type));
+            self.resources.templates.templates.insert(
+                tmpl.clone(),
+                tweaktune_core::templates::embed::judge_templates(
+                    &judge_type.to_string(),
+                    &language,
+                )
+                .unwrap()
+                .to_string(),
+            );
+            tmpl
+        };
+
+        let judge_type = if matches!(judge_type, JudgeType::ToolsCalling) {
+            JudgeTypeCore::ToolsCalling
+        } else if matches!(judge_type, JudgeType::ToolsCallingLite) {
+            JudgeTypeCore::ToolsCallingLite
+        } else {
+            JudgeTypeCore::Conversation
+        };
+
+        let attach_to_conversation = attach_to_conversation.unwrap_or(false);
+
+        self.steps
+            .push(StepType::JudgeConversation(JudgeConversationStep::new(
+                name.clone(),
+                input,
+                template,
+                llm,
+                output.clone(),
+                judge_type,
+                attach_to_conversation,
+                custom_json_schema,
+                max_tokens,
+                temperature,
             )));
     }
 
-    pub fn add_write_jsonl_step(&mut self, name: String, path: String, template: String) {
-        info!("Added JSONL writer step: {}", &name);
+    #[pyo3(signature = (name, path, template=None, value=None))]
+    pub fn add_write_jsonl_step(
+        &mut self,
+        name: String,
+        path: String,
+        template: Option<String>,
+        value: Option<String>,
+    ) {
+        debug!("Added JSONL writer step: {}", &name);
         self.steps.push(StepType::JsonWriter(JsonlWriterStep::new(
-            name, path, template,
+            name, path, template, value,
         )));
     }
 
@@ -503,7 +750,7 @@ impl PipelineBuilder {
         template: Option<String>,
         columns: Option<Vec<String>>,
     ) {
-        info!("Added print step");
+        debug!("Added print step: {}", &name);
         self.steps
             .push(StepType::Print(PrintStep::new(name, template, columns)));
     }
@@ -515,7 +762,7 @@ impl PipelineBuilder {
         columns: Vec<String>,
         delimiter: String,
     ) {
-        info!("Added CSV writer step: {}", &name);
+        debug!("Added CSV writer step: {}", &name);
         self.steps.push(StepType::CsvWriter(CsvWriterStep::new(
             name, path, columns, delimiter,
         )));
@@ -528,7 +775,7 @@ impl PipelineBuilder {
         size: usize,
         output: String,
     ) {
-        info!(
+        debug!(
             "Added data sampler on dataset: {} with size: {}",
             &dataset, &size
         );
@@ -540,8 +787,20 @@ impl PipelineBuilder {
         )));
     }
 
+    pub fn add_tool_sampler_step(
+        &mut self,
+        name: String,
+        dataset: String,
+        size: usize,
+        output: String,
+    ) {
+        self.add_data_sampler_step(name.clone(), dataset, size, output.clone());
+        self.add_normalizetools_step(name.clone(), output.clone(), output.clone());
+        self.add_validatetools_step(name, output);
+    }
+
     pub fn add_data_read_step(&mut self, name: String, dataset: String, output: String) {
-        info!("Added data read on dataset: {}", &dataset);
+        debug!("Added data read on dataset: {}", &dataset);
         self.steps.push(StepType::DataSampler(DataSamplerStep::new(
             name, dataset, None, output,
         )));
@@ -554,30 +813,69 @@ impl PipelineBuilder {
         input: String,
         output: String,
     ) {
-        info!("Added data chunking step");
+        debug!("Added data chunking step");
         self.steps.push(StepType::Chunk(ChunkStep::new(
             name, capacity, input, output,
         )));
     }
 
     pub fn add_render_step(&mut self, name: String, template: String, output: String) {
-        info!("Added render step");
+        debug!("Added render step");
         self.steps
             .push(StepType::Render(RenderStep::new(name, template, output)));
     }
 
-    pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
-        info!("Added render step");
+    #[pyo3(signature = (name, conversation, output, tools=None, separator=None))]
+    pub fn add_render_conversation_step(
+        &mut self,
+        name: String,
+        conversation: String,
+        output: String,
+        tools: Option<String>,
+        separator: Option<String>,
+    ) {
+        debug!("Added render conversation step");
+        self.steps
+            .push(StepType::RenderConversation(RenderConversationStep::new(
+                name,
+                conversation,
+                tools,
+                separator,
+                output,
+            )));
+    }
 
-        let schema_key = format!("validatejson_schema_{}_{}", name, schema);
-        let instance_key = format!("validatejson_instance_{}_{}", name, instance);
-        self.templates.add(
-            schema_key.clone(),
-            format!("{{{{{}|tojson}}}}", schema.clone()),
+    pub fn add_render_tool_call_step(
+        &mut self,
+        name: String,
+        tool_name: String,
+        arguments: String,
+        output: String,
+        additional_template: Option<String>,
+    ) {
+        debug!("Added render tool call step");
+        self.steps
+            .push(StepType::RenderToolCall(RenderToolCallStep::new(
+                name,
+                tool_name,
+                arguments,
+                output,
+                additional_template,
+            )));
+    }
+
+    pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
+        debug!("Added validate JSON step");
+
+        let schema_key = self.resources.templates.add_inline(
+            "validatejson_schema",
+            &name,
+            &format!("{schema}|tojson"),
         );
-        self.templates.add(
-            instance_key.clone(),
-            format!("{{{{{}|tojson}}}}", instance.clone()),
+        let instance_key = self.resources.templates.add_inline(
+            "validatejson_instance",
+            &name,
+            &format!("{instance}|tojson"),
         );
         self.steps
             .push(StepType::ValidateJson(ValidateJsonStep::new(
@@ -587,31 +885,150 @@ impl PipelineBuilder {
             )));
     }
 
+    pub fn add_validatetools_step(&mut self, name: String, instances: String) {
+        debug!("Added validate tools step");
+
+        self.steps
+            .push(StepType::ValidateTools(ToolsValidateStep::new(
+                name, instances,
+            )));
+    }
+
+    pub fn add_normalizetools_step(&mut self, name: String, instances: String, output: String) {
+        debug!("Added normalize tools step");
+
+        self.steps
+            .push(StepType::NormalizeTools(ToolsNormalizeStep::new(
+                name, instances, output,
+            )));
+    }
+
+    pub fn add_filter_step(&mut self, name: String, condition: String) {
+        debug!("Added filter step");
+
+        let condition_key = self
+            .resources
+            .templates
+            .add_inline("filter", &name, &condition);
+        self.steps
+            .push(StepType::Filter(FilterStep::new(name, condition_key)));
+    }
+
+    pub fn add_mutate_step(
+        &mut self,
+        name: String,
+        mutation: String,
+        is_json: bool,
+        output: String,
+    ) {
+        debug!("Added mutate step");
+        let mutation = if is_json {
+            format!("{mutation}|tojson")
+        } else {
+            mutation
+        };
+        let mutation_key = self
+            .resources
+            .templates
+            .add_inline("mutate", &name, &mutation);
+        self.steps.push(StepType::Mutate(MutateStep::new(
+            name,
+            mutation_key,
+            output,
+            false,
+        )));
+    }
+
+    pub fn add_new_column_step(
+        &mut self,
+        name: String,
+        mutation: String,
+        is_json: bool,
+        output: String,
+    ) {
+        debug!("Added new column step");
+        let mutation = if is_json {
+            format!("{mutation}|tojson")
+        } else {
+            mutation
+        };
+
+        let new_column_key = self
+            .resources
+            .templates
+            .add_inline("new_column", &name, &mutation);
+        self.steps.push(StepType::Mutate(MutateStep::new(
+            name,
+            new_column_key,
+            output,
+            true,
+        )));
+    }
+
+    pub fn add_check_language_step(
+        &mut self,
+        name: String,
+        input: String,
+        language: String,
+        precision: f64,
+        detect_languages: Vec<String>,
+    ) {
+        debug!("Added check language step");
+        self.steps
+            .push(StepType::CheckLanguage(CheckLanguageStep::new(
+                name,
+                input,
+                language,
+                precision,
+                detect_languages,
+            )));
+    }
+
+    pub fn add_check_hash_step(&mut self, name: String, input: String) {
+        debug!("Added check hash step");
+        self.steps
+            .push(StepType::CheckHash(CheckHashStep::new(name, input)));
+    }
+
+    pub fn add_check_simhash_step(&mut self, name: String, treshold: u32, input: String) {
+        debug!("Added check simhash step");
+        self.steps
+            .push(StepType::CheckSimHash(CheckSimHashStep::new(
+                name, input, treshold,
+            )));
+    }
+
+    pub fn add_check_embeddings_step(
+        &mut self,
+        name: String,
+        input: String,
+        embedding: String,
+        treshold: f32,
+        similarity_output: Option<String>,
+    ) {
+        debug!("Added check embeddings step");
+        self.steps
+            .push(StepType::CheckEmbedding(CheckEmbeddingStep::new(
+                name,
+                embedding,
+                input,
+                treshold,
+                similarity_output,
+            )));
+    }
+
     pub fn compile(&self) {
-        self.templates.compile().unwrap();
+        self.resources.templates.compile().unwrap();
     }
 
     #[pyo3(signature = (level=None, target=None, file=None))]
-    pub fn log(&self, level: Option<&str>, target: Option<&str>, file: Option<&str>) {
+    pub fn log(&mut self, level: Option<&str>, target: Option<&str>, file: Option<&str>) {
         let level = match level {
             Some("debug") => log::LevelFilter::Debug,
             Some("info") => log::LevelFilter::Info,
             Some("warn") => log::LevelFilter::Warn,
             Some("error") => log::LevelFilter::Error,
             _ => log::LevelFilter::Info,
-        };
-
-        create_dir_all(".tweaktune").unwrap();
-
-        let now = Local::now();
-        let filename = if let Some(f) = file {
-            format!(
-                ".tweaktune/log_{}_{}.log",
-                f,
-                now.format("%Y-%m-%d_%H-%M-%S")
-            )
-        } else {
-            format!(".tweaktune/log_{}.log", now.format("%Y-%m-%d_%H-%M-%S"))
         };
 
         let config = ConfigBuilder::new()
@@ -622,14 +1039,40 @@ impl PipelineBuilder {
             .set_level_color(Level::Trace, Some(Color::Rgb(127, 127, 255)))
             .build();
 
-        CombinedLogger::init(vec![WriteLogger::new(
-            level,
-            config,
-            File::create(&filename).unwrap(),
-        )])
-        .unwrap();
+        if level == log::LevelFilter::Error && !self.metadata.enabled {
+            if let Err(e) = CombinedLogger::init(vec![
+                Box::new((*self.logs_collector).clone()) as Box<dyn simplelog::SharedLogger>
+            ]) {
+                debug!("Initialize logger issue: {}", e);
+            }
+        } else {
+            let now = Local::now();
+            let filename = if let Some(f) = file {
+                format!(
+                    "{}/logs/{}_{}.log",
+                    self.metadata.path,
+                    f,
+                    now.format("%Y-%m-%d_%H-%M-%S")
+                )
+            } else {
+                format!(
+                    "{}/logs/{}.log",
+                    self.metadata.path,
+                    now.format("%Y-%m-%d_%H-%M-%S")
+                )
+            };
 
-        println!("📑 LOGGING INTO FILE {}", &filename);
+            self.log_path = Some(filename.clone());
+
+            if let Err(e) = CombinedLogger::init(vec![
+                WriteLogger::new(level, config.clone(), File::create(&filename).unwrap()),
+                Box::new((*self.logs_collector).clone()) as Box<dyn simplelog::SharedLogger>,
+            ]) {
+                debug!("Initialize logger issue: {}", e);
+            } else {
+                println!("📑 LOGGING INTO FILE {}", &filename);
+            }
+        }
 
         // env_logger::builder().filter(target, level).init();
     }
@@ -647,10 +1090,10 @@ impl PipelineBuilder {
             r.store(false, std::sync::atomic::Ordering::SeqCst);
         }) {
             Ok(_) => {
-                info!("Ctrl-C handler set");
+                debug!("Ctrl-C handler set");
             }
             Err(e) => {
-                info!("Error setting Ctrl-C handler: {}", e);
+                debug!("Error setting Ctrl-C handler: {}", e);
             }
         }
 
@@ -684,13 +1127,28 @@ impl PipelineBuilder {
             None
         };
 
-        let result = Runtime::new()?.block_on(async {
+        let log_path = self.log_path.clone();
+
+        let result = run_async(async {
+            if self.metadata.enabled {
+                if let Some(state) = &self.resources.state {
+                    state
+                        .add_run(
+                            &self.id.to_string(),
+                            log_path.as_ref().expect("Log path not set"),
+                            None,
+                        )
+                        .await?;
+                }
+            }
+
+            let successfull_iterations = Arc::new(std::sync::atomic::AtomicUsize::new(0));
             match &self.iter_by {
                 IterBy::Range { start, stop, step } => {
-                    info!("Iterating by range: {}..{}..{}", start, stop, step);
+                    debug!("Iterating by range: {}..{}..{}", start, stop, step);
                     let bar = ProgressBar::new((stop - start) as u64);
 
-                     bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",)
+                    bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",)
                     .unwrap().progress_chars("#>-"));
 
                     let iter_results = stream::iter((*start..*stop).step_by(*step).map(|i| {
@@ -701,19 +1159,39 @@ impl PipelineBuilder {
                         }
 
                         let sender = sender.clone();
-
+                        let value = successfull_iterations.clone();
+                        let rid = self.id.to_string();
                         async move {
                             let mut context = StepContext::new();
                             context.set("index", i);
                             context.set_status(StepStatus::Running);
+                            let item_id = context.id.to_string();
+                            if self.metadata.enabled {
+                                if let Some(state) = &self.resources.state {
+                                    state
+                                        .add_item(&item_id, &rid, i as i64, None)
+                                        .await
+                                        .unwrap();
+                                }
+                            }
                             if let Err(e) = process_steps(self, context, None).await {
-                                return Err(format!("Error processing step: {} - {}", i ,e));
+                                if let Some(state) = &self.resources.state {
+                                    state.delete_item(&item_id).await.ok();
+                                }
+                                return Err(format!("Error processing step: {} - {}", i, e));
+                            } else {
+                                value.fetch_add(1, Ordering::SeqCst);
                             }
 
                             bar.inc(1);
 
                             if let Some(sender) = &sender {
-                                sender.send(BusEvent::build("progress", json!({"index": i, "total": (stop - start) / step}))).unwrap();
+                                sender
+                                    .send(BusEvent::build(
+                                        "progress",
+                                        json!({"index": i, "total": (stop - start) / step}),
+                                    ))
+                                    .unwrap();
                             }
                             Ok(())
                         }
@@ -729,212 +1207,128 @@ impl PipelineBuilder {
                     }
                 }
                 IterBy::Dataset { name } => {
-                    info!("Iterating by dataset: {}", name);
+                    debug!("Iterating by dataset: {}", name);
                     let bar = ProgressBar::new(0);
 
-                    bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] ({pos})",).unwrap());
+                    bar.set_style(
+                        ProgressStyle::with_template(
+                            "{spinner:.green} [{elapsed_precise}] ({pos})",
+                        )
+                        .unwrap(),
+                    );
 
-                    let dataset = self.datasets.get(name).ok_or_err(name)?;
+                    let dataset = self.resources.datasets.get(name).ok_or_err(name)?;
                     let mut inc = 0;
+                    // macros to reduce duplicated iteration logic for datasets
+                    macro_rules! process_dataset {
+                        ($dataset:expr) => {{
+                            let iter_results = stream::iter($dataset.stream()?.map(|json_row| {
+                                let bar = &bar;
+                                let sender = sender.clone();
+                                process_progress_bar(bar, &self.running);
+                                let value = successfull_iterations.clone();
+                                async move {
+                                    if let Err(e) =
+                                        map_record_batches(self, name, &json_row.unwrap(), &inc)
+                                            .await
+                                    {
+                                        return Err(format!(
+                                            "Error processing step: {} - {}",
+                                            name, e
+                                        ));
+                                    } else {
+                                        value.fetch_add(1, Ordering::SeqCst);
+                                    }
+                                    bar.inc(1);
+                                    inc += 1;
+                                    send_progress_event(&sender, inc);
+                                    Ok(())
+                                }
+                            }))
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                            for result in iter_results {
+                                if let Err(e) = result {
+                                    bail!(e)
+                                }
+                            }
+                        }};
+                    }
+
+                    macro_rules! process_dataset_mix {
+                        ($dataset:expr) => {{
+                            let iter_results = stream::iter(
+                                $dataset
+                                    .stream_mix(&self.resources.datasets.resources)?
+                                    .map(|json_row| {
+                                        let bar = &bar;
+                                        let sender = sender.clone();
+                                        process_progress_bar(bar, &self.running);
+                                        let value = successfull_iterations.clone();
+                                        async move {
+                                            if let Err(e) = map_record_batches(
+                                                self,
+                                                name,
+                                                &json_row.unwrap(),
+                                                &inc,
+                                            )
+                                            .await
+                                            {
+                                                return Err(format!(
+                                                    "Error processing step: {} - {}",
+                                                    name, e
+                                                ));
+                                            } else {
+                                                value.fetch_add(1, Ordering::SeqCst);
+                                            }
+                                            bar.inc(1);
+                                            inc += 1;
+                                            send_progress_event(&sender, inc);
+                                            Ok(())
+                                        }
+                                    }),
+                            )
+                            .buffered(self.workers)
+                            .collect::<Vec<_>>()
+                            .await;
+                            for result in iter_results {
+                                if let Err(e) = result {
+                                    bail!(e)
+                                }
+                            }
+                        }};
+                    }
                     match dataset {
-                        DatasetType::Jsonl(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
-                                let bar= &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                async move {
-                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
-                                        return Err(format!("Error processing step: {} - {}", name ,e));
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        }
-
-                        DatasetType::Json(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
-                                let bar= &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                async move {
-                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
-                                        return Err(format!("Error processing step: {} - {}", name ,e));
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        },
-
-                        DatasetType::JsonList(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
-                                let bar= &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                async move {
-                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
-                                        return Err(format!("Error processing step: {} - {}", name ,e));
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        },
-
-                        DatasetType::OpenApi(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
-                                let bar= &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                async move {
-                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
-                                        return Err(format!("Error processing step: {} - {}", name ,e));
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        },
-
-                        DatasetType::Polars(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
-                                let bar= &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                async move {
-                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
-                                        return Err(format!("Error processing step: {} - {}", name ,e));
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        },
-
-                        DatasetType::Ipc(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
-                                let bar= &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                async move {
-                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
-                                        return Err(format!("Error processing step: {} - {}", name ,e));
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        },
-
-                        DatasetType::Csv(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
-                                let bar= &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                async move {
-                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
-                                        return Err(format!("Error processing step: {} - {}", name ,e));
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        },
-
-                        DatasetType::Parquet(dataset) => {
-                            let iter_results = stream::iter(dataset.stream()?.map(|json_row|{
-                                let bar= &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                async move {
-                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
-                                        return Err(format!("Error processing step: {} - {}", name ,e));
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        },
-
-                        DatasetType::Mixed(dataset) => {
-                            let iter_results = stream::iter(dataset.stream_mix(&self.datasets.resources)?.map(|json_row|{
-                                let bar= &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                async move {
-                                    if let Err(e) = map_record_batches(self,name, &json_row.unwrap()).await {
-                                        return Err(format!("Error processing step: {} - {}", name ,e));
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                            }},)).buffered(self.workers).collect:: <Vec<_> >().await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        }
+                        DatasetType::Jsonl(dataset) => process_dataset!(dataset),
+                        DatasetType::Json(dataset) => process_dataset!(dataset),
+                        DatasetType::JsonList(dataset) => process_dataset!(dataset),
+                        DatasetType::OpenApi(dataset) => process_dataset!(dataset),
+                        DatasetType::Polars(dataset) => process_dataset!(dataset),
+                        DatasetType::Ipc(dataset) => process_dataset!(dataset),
+                        DatasetType::Csv(dataset) => process_dataset!(dataset),
+                        DatasetType::Parquet(dataset) => process_dataset!(dataset),
+                        DatasetType::Mixed(dataset) => process_dataset_mix!(dataset),
+                        DatasetType::PhfSet(phf_set_dataset) => process_dataset!(phf_set_dataset),
                     }
                 }
             }
 
+            info!(
+                "🚀 Finished all iterations, processed {} items",
+                successfull_iterations.load(Ordering::SeqCst)
+            );
+
             if let Some(sender) = &sender {
-                sender.send(BusEvent::build("finished", json!({"message": "Finished"}))).unwrap();
+                sender
+                    .send(BusEvent::build("finished", json!({"message": "Finished"})))
+                    .unwrap();
             }
 
             Ok::<_, anyhow::Error>(())
         });
+
+        println!("{}", self.logs_collector.summary_table());
 
         result.map_pyerr()
     }
@@ -961,19 +1355,30 @@ async fn map_record_batches(
     pipeline: &PipelineBuilder,
     dataset_name: &str,
     json_row: &serde_json::Value,
+    inc: &i32,
 ) -> Result<()> {
     let mut context = StepContext::new();
 
     context.set(dataset_name, json_row);
+    context.set("index", inc);
     context.set_status(StepStatus::Running);
-    process_steps(pipeline, context, None).await?;
-    Ok(())
-}
-
-impl Default for PipelineBuilder {
-    fn default() -> Self {
-        Self::new()
+    let item_id = context.id.to_string();
+    if pipeline.metadata.enabled {
+        if let Some(state) = &pipeline.resources.state {
+            state
+                .add_item(&item_id, &pipeline.id.to_string(), inc.clone() as i64, None)
+                .await
+                .unwrap();
+        }
     }
+
+    if let Err(e) = process_steps(pipeline, context, None).await {
+        if let Some(state) = &pipeline.resources.state {
+            state.delete_item(&item_id).await.ok();
+        }
+        return Err(e);
+    }
+    Ok(())
 }
 
 async fn process_steps(
@@ -992,14 +1397,21 @@ async fn process_steps(
             break;
         }
 
+        // macro to collapse the repeated `step.process(...).await?` pattern
+        macro_rules! process_common {
+            ($step_ident:ident) => {{
+                context = $step_ident.process(&pipeline.resources, &context).await?;
+            }};
+        }
+
         match step {
             StepType::IfElse(if_step) => {
                 let check_result = if_step
                     .check(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
+                        &pipeline.resources.datasets.resources,
+                        &pipeline.resources.templates,
+                        &pipeline.resources.llms.resources,
+                        &pipeline.resources.embeddings.resources,
                         &context,
                     )
                     .await?;
@@ -1016,126 +1428,37 @@ async fn process_steps(
                         .await?;
                 }
             }
-            StepType::Py(py_step) => {
-                context = py_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+            StepType::Py(py_step) => process_common!(py_step),
+            StepType::TextGeneration(text_generation_step) => process_common!(text_generation_step),
+            StepType::JsonGeneration(json_generation_step) => process_common!(json_generation_step),
+            StepType::PyValidator(py_validator) => process_common!(py_validator),
+            StepType::JsonWriter(jsonl_writer_step) => process_common!(jsonl_writer_step),
+            StepType::CsvWriter(csv_writer_step) => process_common!(csv_writer_step),
+            StepType::Print(print_step) => process_common!(print_step),
+            StepType::DataSampler(data_sampler_step) => process_common!(data_sampler_step),
+            StepType::Chunk(chunk_step) => process_common!(chunk_step),
+            StepType::Render(render_step) => process_common!(render_step),
+            StepType::ValidateJson(validate_json_step) => process_common!(validate_json_step),
+            StepType::ValidateTools(tools_validate_step) => process_common!(tools_validate_step),
+            StepType::NormalizeTools(tools_normalize_step) => process_common!(tools_normalize_step),
+            StepType::ConversationValidate(conversation_validate_step) => {
+                process_common!(conversation_validate_step)
             }
-            StepType::TextGeneration(text_generation_step) => {
-                context = text_generation_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+            StepType::IntoList(into_list_step) => process_common!(into_list_step),
+            StepType::RenderConversation(render_conversation_step) => {
+                process_common!(render_conversation_step)
             }
-            StepType::JsonGeneration(json_generation_step) => {
-                context = json_generation_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+            StepType::Filter(filter_step) => process_common!(filter_step),
+            StepType::Mutate(mutate_step) => process_common!(mutate_step),
+            StepType::CheckLanguage(check_language_step) => process_common!(check_language_step),
+            StepType::RenderToolCall(render_tool_call_step) => {
+                process_common!(render_tool_call_step)
             }
-            StepType::PyValidator(py_validator) => {
-                context = py_validator
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
-            StepType::JsonWriter(jsonl_writer_step) => {
-                context = jsonl_writer_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
-            StepType::CsvWriter(csv_writer_step) => {
-                context = csv_writer_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
-            StepType::Print(print_step) => {
-                context = print_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
-            StepType::DataSampler(data_sampler_step) => {
-                context = data_sampler_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
-            StepType::Chunk(chunk_step) => {
-                context = chunk_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
-            StepType::Render(render_step) => {
-                context = render_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-            }
-            StepType::ValidateJson(validate_json_step) => {
-                context = validate_json_step
-                    .process(
-                        &pipeline.datasets.resources,
-                        &pipeline.templates,
-                        &pipeline.llms.resources,
-                        &pipeline.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
+            StepType::CheckHash(check_hash_step) => process_common!(check_hash_step),
+            StepType::CheckSimHash(check_sim_hash_step) => process_common!(check_sim_hash_step),
+            StepType::CheckEmbedding(embedding_step) => process_common!(embedding_step),
+            StepType::JudgeConversation(judge_conversation_step) => {
+                process_common!(judge_conversation_step)
             }
         }
     }
@@ -1199,7 +1522,7 @@ impl StepsChain {
     }
 
     pub fn add_py_step(&mut self, named: String, py_func: PyObject) {
-        info!("Added Python step: {}", &named);
+        debug!("Added Python step: {}", &named);
         self.steps.push(Step::Py {
             name: named,
             py_func,
@@ -1217,7 +1540,7 @@ impl StepsChain {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) {
-        info!(
+        debug!(
             "Added text generation step with llm: {}, template: {}",
             &llm, &template
         );
@@ -1246,7 +1569,7 @@ impl StepsChain {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) {
-        info!(
+        debug!(
             "Added JSON generation step with template: {}, llm: {}",
             &llm, &template
         );
@@ -1270,7 +1593,7 @@ impl StepsChain {
         template: Option<String>,
         columns: Option<Vec<String>>,
     ) {
-        info!("Added print step");
+        debug!("Added print step");
         self.steps.push(Step::Print {
             name,
             template,
@@ -1285,7 +1608,7 @@ impl StepsChain {
         size: usize,
         output: String,
     ) {
-        info!(
+        debug!(
             "Added data sampler on dataset: {} with size: {}",
             &dataset, &size
         );
@@ -1297,27 +1620,30 @@ impl StepsChain {
         });
     }
 
-    pub fn add_judge_step(&mut self, name: String, template: String, llm: String) {
-        info!("Added judge step: {}", &name);
-        self.steps.push(Step::Judge {
-            name,
-            template,
-            llm,
-        });
-    }
-
     pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
-        info!("Added Python validator step: {}", &name);
+        debug!("Added Python validator step: {}", &name);
         self.steps.push(Step::PyValidator { name, py_func });
     }
 
     pub fn add_jsonl_writer_step(&mut self, name: String, path: String, template: String) {
-        info!("Added JSONL writer step: {}", &name);
+        debug!("Added JSONL writer step: {}", &name);
         self.steps.push(Step::JsonlWriter {
             name,
             path,
             template,
         });
+    }
+
+    pub fn add_new_column_step(&mut self, name: String, mutation: String, output: String) {
+        todo!()
+    }
+
+    pub fn add_filter_step(&mut self, name: String, condition: String) {
+        todo!()
+    }
+
+    pub fn add_mutate_step(&mut self, name: String, mutation: String, output: String) {
+        todo!()
     }
 }
 
@@ -1405,29 +1731,6 @@ pub enum Dataset {
     },
 }
 
-#[derive(Default, Clone)]
-pub struct Resources<T> {
-    resources: HashMap<String, T>,
-}
-
-impl<T> Resources<T> {
-    pub fn add(&mut self, name: String, resource: T) {
-        self.resources.insert(name, resource);
-    }
-
-    pub fn list(&self) -> Vec<String> {
-        self.resources.keys().cloned().collect()
-    }
-
-    pub fn get(&self, name: &str) -> Option<&T> {
-        self.resources.get(name)
-    }
-
-    pub fn remove(&mut self, name: &str) -> Option<T> {
-        self.resources.remove(name)
-    }
-}
-
 fn map_step(step: &Step, templates: &mut Templates) -> StepType {
     match step {
         Step::Py { name, py_func } => Python::with_gil(|py| {
@@ -1463,13 +1766,9 @@ fn map_step(step: &Step, templates: &mut Templates) -> StepType {
             temperature,
             schema_template,
         } => {
-            let schema_key = if let Some(schema) = &schema_template {
-                let schema_key = format!("json_generation_step_{}_{}", name, schema);
-                templates.add(schema_key.clone(), format!("{{{{{}}}}}", schema.clone()));
-                Some(schema_key)
-            } else {
-                None
-            };
+            let schema_key = schema_template
+                .as_ref()
+                .map(|schema| templates.add_inline("json_generation_step", name, schema));
 
             StepType::JsonGeneration(JsonGenerationStep::new(
                 name.clone(),

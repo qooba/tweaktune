@@ -1,24 +1,45 @@
+pub mod conversations;
+pub mod embeddings;
+pub mod generators;
+pub mod logic;
+pub mod py;
+pub mod quality;
+pub mod validators;
+pub mod writers;
 use crate::{
-    common::{df_to_values, extract_json, OptionToResult, ResultExt},
+    common::{df_to_values, OptionToResult},
     datasets::{Dataset, DatasetType},
-    embeddings::{self, EmbeddingsType},
-    llms::{self, LLMType, LLM},
+    embeddings::EmbeddingsType,
+    llms::LLMType,
+    steps::{
+        conversations::{RenderConversationStep, RenderToolCallStep},
+        embeddings::CheckEmbeddingStep,
+        generators::{JsonGenerationStep, JudgeConversationStep, TextGenerationStep},
+        logic::{FilterStep, MutateStep},
+        py::{PyStep, PyValidator},
+        quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep},
+        validators::{
+            ConversationValidateStep, ToolsNormalizeStep, ToolsValidateStep, ValidateJsonStep,
+        },
+        writers::{CsvWriterStep, JsonlWriterStep},
+    },
     templates::Templates,
+    PipelineResources,
 };
 use anyhow::Result;
-use log::{debug, error};
+use log::error;
 use pyo3::prelude::*;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use std::io::Write;
-use std::{collections::HashMap, fs::File};
+use serde_json::json;
+use std::collections::HashMap;
 use text_splitter::{Characters, TextSplitter};
 
 pub type StepContextData = serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepContext {
+    pub id: uuid::Uuid,
     status: StepStatus,
     pub data: StepContextData,
 }
@@ -34,6 +55,7 @@ pub enum StepStatus {
 impl StepContext {
     pub fn new() -> Self {
         Self {
+            id: uuid::Uuid::new_v4(),
             data: json!({}),
             status: StepStatus::Pending,
         }
@@ -65,10 +87,7 @@ impl Default for StepContext {
 pub trait Step {
     fn process(
         &self,
-        datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        llms: &HashMap<String, llms::LLMType>,
-        embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
     ) -> impl std::future::Future<Output = Result<StepContext>>;
 }
@@ -86,11 +105,25 @@ pub enum StepType {
     Chunk(ChunkStep),
     Render(RenderStep),
     ValidateJson(ValidateJsonStep),
+    ValidateTools(ToolsValidateStep),
+    NormalizeTools(ToolsNormalizeStep),
+    ConversationValidate(ConversationValidateStep),
+    IntoList(IntoListStep),
+    RenderConversation(RenderConversationStep),
+    Filter(FilterStep),
+    Mutate(MutateStep),
+    CheckLanguage(CheckLanguageStep),
+    RenderToolCall(RenderToolCallStep),
+    CheckHash(CheckHashStep),
+    CheckSimHash(CheckSimHashStep),
+    CheckEmbedding(CheckEmbeddingStep),
+    JudgeConversation(JudgeConversationStep),
 }
 
 pub struct IfElseStep {
     pub name: String,
-    pub condition: PyObject,
+    pub py_condition: Option<PyObject>,
+    pub condition_key: Option<String>,
     pub then_steps: Vec<StepType>,
     pub else_steps: Option<Vec<StepType>>,
 }
@@ -98,13 +131,15 @@ pub struct IfElseStep {
 impl IfElseStep {
     pub fn new(
         name: String,
-        condition: PyObject,
+        py_condition: Option<PyObject>,
+        condition_key: Option<String>,
         then_steps: Vec<StepType>,
         else_steps: Option<Vec<StepType>>,
     ) -> Self {
         Self {
             name,
-            condition,
+            py_condition,
+            condition_key,
             then_steps,
             else_steps,
         }
@@ -113,20 +148,33 @@ impl IfElseStep {
     pub async fn check(
         &self,
         _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
+        templates: &Templates,
         _llms: &HashMap<String, LLMType>,
         _embeddings: &HashMap<String, EmbeddingsType>,
         context: &StepContext,
     ) -> Result<bool> {
         let json = serde_json::to_string(context)?;
 
-        let result: PyResult<bool> = Python::with_gil(|py| {
-            let result: bool = self
-                .condition
-                .call_method1(py, "check", (json,))?
-                .extract(py)?;
-            Ok(result)
-        });
+        let result = if let Some(condition) = &self.py_condition {
+            let result: PyResult<bool> = Python::with_gil(|py| {
+                let result: bool = condition.call_method1(py, "check", (json,))?.extract(py)?;
+                Ok(result)
+            });
+
+            anyhow::Ok(result?)
+        } else if let Some(key) = &self.condition_key {
+            let rendered = templates.render(key.clone(), context.data.clone())?;
+            if let Ok(v) = serde_json::from_str::<bool>(&rendered) {
+                anyhow::Ok(v)
+            } else {
+                error!(target: "ifelsestep", "🐔 Condition is not a boolean: {}", rendered);
+                return Err(anyhow::anyhow!("Condition is not a boolean"));
+            }
+        } else {
+            Err(anyhow::anyhow!(
+                "Either py_condition or condition_key must be provided"
+            ))
+        };
 
         match result {
             Ok(result) => Ok(result),
@@ -143,98 +191,10 @@ impl IfElseStep {
 impl Step for IfElseStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, LLMType>,
-        _embeddings: &HashMap<String, EmbeddingsType>,
+        _resources: &PipelineResources,
         _context: &StepContext,
     ) -> Result<StepContext> {
         unreachable!("Use check method to evaluate condition");
-    }
-}
-
-pub struct PyStep {
-    pub name: String,
-    pub py_func: PyObject,
-}
-
-impl PyStep {
-    pub fn new(name: String, py_func: PyObject) -> Self {
-        Self { name, py_func }
-    }
-}
-
-impl Step for PyStep {
-    async fn process(
-        &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, LLMType>,
-        _embeddings: &HashMap<String, EmbeddingsType>,
-        context: &StepContext,
-    ) -> Result<StepContext> {
-        let json = serde_json::to_string(context)?;
-
-        let result: PyResult<String> = Python::with_gil(|py| {
-            let result: String = self
-                .py_func
-                .call_method1(py, "process", (json,))?
-                .extract(py)?;
-            Ok(result)
-        });
-
-        match result {
-            Ok(result) => {
-                let result: StepContext = serde_json::from_str(&result)?;
-                Ok(result)
-            }
-            Err(e) => {
-                error!(target: "pystep", "🐔 {:?}", e);
-                let mut context = context.clone();
-                context.set_status(StepStatus::Failed);
-                Ok(context)
-            }
-        }
-    }
-}
-
-pub struct PyValidator {
-    pub name: String,
-    pub py_func: PyObject,
-}
-
-impl PyValidator {
-    pub fn new(name: String, py_func: PyObject) -> Self {
-        Self { name, py_func }
-    }
-}
-
-impl Step for PyValidator {
-    async fn process(
-        &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, LLMType>,
-        _embeddings: &HashMap<String, EmbeddingsType>,
-        context: &StepContext,
-    ) -> Result<StepContext> {
-        let json = serde_json::to_string(context)?;
-
-        let result: PyResult<bool> = Python::with_gil(|py| {
-            let result: bool = self
-                .py_func
-                .call_method1(py, "process", (json,))?
-                .extract(py)?;
-            Ok(result)
-        });
-
-        let result = result.map_tt_err("VALIDATOR MUST RETURN BOOL")?;
-        let mut context = context.clone();
-        if !result {
-            context.set_status(StepStatus::Failed);
-        }
-
-        Ok(context)
     }
 }
 
@@ -257,82 +217,15 @@ impl RenderStep {
 impl Step for RenderStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
-        let rendered = templates.render(self.template.clone(), context.data.clone())?;
+        let rendered = resources
+            .templates
+            .render(self.template.clone(), context.data.clone())?;
         context.set(&self.output, rendered);
         Ok(context)
-    }
-}
-
-pub struct ValidateJsonStep {
-    pub name: String,
-    pub schema: String,
-    pub instance: String,
-}
-
-impl ValidateJsonStep {
-    pub fn new(name: String, schema: String, instance: String) -> Self {
-        Self {
-            name,
-            schema,
-            instance,
-        }
-    }
-}
-
-impl Step for ValidateJsonStep {
-    async fn process(
-        &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
-        context: &StepContext,
-    ) -> Result<StepContext> {
-        let mut context = context.clone();
-
-        let schema = templates.render(self.schema.clone(), context.data.clone())?;
-        let full_schema: Value = serde_json::from_str(&schema).unwrap();
-
-        let properties = if let Value::String(v) = full_schema["properties"].clone() {
-            serde_json::from_str(&v).unwrap()
-        } else {
-            full_schema["properties"].clone()
-        };
-
-        let schema_value = json!({
-            "type": "object",
-            "properties": properties,
-            "required": full_schema["required"],
-            "additionalProperties": false,
-        });
-
-        let instance_json = templates.render(self.instance.clone(), context.data.clone())?;
-
-        match serde_json::from_str(&instance_json) {
-            Ok(instance) => {
-                let is_valid = jsonschema::is_valid(&schema_value, &instance);
-
-                if !is_valid {
-                    error!(target: "validate_json_step", "🐔 Failed to validate JSON: {} with schema {}", instance, schema_value);
-                    context.set_status(StepStatus::Failed);
-                }
-
-                Ok(context)
-            }
-            Err(e) => {
-                error!(target: "validate_json_step", "🐔 Failed to render instance: {}", e);
-                error!(target: "validate_json_step", "🐔 INSTANCE_JSON: {}", &instance_json);
-                context.set_status(StepStatus::Failed);
-                Ok(context)
-            }
-        }
     }
 }
 
@@ -355,14 +248,13 @@ impl PrintStep {
 impl Step for PrintStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut row = if let Some(template) = self.template.clone() {
-            templates.render(template.clone(), context.data.clone())?
+            resources
+                .templates
+                .render(template.clone(), context.data.clone())?
         } else if let Some(columns) = self.columns.clone() {
             let mut row = String::new();
             for (i, column) in columns.iter().enumerate() {
@@ -389,352 +281,6 @@ impl Step for PrintStep {
         });
 
         // println!("{}", row);
-
-        Ok(context.clone())
-    }
-}
-
-pub struct TextGenerationStep {
-    pub name: String,
-    pub template: String,
-    pub system_template: Option<String>,
-    pub llm: String,
-    pub output: String,
-    pub max_tokens: Option<u32>,
-    pub temperature: Option<f32>,
-}
-
-impl TextGenerationStep {
-    pub fn new(
-        name: String,
-        template: String,
-        llm: String,
-        output: String,
-        system_template: Option<String>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-    ) -> Self {
-        Self {
-            name,
-            template,
-            llm,
-            output,
-            system_template,
-            max_tokens,
-            temperature,
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub async fn generate(
-        &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
-        context: &StepContext,
-        json_schema: Option<String>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-    ) -> Result<Option<String>> {
-        let template = templates.render(self.template.clone(), context.data.clone());
-        let template = match template {
-            Ok(t) => t,
-            Err(e) => {
-                error!(target: "text_generation_step", "🐔 Failed to render template: {}", e);
-                return Ok(None);
-            }
-        };
-
-        let llm = llms.get(&self.llm).expect("LLM");
-        let result = match llm {
-            llms::LLMType::Api(llm) => match llm
-                .call(template, json_schema, max_tokens, temperature)
-                .await
-            {
-                Ok(response) => Some(response.choices[0].message.content.clone()),
-                Err(e) => {
-                    error!(target: "text_generation_step", "🐔 Failed to generate text: {}", e);
-                    None
-                }
-            },
-            llms::LLMType::Unsloth(llm) => match llm
-                .call(template, json_schema, max_tokens, temperature)
-                .await
-            {
-                Ok(response) => Some(response.choices[0].message.content.clone()),
-                Err(e) => {
-                    error!(target: "text_generation_step", "🐔 Failed to generate text: {}", e);
-                    None
-                }
-            },
-            llms::LLMType::Mistralrs(llm) => match llm
-                .call(template, json_schema, max_tokens, temperature)
-                .await
-            {
-                Ok(response) => Some(response.choices[0].message.content.clone()),
-                Err(e) => {
-                    error!(target: "text_generation_step", "🐔 Failed to generate text: {}", e);
-                    None
-                }
-            },
-        };
-
-        Ok(result)
-    }
-}
-
-impl Step for TextGenerationStep {
-    async fn process(
-        &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
-        context: &StepContext,
-    ) -> Result<StepContext> {
-        let mut context = context.clone();
-        let result = self
-            .generate(
-                _datasets,
-                templates,
-                llms,
-                _embeddings,
-                &context,
-                None,
-                self.max_tokens,
-                self.temperature,
-            )
-            .await?;
-
-        match result {
-            Some(value) => {
-                context.data[self.output.clone()] = serde_json::to_value(value)?;
-            }
-            None => {
-                context.set_status(StepStatus::Failed);
-            }
-        };
-        Ok(context)
-    }
-}
-
-pub struct JsonGenerationStep {
-    pub name: String,
-    pub generation_step: TextGenerationStep,
-    pub output: String,
-    pub json_path: Option<String>,
-    pub json_schema: Option<String>,
-    pub max_tokens: Option<u32>,
-    pub temperature: Option<f32>,
-    pub schema_key: Option<String>,
-}
-
-#[allow(clippy::too_many_arguments)]
-impl JsonGenerationStep {
-    pub fn new(
-        name: String,
-        template: String,
-        llm: String,
-        output: String,
-        json_path: Option<String>,
-        system_template: Option<String>,
-        json_schema: Option<String>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-        schema_key: Option<String>,
-    ) -> Self {
-        Self {
-            generation_step: TextGenerationStep::new(
-                name.clone(),
-                template,
-                llm,
-                output.clone(),
-                system_template,
-                max_tokens,
-                temperature,
-            ),
-            output,
-            name,
-            json_path,
-            json_schema,
-            max_tokens,
-            temperature,
-            schema_key,
-        }
-    }
-}
-
-impl Step for JsonGenerationStep {
-    async fn process(
-        &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
-        context: &StepContext,
-    ) -> Result<StepContext> {
-        let mut context = context.clone();
-
-        let json_schema = if let Some(schema_key) = &self.schema_key {
-            let schema = templates.render(schema_key.clone(), context.data.clone())?;
-
-            let full_schema: Value = serde_json::from_str(&schema).unwrap();
-
-            let properties = if let Value::String(v) = full_schema["properties"].clone() {
-                serde_json::from_str(&v).unwrap()
-            } else {
-                full_schema["properties"].clone()
-            };
-
-            let schema = json!({
-                "name": "OUTPUT",
-                "schema":{
-                    "type": "object",
-                    "properties": properties,
-                    "required": full_schema["required"],
-                    "additionalProperties": false,
-                },
-                "strict": true
-            })
-            .to_string();
-
-            debug!(target: "json_generation_step", "🤗 RENDERED SCHEMA: {}", schema);
-            Some(schema)
-        } else if let Some(schema) = &self.json_schema {
-            debug!(target: "json_generation_step", "🤗 PROVIDED SCHEMA: {}", schema);
-            Some(schema.clone())
-        } else {
-            None
-        };
-
-        let result = self
-            .generation_step
-            .generate(
-                _datasets,
-                templates,
-                llms,
-                _embeddings,
-                &context,
-                json_schema,
-                self.max_tokens,
-                self.temperature,
-            )
-            .await?;
-
-        match result {
-            Some(value) => match extract_json(&value) {
-                Ok(mut value) => {
-                    if let Some(json_path) = &self.json_path {
-                        json_path.split(".").for_each(|key| {
-                            value = value[key].clone();
-                        });
-                    }
-
-                    debug!(target:"json_generation_step", "🤗 Generated VALUE: {}", value);
-                    context.data[self.output.clone()] = value;
-                }
-                Err(e) => {
-                    error!(target:"json_generation_step", "🐔 Failed to extract JSON: {}", e);
-                    context.set_status(StepStatus::Failed);
-                }
-            },
-            None => {
-                context.set_status(StepStatus::Failed);
-            }
-        };
-
-        Ok(context)
-    }
-}
-
-pub struct JsonlWriterStep {
-    pub name: String,
-    pub path: String,
-    pub template: String,
-}
-
-impl JsonlWriterStep {
-    pub fn new(name: String, path: String, template: String) -> Self {
-        Self {
-            name,
-            path,
-            template,
-        }
-    }
-}
-
-impl Step for JsonlWriterStep {
-    async fn process(
-        &self,
-        _datasets: &HashMap<String, DatasetType>,
-        templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
-        context: &StepContext,
-    ) -> Result<StepContext> {
-        let file = File::options().append(true).create(true).open(&self.path)?;
-        let mut writer = std::io::BufWriter::new(file);
-        let row = templates.render(self.template.clone(), context.data.clone());
-        let mut context = context.clone();
-        match row {
-            Ok(r) => {
-                let r = r.replace("\\n", "\n").replace('\n', "\\n");
-                writeln!(writer, "{}", r)?;
-                writer.flush()?;
-            }
-            Err(e) => {
-                error!(target: "json_writer_step", "🐔 Failed to render template: {}", e);
-                context.set_status(StepStatus::Failed);
-            }
-        };
-
-        Ok(context)
-    }
-}
-
-pub struct CsvWriterStep {
-    pub name: String,
-    pub path: String,
-    pub columns: Vec<String>,
-    pub delimeter: String,
-}
-
-impl CsvWriterStep {
-    pub fn new(name: String, path: String, columns: Vec<String>, delimeter: String) -> Self {
-        Self {
-            name,
-            path,
-            columns,
-            delimeter,
-        }
-    }
-}
-
-impl Step for CsvWriterStep {
-    async fn process(
-        &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
-        context: &StepContext,
-    ) -> Result<StepContext> {
-        let file = File::options().append(true).create(true).open(&self.path)?;
-        let mut writer = std::io::BufWriter::new(file);
-        let mut row = String::new();
-        for (i, column) in self.columns.iter().enumerate() {
-            if let Some(value) = context.get(column) {
-                if i > 0 {
-                    row.push_str(&self.delimeter);
-                }
-                row.push_str(&value.to_string());
-            }
-        }
-
-        let row = row.replace("\\n", "\n").replace('\n', "\\n");
-        writeln!(writer, "{}", row)?;
-        writer.flush()?;
 
         Ok(context.clone())
     }
@@ -783,21 +329,19 @@ impl DataSamplerStep {
 impl Step for DataSamplerStep {
     async fn process(
         &self,
-        datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        resources: &PipelineResources,
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
-        let dataset_type = datasets
+        let dataset_type = resources
+            .datasets
             .get(&self.dataset)
             .ok_or_err(&self.dataset)
             .unwrap();
 
         let json_rows = if let DatasetType::Mixed(mixed_dataset) = dataset_type {
-            mixed_dataset.sample(self.size.unwrap(), datasets)?
+            mixed_dataset.sample(self.size.unwrap(), &resources.datasets.resources)?
         } else {
             let df = match dataset_type {
                 DatasetType::Polars(polars_dataset) => polars_dataset.df(),
@@ -809,6 +353,7 @@ impl Step for DataSamplerStep {
                 DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
                 DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
                 DatasetType::Mixed(_mixed_dataset) => unreachable!(),
+                DatasetType::PhfSet(phf_set_dataset) => phf_set_dataset.df(),
             };
 
             let df = df
@@ -854,10 +399,7 @@ impl ChunkStep {
 impl Step for ChunkStep {
     async fn process(
         &self,
-        _datasets: &HashMap<String, DatasetType>,
-        _templates: &Templates,
-        _llms: &HashMap<String, llms::LLMType>,
-        _embeddings: &HashMap<String, embeddings::EmbeddingsType>,
+        _resources: &PipelineResources,
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
@@ -873,6 +415,39 @@ impl Step for ChunkStep {
             .collect();
 
         context.set(&self.output, chunks);
+        Ok(context)
+    }
+}
+
+pub struct IntoListStep {
+    pub name: String,
+    pub inputs: Vec<String>,
+    pub output: String,
+}
+
+impl IntoListStep {
+    pub fn new(name: String, inputs: Vec<String>, output: String) -> Self {
+        Self {
+            name,
+            inputs,
+            output,
+        }
+    }
+}
+
+impl Step for IntoListStep {
+    async fn process(
+        &self,
+        _resources: &PipelineResources,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+        let list = self
+            .inputs
+            .iter()
+            .map(|input| context.get(input).cloned().expect("🐔 Input not found"))
+            .collect::<Vec<serde_json::Value>>();
+        context.set(&self.output, list);
         Ok(context)
     }
 }
@@ -911,6 +486,7 @@ mod tests {
         let full_schema: Value = serde_json::from_str(raw_schema).unwrap();
         let instance: Value = serde_json::from_str(instance_json).unwrap();
 
+        // instance.size is an integer but schema expects a string -> validation should succeed
         assert!(jsonschema::is_valid(&full_schema, &instance));
         println!("hello");
     }
@@ -968,7 +544,7 @@ mod tests {
         let full_schema: Value = serde_json::from_str(raw_schema).unwrap();
         let instance: Value = serde_json::from_str(instance_json).unwrap();
 
-        assert!(jsonschema::is_valid(&full_schema, &instance));
+        assert!(!jsonschema::is_valid(&full_schema, &instance));
         println!("hello");
     }
 }

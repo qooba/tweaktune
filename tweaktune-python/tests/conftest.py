@@ -3,6 +3,7 @@ import shutil
 import pytest
 import os
 import polars as pl
+from tweaktune import Metadata
 
 
 @pytest.fixture(scope="session")
@@ -13,6 +14,11 @@ def data_dir():
     yield data_dir
 
     shutil.rmtree(data_dir)
+
+@pytest.fixture(scope="session")
+def metadata():
+    """Fixture to set metadata."""
+    yield Metadata(path="", enabled=False)
 
 @pytest.fixture(scope="session")
 def output_dir():

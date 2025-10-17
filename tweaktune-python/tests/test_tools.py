@@ -59,21 +59,23 @@ def list_user_orders(
     pass
 
 
-def test_tools_sample(request, output_dir, data_dir, arrow_dataset):
+def test_tools_sample(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
     OUTPUT_TEMPLATE = """{"function": {{function[0]}}, "all_functions": {{all_functions}} }"""
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_tools_dataset("functions", [place_order, get_order_status, search_products, list_categories, add_review, get_product_details, list_user_orders])\
-        .with_template("output", OUTPUT_TEMPLATE)\
-    .iter_range(10)\
-        .sample("functions", 1, "function")\
-        .sample("functions", 2, "all_functions")\
-        .write_jsonl(path=output_file, template="output")\
-        .run()
+    (Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .with_tools_dataset("functions", [place_order, get_order_status, search_products, list_categories, add_review, get_product_details, list_user_orders])
+        .with_template("output", OUTPUT_TEMPLATE)
+    .iter_range(10)
+        .sample("functions", 1, "function")
+        .sample("functions", 2, "all_functions")
+        .validate_tools("function")
+        .validate_tools("all_functions")
+        .write_jsonl(path=output_file, template="output")
+        .run())
 
 
     lines = open(output_file, "r").readlines()
@@ -82,7 +84,7 @@ def test_tools_sample(request, output_dir, data_dir, arrow_dataset):
     assert "all_functions" in item
     assert len(lines) == 10
 
-def test_tools_sample(request, output_dir, data_dir, arrow_dataset):
+def test_tools_sample(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
@@ -91,17 +93,40 @@ def test_tools_sample(request, output_dir, data_dir, arrow_dataset):
 #   , search_products, list_categories, , , 
 # .with_tools_dataset("functions", [place_order, get_order_status, search_products, list_categories, add_review, get_product_details, list_user_orders])\
 
-    Pipeline()\
-        .with_workers(1)\
-        .with_tools_dataset("functions", [search_products, list_categories])\
-        .with_template("output", OUTPUT_TEMPLATE)\
-    .iter_range(10)\
-        .sample("functions", 2, "all_functions")\
-        .write_jsonl(path=output_file, template="output")\
-        .run()
+    (Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .with_tools_dataset("functions", [search_products, list_categories])
+        .with_template("output", OUTPUT_TEMPLATE)
+    .iter_range(10)
+        .sample("functions", 2, "all_functions")
+        .validate_tools("all_functions")
+        .write_jsonl(path=output_file, template="output")
+        .run())
 
     lines = open(output_file, "r").readlines()
     item = json.loads(lines[0])
     assert "all_functions" in item
     assert len(lines) == 10
 
+def test_tools_sample_2(request, output_dir, data_dir, arrow_dataset, metadata):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    OUTPUT_TEMPLATE = """{"all_functions": {{all_functions|tojson}} }"""
+
+#   , search_products, list_categories, , , 
+# .with_tools_dataset("functions", [place_order, get_order_status, search_products, list_categories, add_review, get_product_details, list_user_orders])\
+
+    (Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .with_tools_dataset("functions", [search_products, list_categories])
+        .with_template("output", OUTPUT_TEMPLATE)
+    .iter_range(10)
+        .sample_tools("functions", 2, "all_functions")
+        .write_jsonl(path=output_file, template="output")
+        .run())
+
+    lines = open(output_file, "r").readlines()
+    item = json.loads(lines[0])
+    assert "all_functions" in item
+    assert len(lines) == 10
