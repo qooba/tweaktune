@@ -8,6 +8,7 @@ use crate::{
 pub mod common;
 pub mod config;
 pub mod datasets;
+pub mod dictionaries;
 pub mod embeddings;
 pub mod llms;
 pub mod readers;

@@ -353,6 +353,7 @@ impl Step for DataSamplerStep {
                 DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
                 DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
                 DatasetType::Mixed(_mixed_dataset) => unreachable!(),
+                DatasetType::PhfSet(phf_set_dataset) => phf_set_dataset.df(),
             };
 
             let df = df

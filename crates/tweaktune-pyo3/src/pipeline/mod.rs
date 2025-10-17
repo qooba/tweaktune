@@ -17,7 +17,7 @@ use std::thread;
 use tweaktune_core::common::{blake3_hash, deserialize, run_async, SerializationType};
 use tweaktune_core::datasets::{
     CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
-    PolarsDataset,
+    PhfSetDataset, PolarsDataset,
 };
 use tweaktune_core::embeddings::e5::E5Spec;
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
@@ -48,6 +48,21 @@ use tweaktune_core::{
     },
     templates::Templates,
 };
+
+#[pyclass]
+#[derive(Debug, Clone)]
+pub enum InternalDatasetType {
+    Openings,
+}
+
+impl fmt::Display for InternalDatasetType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            InternalDatasetType::Openings => "openings",
+        };
+        write!(f, "{}", s)
+    }
+}
 
 #[pyclass]
 #[derive(Debug, Clone)]
@@ -234,6 +249,37 @@ impl PipelineBuilder {
                 &self.resources.datasets.resources,
             )?),
         );
+        Ok(())
+    }
+
+    pub fn with_internal_dataset(&mut self, dataset: InternalDatasetType) -> PyResult<()> {
+        debug!("Added Internal dataset {dataset}");
+
+        match dataset {
+            InternalDatasetType::Openings => {
+                self.resources.datasets.add(
+                    format!("{dataset}::question"),
+                    DatasetType::PhfSet(PhfSetDataset::new(
+                        format!("{dataset}::question"),
+                        &tweaktune_core::dictionaries::openings::QUESTION,
+                    )?),
+                );
+                self.resources.datasets.add(
+                    format!("{dataset}::ask"),
+                    DatasetType::PhfSet(PhfSetDataset::new(
+                        format!("{dataset}::ask"),
+                        &tweaktune_core::dictionaries::openings::ASK,
+                    )?),
+                );
+                self.resources.datasets.add(
+                    format!("{dataset}::neutral"),
+                    DatasetType::PhfSet(PhfSetDataset::new(
+                        format!("{dataset}::neutral"),
+                        &tweaktune_core::dictionaries::openings::NEUTRAL,
+                    )?),
+                );
+            }
+        }
         Ok(())
     }
 
@@ -1263,6 +1309,7 @@ impl PipelineBuilder {
                         DatasetType::Csv(dataset) => process_dataset!(dataset),
                         DatasetType::Parquet(dataset) => process_dataset!(dataset),
                         DatasetType::Mixed(dataset) => process_dataset_mix!(dataset),
+                        DatasetType::PhfSet(phf_set_dataset) => process_dataset!(phf_set_dataset),
                     }
                 }
             }

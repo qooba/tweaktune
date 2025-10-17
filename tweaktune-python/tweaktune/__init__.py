@@ -1,4 +1,5 @@
-from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings, Metadata, JudgeType
+from polars import sql
+from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings, Metadata, JudgeType, InternalDatasetType
 from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
 from tweaktune.common import LogLevel, StepStatus, record_batches_to_ipc_bytes, package_installation_hint
 from tweaktune.tools import pydantic_to_json_schema, function_to_json_schema
@@ -84,7 +85,13 @@ class Pipeline:
         self.builder.with_json_list_dataset(name, json_list, None)
         self.graph.config.datasets.append(config_item(name))
         return self
-    
+
+    def with_internal_dataset(self, dataset: InternalDatasetType):
+        """Adds an internal dataset to the pipeline."""
+        self.builder.with_internal_dataset(dataset)
+        self.graph.config.datasets.append(config_item(str(dataset)))
+        return self
+
     def with_dicts_dataset(self, name: str, dicts: List[dict], sql: str = None):
         """Converts a list of dictionaries to json schema and adds them to the pipeline."""
         json_list = [json.dumps(d) for d in dicts]

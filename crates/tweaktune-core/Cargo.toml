@@ -28,6 +28,7 @@ log = { workspace = true}
 minijinja = { workspace = true}
 once_cell = { workspace = true }
 opendal = { workspace = true }
+phf = { workspace = true}
 pyo3 = { workspace = true}
 polars = { workspace = true }
 polars-arrow = { workspace = true }
