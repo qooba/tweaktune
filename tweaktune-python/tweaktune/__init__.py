@@ -1,4 +1,3 @@
-from polars import sql
 from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings, Metadata, JudgeType, InternalDatasetType
 from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
 from tweaktune.common import LogLevel, StepStatus, record_batches_to_ipc_bytes, package_installation_hint
