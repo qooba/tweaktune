@@ -1,3 +1,4 @@
+from unittest import result
 from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings, Metadata, JudgeType, InternalDatasetType
 from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
 from tweaktune.common import LogLevel, StepStatus, record_batches_to_ipc_bytes, package_installation_hint
@@ -650,7 +651,13 @@ class PipelineRunner:
             package_installation_hint("nicegui")
             raise
         return self
-    
+
+class ChatTokenizer(BaseModel):
+    tokenizer: Any
+    truncation: bool
+    max_length: int
+    padding: bool
+
 
 class ChatTemplateBuilder:
     def __init__(self, path: str = None, template: str = None):
@@ -668,6 +675,7 @@ class ChatTemplateBuilder:
         if not isinstance(template, str):
             raise TypeError("Template must be a string.")
         self.builder = _ChatTemplateBuilder(template)
+        self.chat_tokenizer = None
 
     def with_tools_json(self, tools):
         self.builder.with_tools(json.dumps(tools, ensure_ascii=False))
@@ -679,22 +687,49 @@ class ChatTemplateBuilder:
         for tool in json_list:
             tool["parameters"]["properties"] = json.loads(tool["parameters"]["properties"])
         return self.with_tools_json(json_list)
+
+    def with_tokenizer(self, tokenizer, truncation: bool, max_length: int, padding: bool):
+        self.chat_tokenizer = ChatTokenizer(
+            tokenizer=tokenizer,
+            truncation=truncation,
+            max_length=max_length,
+            padding=padding
+        )
+        return self
     
     def build(self):
         """Builds the chat template."""
         self.builder.build()
-        return ChatTemplate(self.builder)
+        return ChatTemplate(self.builder, self.chat_tokenizer)
 
 class ChatTemplate:
-    def __init__(self, builder: _ChatTemplateBuilder):
+    def __init__(self, builder: _ChatTemplateBuilder, chat_tokenizer: ChatTokenizer = None):
         self.builder = builder
+        self.chat_tokenizer = chat_tokenizer
 
-    def render(self, messages: List[dict]):
+    def _tokenize(self, item: str):
+        if self.chat_tokenizer:
+            enc = self.chat_tokenizer.tokenizer(
+                item["text"], 
+                truncation=self.chat_tokenizer.truncation, 
+                max_length=self.chat_tokenizer.max_length,
+                add_special_tokens=True, 
+                padding=self.chat_tokenizer.padding)
+            enc["labels"] = enc["input_ids"].copy()
+            return enc
+        else:
+            raise ValueError("Tokenizer not set. Please set tokenizer using 'with_tokenizer' method.")
+
+    def render(self, messages: List[dict], tokenize: bool = False):
         """Renders the chat template with the given context."""
         messages = json.dumps(messages, ensure_ascii=False)
-        return self.builder.render(messages)
+        
+        data =  self.builder.render(messages)
+        if tokenize:
+            data = [self._tokenize(item) for item in data]
+        return data
     
-    def render_jsonl(self, path: str, op_config: Optional[dict] = None):
+    def render_jsonl(self, path: str, op_config: Optional[dict] = None, tokenize: bool = False):
         """Renders the chat template with the given context from a JSONL file."""
         try:
             from datasets import Dataset
@@ -704,4 +739,6 @@ class ChatTemplate:
         op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
         dataset = {"text": self.builder.render_jsonl(path, op_config)}
         dataset = Dataset.from_dict(dataset)
+        if tokenize:
+            dataset = dataset.map(lambda x: self._tokenize(x), batched=False)
         return dataset

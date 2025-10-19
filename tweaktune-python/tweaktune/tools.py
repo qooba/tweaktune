@@ -124,6 +124,13 @@ class Tools:
     def __init__(self, tools: list[Callable]):
         self._tools = [(function_to_schema(func), func) for func in tools]
         self._tools = {tool[0]["name"]:tool for tool in self._tools }
+        for tool in self._tools.values():
+            params = tool[0].get("parameters")
+            if params:
+                props = params.get("properties")
+                if props and isinstance(props, str):
+                    tool[0]["parameters"]["properties"] = json.loads(props)
+
         self._messages = []
 
     @property
