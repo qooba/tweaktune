@@ -676,6 +676,7 @@ class ChatTemplateBuilder:
             raise TypeError("Template must be a string.")
         self.builder = _ChatTemplateBuilder(template)
         self.chat_tokenizer = None
+        self.bos_token = None
 
     def with_tools_json(self, tools):
         self.builder.with_tools(json.dumps(tools, ensure_ascii=False))
@@ -687,6 +688,11 @@ class ChatTemplateBuilder:
         for tool in json_list:
             tool["parameters"]["properties"] = json.loads(tool["parameters"]["properties"])
         return self.with_tools_json(json_list)
+    
+    def with_bos_token(self, bos_token: str):
+        self.builder.with_bos_token(bos_token)
+        self.bos_token = bos_token
+        return self
 
     def with_tokenizer(self, tokenizer, truncation: bool, max_length: int, padding: bool):
         self.chat_tokenizer = ChatTokenizer(
@@ -699,6 +705,9 @@ class ChatTemplateBuilder:
     
     def build(self):
         """Builds the chat template."""
+        if not self.bos_token:
+            self.builder.with_bos_token("<s>")
+            
         self.builder.build()
         return ChatTemplate(self.builder, self.chat_tokenizer)
 
