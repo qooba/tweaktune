@@ -237,8 +237,6 @@ make pyo3-develop
 pytest
 ```
 
-See [CLAUDE.md](CLAUDE.md) for detailed development information.
-
 ---
 
 ## 📄 License
