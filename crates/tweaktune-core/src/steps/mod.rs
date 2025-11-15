@@ -12,7 +12,9 @@ use crate::{
     embeddings::EmbeddingsType,
     llms::LLMType,
     steps::{
-        conversations::{RenderConversationStep, RenderToolCallStep},
+        conversations::{
+            RenderConversationStep, RenderDPOStep, RenderGRPOStep, RenderToolCallStep,
+        },
         embeddings::CheckEmbeddingStep,
         generators::{JsonGenerationStep, JudgeConversationStep, TextGenerationStep},
         logic::{FilterStep, MutateStep},
@@ -110,6 +112,8 @@ pub enum StepType {
     ConversationValidate(ConversationValidateStep),
     IntoList(IntoListStep),
     RenderConversation(RenderConversationStep),
+    RenderDPO(RenderDPOStep),
+    RenderGRPO(RenderGRPOStep),
     Filter(FilterStep),
     Mutate(MutateStep),
     CheckLanguage(CheckLanguageStep),

@@ -22,7 +22,9 @@ use tweaktune_core::datasets::{
 use tweaktune_core::embeddings::e5::E5Spec;
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
 use tweaktune_core::readers::read_to_string;
-use tweaktune_core::steps::conversations::{RenderConversationStep, RenderToolCallStep};
+use tweaktune_core::steps::conversations::{
+    RenderConversationStep, RenderDPOStep, RenderGRPOStep, RenderToolCallStep,
+};
 use tweaktune_core::steps::embeddings::CheckEmbeddingStep;
 use tweaktune_core::steps::generators::{JudgeConversationStep, JudgeType as JudgeTypeCore};
 use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep};
@@ -845,6 +847,126 @@ impl PipelineBuilder {
             )));
     }
 
+    #[pyo3(signature = (name, conversation, output, tools=None, separator=None))]
+    pub fn add_render_sft_step(
+        &mut self,
+        name: String,
+        conversation: String,
+        output: String,
+        tools: Option<String>,
+        separator: Option<String>,
+    ) {
+        self.add_render_conversation_step(name, conversation, output, tools, separator);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_render_dpo_step(
+        &mut self,
+        name: String,
+        conversation: String,
+        output: String,
+        chosen: String,
+        rejected: String,
+        tools: Option<String>,
+        separator: Option<String>,
+    ) {
+        debug!("Added render DPO step");
+
+        let conversation_key = format!("{}_dpo_conversation", output);
+        self.add_render_conversation_step(
+            name.clone(),
+            conversation,
+            conversation_key.to_string(),
+            tools.clone(),
+            separator,
+        );
+
+        let messages_key = self.resources.templates.add_inline(
+            "render_dpo",
+            &name,
+            &format!("{}.messages|tojson", &conversation_key),
+        );
+        let chosen_key = self
+            .resources
+            .templates
+            .add_inline("render_dpo", &name, &chosen);
+        let rejected_key = self
+            .resources
+            .templates
+            .add_inline("render_dpo", &name, &rejected);
+
+        let tools_key = if tools.is_some() {
+            Some(self.resources.templates.add_inline(
+                "render_dpo",
+                &name,
+                &format!("{}.tools|tojson", &conversation_key),
+            ))
+        } else {
+            None
+        };
+
+        self.steps.push(StepType::RenderDPO(RenderDPOStep::new(
+            name,
+            messages_key,
+            chosen_key,
+            rejected_key,
+            tools_key,
+            output,
+        )));
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_render_grpo_step(
+        &mut self,
+        name: String,
+        conversation: String,
+        output: String,
+        solution: String,
+        validator_id: String,
+        tools: Option<String>,
+        separator: Option<String>,
+    ) {
+        debug!("Added render GRPO step");
+
+        let conversation_key = format!("{}_grpo_conversation", output);
+        self.add_render_conversation_step(
+            name.clone(),
+            conversation,
+            conversation_key.to_string(),
+            tools.clone(),
+            separator,
+        );
+
+        let messages_key = self.resources.templates.add_inline(
+            "render_grpo",
+            &name,
+            &format!("{}.messages|tojson", &conversation_key),
+        );
+        let solution_key = self
+            .resources
+            .templates
+            .add_inline("render_grpo", &name, &solution);
+
+        let tools_key = if tools.is_some() {
+            Some(self.resources.templates.add_inline(
+                "render_grpo",
+                &name,
+                &format!("{}.tools|tojson", &conversation_key),
+            ))
+        } else {
+            None
+        };
+
+        self.steps.push(StepType::RenderGRPO(RenderGRPOStep::new(
+            name,
+            messages_key,
+            solution_key,
+            validator_id,
+            tools_key,
+            output,
+        )));
+    }
+
     pub fn add_render_tool_call_step(
         &mut self,
         name: String,
@@ -1460,6 +1582,8 @@ async fn process_steps(
             StepType::JudgeConversation(judge_conversation_step) => {
                 process_common!(judge_conversation_step)
             }
+            StepType::RenderDPO(render_dpostep) => process_common!(render_dpostep),
+            StepType::RenderGRPO(render_grpostep) => process_common!(render_grpostep),
         }
     }
 

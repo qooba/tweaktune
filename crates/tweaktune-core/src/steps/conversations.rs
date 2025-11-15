@@ -320,7 +320,8 @@ impl Step for RenderConversationStep {
                         // Parse stringified properties if present
                         if let Value::Object(ref mut obj) = normalized {
                             if let Some(Value::Object(ref mut params)) = obj.get_mut("parameters") {
-                                if let Some(Value::String(ref props_str)) = params.get("properties") {
+                                if let Some(Value::String(ref props_str)) = params.get("properties")
+                                {
                                     match serde_json::from_str::<Value>(props_str) {
                                         Ok(props_json) => {
                                             params.insert("properties".to_string(), props_json);
@@ -361,6 +362,146 @@ impl Step for RenderConversationStep {
         }
 
         context.set(&self.output, rendered);
+        Ok(context)
+    }
+}
+
+pub struct RenderDPOStep {
+    pub name: String,
+    pub messages: String,
+    pub chosen: String,
+    pub rejected: String,
+    pub tools: Option<String>,
+    pub output: String,
+}
+
+impl RenderDPOStep {
+    pub fn new(
+        name: String,
+        messages: String,
+        chosen: String,
+        rejected: String,
+        tools: Option<String>,
+        output: String,
+    ) -> Self {
+        Self {
+            name,
+            messages,
+            chosen,
+            rejected,
+            tools,
+            output,
+        }
+    }
+}
+
+impl Step for RenderDPOStep {
+    async fn process(
+        &self,
+        resources: &PipelineResources,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+        let messages = resources
+            .templates
+            .render(self.messages.clone(), context.data.clone())?;
+        let chosen = resources
+            .templates
+            .render(self.chosen.clone(), context.data.clone())?;
+        let rejected = resources
+            .templates
+            .render(self.rejected.clone(), context.data.clone())?;
+        let dpo = if let Some(tools_template) = &self.tools {
+            let tools = Some(
+                resources
+                    .templates
+                    .render(tools_template.clone(), context.data.clone())?,
+            );
+
+            json!({
+                "messages": messages,
+                "chosen": chosen,
+                "rejected": rejected,
+                "tools": tools,
+            })
+        } else {
+            json!({
+                "messages": messages,
+                "chosen": chosen,
+                "rejected": rejected,
+            })
+        };
+
+        context.set(&self.output, dpo);
+        Ok(context)
+    }
+}
+
+pub struct RenderGRPOStep {
+    pub name: String,
+    pub messages: String,
+    pub solution: String,
+    pub validator_id: String,
+    pub tools: Option<String>,
+    pub output: String,
+}
+
+impl RenderGRPOStep {
+    pub fn new(
+        name: String,
+        messages: String,
+        solution: String,
+        validator_id: String,
+        tools: Option<String>,
+        output: String,
+    ) -> Self {
+        Self {
+            name,
+            messages,
+            solution,
+            validator_id,
+            tools,
+            output,
+        }
+    }
+}
+
+impl Step for RenderGRPOStep {
+    async fn process(
+        &self,
+        resources: &PipelineResources,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+        let messages = resources
+            .templates
+            .render(self.messages.clone(), context.data.clone())?;
+        let solution = resources
+            .templates
+            .render(self.solution.clone(), context.data.clone())?;
+
+        let grpo = if let Some(tools_template) = &self.tools {
+            let tools = Some(
+                resources
+                    .templates
+                    .render(tools_template.clone(), context.data.clone())?,
+            );
+
+            json!({
+                "messages": messages,
+                "solution": solution,
+                "validator_id": self.validator_id,
+                "tools": tools,
+            })
+        } else {
+            json!({
+                "messages": messages,
+                "solution": solution,
+                "validator_id": self.validator_id,
+            })
+        };
+
+        context.set(&self.output, grpo);
         Ok(context)
     }
 }
