@@ -373,6 +373,104 @@ def test_step_render_conversation_aliases(request, output_dir, metadata):
     assert messages[4]["role"] == "assistant"
     assert "Los Angeles Dodgers" in messages[4]["content"]
 
+def test_step_render_sft(request, output_dir, metadata):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .iter_range(1)
+        .add_column("system", lambda data: "You are a helpful assistant.")
+        .add_column("question", lambda data: "Hello, who won the world series in 2020?")
+        .add_column("call1", lambda data: "{ \"name\": \"get_who_won\", \"arguments\": { \"year\": 2020 } }")
+        .add_column("response", lambda data: "{\"winner\": \"Los Angeles Dodgers\", \"year\": 2020}")
+        .add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
+        .render_sft(conversation="""
+            @s:system
+            @u:question
+            @a:tool_calls([call1])
+            @t:response
+            @a:answer
+        """, output="conversation", separator="\n")
+        .write_jsonl(path=output_file, value="conversation")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    assert len(lines) == 1
+    line = json.loads(lines[0])
+    messages = line["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == "You are a helpful assistant."
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"] == "Hello, who won the world series in 2020?"
+    assert messages[2]["role"] == "assistant"
+    assert "tool_calls" in messages[2]
+    assert messages[2]["tool_calls"] == [{"function":{"name": "get_who_won", "arguments": {"year": 2020}}}]
+    assert messages[3]["role"] == "tool"
+    assert "winner" in messages[3]["content"]
+    assert messages[4]["role"] == "assistant"
+    assert "Los Angeles Dodgers" in messages[4]["content"]
+
+def test_step_render_dpo(request, output_dir, metadata):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .iter_range(1)
+        .add_column("system", lambda data: "You are a helpful assistant.")
+        .add_column("question", lambda data: "Hello, who won the world series in 2020?")
+        .add_column("call1_chosen", lambda data: { "name": "get_who_won", "arguments": { "year": 2020 } })
+        .add_column("call1_rejected", lambda data: { "name": "get_who_won", "arguments": { "year": 2021 } })
+        .render_dpo(conversation="""
+            @s:system
+            @u:question
+        """, chosen="call1_chosen", rejected="call1_rejected", output="conversation", separator="\n")
+        .write_jsonl(path=output_file, value="conversation")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    assert len(lines) == 1
+    line = json.loads(lines[0])
+    messages = line["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == "You are a helpful assistant."
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"] == "Hello, who won the world series in 2020?"
+
+    assert "chosen" in line
+    assert "rejected" in line
+
+def test_step_render_grpo(request, output_dir, metadata):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .iter_range(1)
+        .add_column("system", lambda data: "You are a helpful assistant.")
+        .add_column("question", lambda data: "Hello, who won the world series in 2020?")
+        .add_column("solution", lambda data: { "name": "get_who_won", "arguments": { "year": 2020 } })
+        .render_grpo(conversation="""
+            @s:system
+            @u:question
+        """, solution="solution", validator_id="tool_use", output="conversation", separator="\n")
+        .write_jsonl(path=output_file, value="conversation")
+    .run())
+
+    lines = open(output_file, "r").readlines()
+    assert len(lines) == 1
+    line = json.loads(lines[0])
+    messages = line["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == "You are a helpful assistant."
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"] == "Hello, who won the world series in 2020?"
+
+    assert "solution" in line
+    assert "validator_id" in line
+
+    
 
 def test_step_check_language(request, output_dir, metadata):
     """Test the basic functionality of the pipeline."""

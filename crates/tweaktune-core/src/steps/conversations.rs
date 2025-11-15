@@ -411,26 +411,30 @@ impl Step for RenderDPOStep {
         let rejected = resources
             .templates
             .render(self.rejected.clone(), context.data.clone())?;
-        let dpo = if let Some(tools_template) = &self.tools {
-            let tools = Some(
-                resources
-                    .templates
-                    .render(tools_template.clone(), context.data.clone())?,
-            );
+        let messages: Value = serde_json::from_str(&messages)?;
+        let chosen: Value = serde_json::from_str(&chosen)?;
+        let rejected: Value = serde_json::from_str(&rejected)?;
 
+        let dpo = if let Some(tools_template) = &self.tools {
+            let tools = resources
+                .templates
+                .render(tools_template.clone(), context.data.clone())?;
+            let tools: Value = serde_json::from_str(&tools)?;
             json!({
-                "messages": messages,
-                "chosen": chosen,
-                "rejected": rejected,
-                "tools": tools,
+                "messages": &messages,
+                "chosen": &chosen,
+                "rejected": &rejected,
+                "tools": &tools,
             })
         } else {
             json!({
-                "messages": messages,
-                "chosen": chosen,
-                "rejected": rejected,
+                "messages": &messages,
+                "chosen": &chosen,
+                "rejected": &rejected,
             })
         };
+
+        println!("Rendered DPO: {}", dpo);
 
         context.set(&self.output, dpo);
         Ok(context)
@@ -479,14 +483,13 @@ impl Step for RenderGRPOStep {
         let solution = resources
             .templates
             .render(self.solution.clone(), context.data.clone())?;
+        let messages: Value = serde_json::from_str(&messages)?;
 
         let grpo = if let Some(tools_template) = &self.tools {
-            let tools = Some(
-                resources
-                    .templates
-                    .render(tools_template.clone(), context.data.clone())?,
-            );
-
+            let tools = resources
+                .templates
+                .render(tools_template.clone(), context.data.clone())?;
+            let tools: Value = serde_json::from_str(&tools)?;
             json!({
                 "messages": messages,
                 "solution": solution,
