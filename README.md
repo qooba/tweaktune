@@ -1,4 +1,4 @@
-# tweaktune
+<center><img src="./docs/tweaktune_logo_wave_rounded.png" width="100%" alt="Polars logo"></center> 
 
 **tweaktune** is a Rust-powered, Python-facing library for **synthesizing datasets** for **training and fine-tuning AI models**, especially **Language Models**.
 
