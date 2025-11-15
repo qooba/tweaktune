@@ -79,6 +79,10 @@ For the function "{{tool[0].name}}" with description "{{tool[0].description}}",
 generate realistic arguments for this user request: {{user_question}}
 Return only JSON with the arguments, no explanation.
 """)
+        .with_template("final_prompt", """
+Based on this tool result: {{tool_response|tojson}}
+Provide a natural response to the user for their request: {{user_question}}
+""")
 
         .iter_range(10)
             # Sample a random tool
@@ -115,11 +119,6 @@ Return only JSON with the arguments, no explanation.
                 "message": f"Executed {data['tool'][0]['name']}"
             })
 
-            # Generate assistant's final response
-            .with_template("final_prompt", """
-Based on this tool result: {{tool_response|tojson}}
-Provide a natural response to the user for their request: {{user_question}}
-""")
             .generate_text(
                 template="final_prompt",
                 llm="gpt4",
