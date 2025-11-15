@@ -9,7 +9,7 @@ Build powerful data pipelines to generate synthetic text, structured JSON, and f
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 - **[Complete Documentation](docs/README.md)** - Comprehensive guides and API reference
 - **[Examples](examples/README.md)** - Working code examples
@@ -17,7 +17,7 @@ Build powerful data pipelines to generate synthetic text, structured JSON, and f
 
 ---
 
-## ✨ Features
+## Features
 
 ### Flexible Data Sources
 Load data from multiple sources:
@@ -56,7 +56,7 @@ Create datasets for:
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -144,7 +144,7 @@ More examples in the [examples](examples/) directory.
 
 ---
 
-## 📖 Learn More
+## Learn More
 
 ### Documentation
 
@@ -180,7 +180,7 @@ More examples in the [examples](examples/) directory.
 
 ---
 
-## 🎯 Use Cases
+## Use Cases
 
 - **Model Fine-tuning**: Generate training datasets for language models
 - **Function Calling**: Create datasets for tool use and API interactions
@@ -192,7 +192,7 @@ More examples in the [examples](examples/) directory.
 
 ---
 
-## 🛠️ Key Features
+## Key Features
 
 ### Pipeline Steps
 
@@ -217,7 +217,7 @@ Chain together powerful steps:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Feel free to open issues, suggest features, or create pull requests.
 
@@ -239,7 +239,7 @@ pytest
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under either of:
 
@@ -250,7 +250,7 @@ at your option.
 
 ---
 
-## 🔗 Links
+## Links
 
 - **PyPI**: https://pypi.org/project/tweaktune/
 - **GitHub**: https://github.com/qooba/tweaktune
@@ -259,13 +259,13 @@ at your option.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 Built with:
 - [Rust](https://www.rust-lang.org/) - Core performance
 - [PyO3](https://pyo3.rs/) - Python bindings
 - [Polars](https://pola.rs/) - Fast DataFrames and SQL
-- [Jinja](https://jinja.palletsprojects.com/) - Templating (via minijinja)
+- [Minijinja](https://github.com/mitsuhiko/minijinja) - Templating (via minijinja)
 
 
 
