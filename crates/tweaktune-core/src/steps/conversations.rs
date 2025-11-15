@@ -6,6 +6,58 @@ use crate::{
 use anyhow::Result;
 use log::error;
 use serde_json::{json, Value};
+use std::borrow::Cow;
+
+/// Represents a conversation role for efficient matching
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConversationRole {
+    User,
+    Assistant,
+    System,
+    Tool,
+}
+
+impl ConversationRole {
+    /// Parse role from string with O(1) match instead of multiple comparisons
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "@user" | "@u" => Ok(Self::User),
+            "@assistant" | "@a" => Ok(Self::Assistant),
+            "@system" | "@s" => Ok(Self::System),
+            "@tool" | "@t" => Ok(Self::Tool),
+            _ => anyhow::bail!(
+                "Invalid role '{}'. Allowed: @user/@u, @assistant/@a, @system/@s, @tool/@t",
+                s
+            ),
+        }
+    }
+
+    /// Get the JSON role string
+    fn as_json_str(&self) -> &'static str {
+        match self {
+            Self::User => "user",
+            Self::Assistant => "assistant",
+            Self::System => "system",
+            Self::Tool => "tool",
+        }
+    }
+}
+
+/// Parse function call syntax like "func_name(content)"
+/// Returns (function_name, content_inside_parens)
+fn parse_function_call(input: &str) -> Option<(&str, &str)> {
+    let open_paren = input.find('(')?;
+    let close_paren = input.rfind(')')?;
+
+    if close_paren <= open_paren {
+        return None;
+    }
+
+    let func_name = input[..open_paren].trim();
+    let content = input[open_paren + 1..close_paren].trim();
+
+    Some((func_name, content))
+}
 
 pub struct RenderToolCallStep {
     pub name: String,
@@ -96,145 +148,137 @@ impl RenderConversationStep {
         }
     }
 
-    fn parse_step(&self, conv_step: Vec<&str>, context: &StepContext) -> Result<Value> {
-        if conv_step.len() != 2 {
-            anyhow::bail!(
-                "Invalid conversation step format for step: {:?}, expected format: @role:key",
-                conv_step
-            );
-        }
+    /// Parse a single conversation step with zero-allocation string parsing
+    fn parse_step(&self, step_str: &str, context: &StepContext) -> Result<Value> {
+        // Use splitn to stop after finding role and key (no Vec allocation)
+        let mut parts = step_str.splitn(2, ':');
+        let role_str = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing role in step: '{}'", step_str))?
+            .trim();
+        let key = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing key in step: '{}'", step_str))?
+            .trim();
 
-        let role = conv_step[0];
-        if role != "@user"
-            && role != "@assistant"
-            && role != "@system"
-            && role != "@tool"
-            && role != "@u"
-            && role != "@a"
-            && role != "@s"
-            && role != "@t"
-        {
-            anyhow::bail!("Invalid role in conversation step: {}, allowed roles are: user, assistant, system, tool", role);
-        }
+        // Parse role once with efficient enum match
+        let role = ConversationRole::from_str(role_str)?;
 
-        Ok(if role == "@user" || role == "@u" {
-            let value = context
-                .get(conv_step[1])
-                .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", conv_step[1]))?;
-
-            json!({
-                "role": "user",
-                "content": value
-            })
-        } else if role == "@assistant" || role == "@a" {
-            // handle assistant special forms: tool_calls([...]) and think(...)
-            if conv_step[1].starts_with("tool_calls(") {
-                // extract inside of parentheses
-                let mut inner = conv_step[1]
-                    .trim_start_matches("tool_calls(")
-                    .trim_end_matches(')')
-                    .trim();
-
-                // allow optional surrounding brackets [ ... ]
-                if inner.starts_with('[') && inner.ends_with(']') {
-                    inner = inner.trim_start_matches('[').trim_end_matches(']').trim();
-                }
-
-                let keys = inner
-                    .split(',')
-                    .map(|s| s.trim().trim_matches('"'))
-                    .filter(|s| !s.is_empty())
-                    .collect::<Vec<_>>();
-
-                let mut calls: Vec<Value> = Vec::new();
-                for k in keys {
-                    let v = context
-                        .get(k)
-                        .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", k))?
-                        .clone();
-
-                    // Normalize into an object of shape { "function": { "name": ..., "arguments": ... } }
-                    let call_obj = match v {
-                        Value::String(s) => {
-                            // try to parse a JSON string first
-                            if let Ok(parsed) = serde_json::from_str::<Value>(&s) {
-                                if parsed.get("function").is_some() {
-                                    parsed
-                                } else if parsed.get("name").is_some() {
-                                    json!({ "function": parsed })
-                                } else {
-                                    json!({ "function": { "name": parsed } })
-                                }
-                            } else {
-                                json!({ "function": { "name": s } })
-                            }
-                        }
-                        Value::Object(_) => {
-                            if v.get("function").is_some() {
-                                v
-                            } else if v.get("name").is_some() {
-                                json!({ "function": v })
-                            } else {
-                                json!({ "function": { "name": v } })
-                            }
-                        }
-                        other => json!({ "function": { "name": other } }),
-                    };
-
-                    calls.push(call_obj);
-                }
-
-                return Ok(json!({
-                    "role": "assistant",
-                    "tool_calls": calls
-                }));
-            } else if conv_step[1].starts_with("think(") {
-                let inner = conv_step[1]
-                    .trim_start_matches("think(")
-                    .trim_end_matches(')')
-                    .trim()
-                    .trim_matches('"');
-
-                let val = context
-                    .get(inner)
-                    .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", inner))?
-                    .clone();
-
-                return Ok(json!({
-                    "role": "assistant",
-                    "reasoning_content": val
-                }));
-            } else {
+        match role {
+            ConversationRole::User => {
                 let value = context
-                    .get(conv_step[1])
-                    .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", conv_step[1]))?
-                    .clone();
-                return Ok(json!({
-                    "role": "assistant",
+                    .get(key)
+                    .ok_or_else(|| anyhow::anyhow!("Key '{}' not found in context", key))?;
+                Ok(json!({
+                    "role": role.as_json_str(),
                     "content": value
-                }));
+                }))
             }
-        } else if role == "@tool" || role == "@t" {
-            let value = context
-                .get(conv_step[1])
-                .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", conv_step[1]))?;
+            ConversationRole::Assistant => self.parse_assistant_step(key, context),
+            ConversationRole::Tool => {
+                let value = context
+                    .get(key)
+                    .ok_or_else(|| anyhow::anyhow!("Key '{}' not found in context", key))?;
+                Ok(json!({
+                    "role": role.as_json_str(),
+                    "content": value
+                }))
+            }
+            ConversationRole::System => {
+                let value = context
+                    .get(key)
+                    .ok_or_else(|| anyhow::anyhow!("Key '{}' not found in context", key))?;
+                Ok(json!({
+                    "role": role.as_json_str(),
+                    "content": value
+                }))
+            }
+        }
+    }
 
-            json!({
-                "role": "tool",
-                "content": value
-            })
-        } else if role == "@system" || role == "@s" {
-            let value = context
-                .get(conv_step[1])
-                .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", conv_step[1]))?;
+    /// Parse assistant step with special handling for tool_calls() and think()
+    fn parse_assistant_step(&self, key: &str, context: &StepContext) -> Result<Value> {
+        // Check for special function syntax using optimized parser
+        if let Some((func_name, content)) = parse_function_call(key) {
+            match func_name {
+                "tool_calls" => {
+                    // Remove optional surrounding brackets
+                    let content = content.trim_matches(&['[', ']', ' '][..]);
 
-            json!({
-                "role": "system",
-                "content": value
-            })
-        } else {
-            anyhow::bail!("Invalid role in conversation step: {}", role);
-        })
+                    // Parse comma-separated keys
+                    let keys: Vec<_> = content
+                        .split(',')
+                        .map(|s| s.trim().trim_matches('"'))
+                        .filter(|s| !s.is_empty())
+                        .collect();
+
+                    let mut calls = Vec::with_capacity(keys.len());
+                    for k in keys {
+                        let v = context
+                            .get(k)
+                            .ok_or_else(|| anyhow::anyhow!("Key '{}' not found in context", k))?;
+
+                        // Normalize into { "function": { "name": ..., "arguments": ... } }
+                        let call_obj = match v {
+                            Value::String(s) => {
+                                // Try to parse JSON string
+                                if let Ok(parsed) = serde_json::from_str::<Value>(s) {
+                                    if parsed.get("function").is_some() {
+                                        parsed
+                                    } else if parsed.get("name").is_some() {
+                                        json!({ "function": parsed })
+                                    } else {
+                                        json!({ "function": { "name": parsed } })
+                                    }
+                                } else {
+                                    json!({ "function": { "name": s } })
+                                }
+                            }
+                            Value::Object(_) => {
+                                if v.get("function").is_some() {
+                                    v.clone()
+                                } else if v.get("name").is_some() {
+                                    json!({ "function": v })
+                                } else {
+                                    json!({ "function": { "name": v } })
+                                }
+                            }
+                            other => json!({ "function": { "name": other } }),
+                        };
+
+                        calls.push(call_obj);
+                    }
+
+                    return Ok(json!({
+                        "role": "assistant",
+                        "tool_calls": calls
+                    }));
+                }
+                "think" => {
+                    let inner = content.trim_matches('"');
+                    let val = context
+                        .get(inner)
+                        .ok_or_else(|| anyhow::anyhow!("Key '{}' not found in context", inner))?;
+
+                    return Ok(json!({
+                        "role": "assistant",
+                        "reasoning_content": val
+                    }));
+                }
+                _ => {
+                    // Unknown function, treat as regular key
+                }
+            }
+        }
+
+        // Regular assistant message
+        let value = context
+            .get(key)
+            .ok_or_else(|| anyhow::anyhow!("Key '{}' not found in context", key))?;
+        Ok(json!({
+            "role": "assistant",
+            "content": value
+        }))
     }
 }
 
@@ -246,56 +290,62 @@ impl Step for RenderConversationStep {
     ) -> Result<StepContext> {
         let mut context = context.clone();
 
-        let conversation = self.conversation.trim();
-        let conversation = if self.separator != "\n" {
-            conversation.replace("\n", "")
+        // Use Cow to avoid allocation when separator is "\n"
+        let conversation_trimmed = self.conversation.trim();
+        let conversation: Cow<str> = if self.separator != "\n" {
+            Cow::Owned(conversation_trimmed.replace('\n', ""))
         } else {
-            conversation.to_string()
+            Cow::Borrowed(conversation_trimmed)
         };
 
+        // Parse steps with zero-allocation string splitting
         let conversations_steps = conversation
             .split(self.separator.as_str())
-            .map(|s| {
-                self.parse_step(
-                    s.split(":").map(|s| s.trim()).collect::<Vec<&str>>(),
-                    &context,
-                )
-            })
+            .map(|s| self.parse_step(s.trim(), &context))
             .collect::<Result<Vec<Value>, _>>()?;
 
         let rendered = if let Some(t) = &self.tools {
             let tools = context
                 .get(t)
-                .ok_or_else(|| anyhow::anyhow!("Key not found in context: {}", t))?;
+                .ok_or_else(|| anyhow::anyhow!("Key '{}' not found in context", t))?;
 
-            //check each tool if it has parameters.properties string deserialize it to json
-            let tools = match tools.clone() {
-                Value::Array(arr) => Value::Array(
-                    arr.into_iter()
-                        .map(|mut tool| {
-                            if let Value::Object(ref mut obj) = tool {
-                                if let Some(Value::Object(ref mut params_obj)) = obj.get_mut("parameters") {
-                                    if let Some(props) = params_obj.get_mut("properties") {
-                                        if props.is_string() {
-                                            let props_str = props.as_str().unwrap();
-                                            let props_json: Value =
-                                                serde_json::from_str(props_str).unwrap_or_else(|_| {
-                                                    error!(target: "conversation_step", "🐔 Failed to parse tool properties JSON: {}", props_str);
-                                                    json!({})
+            // Normalize tool properties (parse JSON strings) - optimized to clone only once per tool
+            let tools = match tools {
+                Value::Array(ref arr) => {
+                    let mut normalized_tools = Vec::with_capacity(arr.len());
 
-                                                });
-                                            *props = props_json;
+                    for tool in arr {
+                        let mut normalized = tool.clone(); // Clone once per tool
+
+                        // Parse stringified properties if present
+                        if let Value::Object(ref mut obj) = normalized {
+                            if let Some(Value::Object(ref mut params)) = obj.get_mut("parameters") {
+                                if let Some(Value::String(ref props_str)) = params.get("properties") {
+                                    match serde_json::from_str::<Value>(props_str) {
+                                        Ok(props_json) => {
+                                            params.insert("properties".to_string(), props_json);
+                                        }
+                                        Err(_) => {
+                                            error!(
+                                                target: "conversation_step",
+                                                "🐔 Failed to parse tool properties JSON: {}",
+                                                props_str
+                                            );
                                         }
                                     }
                                 }
                             }
-                            tool
-                        })
-                        .collect::<Vec<Value>>(),
-                ),
+                        }
+
+                        normalized_tools.push(normalized);
+                    }
+
+                    Value::Array(normalized_tools)
+                }
                 _ => {
-                        error!(target: "conversation_validation_step", "🐔 Invalid tool format");
-                        return Ok(context);
+                    error!(target: "conversation_validation_step", "🐔 Invalid tool format, expected array");
+                    context.set_status(StepStatus::Failed);
+                    return Ok(context);
                 }
             };
 
