@@ -237,6 +237,12 @@ impl ChatTemplate {
         self
     }
 
+    pub fn with_bos_token(mut self, bos_token: String) -> Self {
+        let bos_token = Value::String(bos_token);
+        self.add_data("bos_token", bos_token);
+        self
+    }
+
     fn add_data(&mut self, key: &str, value: serde_json::Value) {
         if let serde_json::Value::Object(ref mut map) = self.context {
             map.insert(key.to_string(), value);

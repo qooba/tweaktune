@@ -21,6 +21,7 @@ impl EmbedChatTemplates {
 pub struct ChatTemplateBuilder {
     template: String,
     tools: Option<String>,
+    bos_token: Option<String>,
     chat_template: Option<ChatTemplate>,
 }
 
@@ -31,6 +32,7 @@ impl ChatTemplateBuilder {
         Ok(ChatTemplateBuilder {
             template,
             tools: None,
+            bos_token: None,
             chat_template: None,
         })
     }
@@ -39,11 +41,19 @@ impl ChatTemplateBuilder {
         self.tools = Some(tools);
     }
 
+    pub fn with_bos_token(&mut self, bos_token: String) {
+        self.bos_token = Some(bos_token);
+    }
+
     fn build(&mut self) {
         let mut chat_template = ChatTemplate::new(self.template.clone());
 
         if let Some(tools) = &self.tools {
             chat_template = chat_template.with_tools(tools.clone());
+        }
+
+        if let Some(bos_token) = &self.bos_token {
+            chat_template = chat_template.with_bos_token(bos_token.clone());
         }
 
         self.chat_template = Some(chat_template);
