@@ -1,0 +1,5 @@
+# Clippy configuration
+avoid-breaking-exported-api = false
+
+# Set the maximum cognitive complexity before warnings
+cognitive-complexity-threshold = 30

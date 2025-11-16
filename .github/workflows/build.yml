@@ -58,9 +58,29 @@ jobs:
           uv pip install maturin pytest
           maturin develop --release --uv --extras "dev,db,arrow"
 
-      - name: Run Python tests
+      - name: Check Python formatting with Black
         run: |
           source .venv/bin/activate
-          pytest
+          black --check tweaktune-python/
+
+      - name: Check Python imports with isort
+        run: |
+          source .venv/bin/activate
+          isort --check-only tweaktune-python/
+
+      - name: Lint Python with Ruff
+        run: |
+          source .venv/bin/activate
+          ruff check tweaktune-python/
+
+      - name: Type check Python with mypy
+        run: |
+          source .venv/bin/activate
+          mypy tweaktune-python/tweaktune --ignore-missing-imports
+
+      - name: Run Python tests with coverage
+        run: |
+          source .venv/bin/activate
+          pytest --cov=tweaktune --cov-report=xml --cov-report=term
 
 
