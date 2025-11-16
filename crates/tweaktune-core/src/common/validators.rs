@@ -5,9 +5,8 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 // Compile regex once and reuse across all validation calls
-static NAME_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^[a-zA-Z0-9_.-]+$").expect("Failed to compile name regex")
-});
+static NAME_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[a-zA-Z0-9_.-]+$").expect("Failed to compile name regex"));
 
 pub fn validate_function_call_format(value: &Value) -> Result<()> {
     // Accept both a "tool" definition (as in OpenAI function-calling tool schema)
@@ -59,7 +58,9 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
                     // Check all items are strings first
                     for item in arr.iter() {
                         if !item.is_string() {
-                            return Err(anyhow!("🐔 entries in 'parameters.type' array must be strings"));
+                            return Err(anyhow!(
+                                "🐔 entries in 'parameters.type' array must be strings"
+                            ));
                         }
                     }
                     // Use iterator combinator for cleaner check
@@ -91,8 +92,10 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
                 props_val.as_object().unwrap()
             } else if props_val.is_string() {
                 let s = props_val.as_str().unwrap();
-                parsed_props = Some(serde_json::from_str::<Value>(s)
-                    .map_err(|_| anyhow!("🐔 'parameters.properties' string is not valid JSON"))?);
+                parsed_props =
+                    Some(serde_json::from_str::<Value>(s).map_err(|_| {
+                        anyhow!("🐔 'parameters.properties' string is not valid JSON")
+                    })?);
                 if !parsed_props.as_ref().unwrap().is_object() {
                     return Err(anyhow!(
                         "🐔 'parameters.properties' string must decode to a JSON object"
@@ -179,7 +182,7 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
                             declared_types = Some(
                                 arr.iter()
                                     .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                                    .collect()
+                                    .collect(),
                             );
                         }
                         _ => {

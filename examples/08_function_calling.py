@@ -129,13 +129,7 @@ Provide a natural response to the user for their request: {{user_question}}
 
             # Build complete conversation
             .render_conversation(
-                conversation="""
-@system:system
-@user:user_question
-@assistant:tool_calls([tool_call])
-@tool:tool_response
-@assistant:assistant_answer
-                """,
+                conversation="@system:system|@user:user_question|@assistant:tool_calls([tool_call])|@tool:tool_response|@assistant:assistant_answer",
                 tools="tool",
                 output="conversation"
             )
