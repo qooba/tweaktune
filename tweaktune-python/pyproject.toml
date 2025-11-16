@@ -62,27 +62,3 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "tweaktune.ui.*"
 ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "tweaktune.tune"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "tweaktune.wrappers"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "tweaktune.tools"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "tweaktune.structured"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "tweaktune.chain"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "tweaktune"
-ignore_errors = true

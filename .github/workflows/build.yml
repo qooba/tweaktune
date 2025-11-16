@@ -63,12 +63,7 @@ jobs:
           source .venv/bin/activate
           black --check tweaktune-python/
 
-      - name: Check Python imports with isort
-        run: |
-          source .venv/bin/activate
-          isort --check-only tweaktune-python/
-
-      - name: Lint Python with Ruff
+      - name: Check Python imports and lint with Ruff
         run: |
           source .venv/bin/activate
           ruff check tweaktune-python/

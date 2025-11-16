@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -41,17 +41,19 @@ class PyConditionWrapper:
 
 class LLMWrapper:
 
-    def prepare_messages(self, messages: dict, json_schema: Optional[str]) -> Optional[str]:
+    def prepare_messages(
+        self, messages: List[Dict[str, Any]], json_schema: Optional[str]
+    ) -> List[Dict[str, Any]]:
         if json_schema:
-            json_schema = json.loads(json_schema).get("schema", None)
-            if json_schema:
-                properties = json_schema.get("properties", {})
+            json_schema_dict: Optional[Dict[str, Any]] = json.loads(json_schema).get("schema", None)
+            if json_schema_dict:
+                properties = json_schema_dict.get("properties", {})
                 if len(properties.keys()) > 0:
-                    json_schema = json.dumps(json_schema, ensure_ascii=False)
+                    json_schema_str = json.dumps(json_schema_dict, ensure_ascii=False)
                     system_message = [
                         {
                             "role": "system",
-                            "content": f"Always respond in valid JSON format, strictly following the provided schema. Do not include any extra text, explanations, or comments outside the JSON structure. Ensure that all responses adhere precisely to the given schema.\n\nThe expected schema is:\n\n{json_schema}",
+                            "content": f"Always respond in valid JSON format, strictly following the provided schema. Do not include any extra text, explanations, or comments outside the JSON structure. Ensure that all responses adhere precisely to the given schema.\n\nThe expected schema is:\n\n{json_schema_str}",
                         }
                     ]
                     messages = system_message + messages
@@ -60,7 +62,7 @@ class LLMWrapper:
 
     def process(
         self,
-        messages: dict,
+        messages: List[Dict[str, Any]],
         json_schema: Optional[str] = None,
         max_tokens: int = 1024,
         temperature: float = 0.1,
@@ -75,7 +77,7 @@ class UnslothWrapper(LLMWrapper):
 
     def process(
         self,
-        messages: dict,
+        messages: List[Dict[str, Any]],
         json_schema: Optional[str] = None,
         max_tokens: int = 1024,
         temperature: float = 0.1,
@@ -98,7 +100,7 @@ class MistralrsWrapper(LLMWrapper):
 
     def process(
         self,
-        messages: dict,
+        messages: List[Dict[str, Any]],
         json_schema: Optional[str] = None,
         max_tokens: int = 1024,
         temperature: float = 0.1,

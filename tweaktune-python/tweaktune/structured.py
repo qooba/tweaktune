@@ -1,19 +1,21 @@
 import json
 import re
+from typing import Any, Dict, Type
 
 from pydantic import BaseModel
 
 
-def parse(result: str, model: BaseModel):
+def parse(result: str, model: Type[BaseModel]):
+    result_dict: Dict[str, Any]
     try:
-        result = json.loads(result)
+        result_dict = json.loads(result)
     except Exception:
         try:
-            result = extract_json_block_md(result)
+            result_dict = extract_json_block_md(result)
         except Exception:
-            result = extract_json_block(result)
+            result_dict = extract_json_block(result)
 
-    return model(**result)
+    return model(**result_dict)
 
 
 def extract_json_block_md(text):

@@ -1,5 +1,5 @@
 import json
-from typing import Callable, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 from pydantic import BaseModel
 
@@ -31,7 +31,7 @@ class Chain:
         template: str,
         llm: str,
         output: str,
-        system_template: str = None,
+        system_template: Optional[str] = None,
         max_tokens: int = 1024,
         temperature: float = 0.1,
         name: str = "GENERATE-TEXT",
@@ -47,23 +47,23 @@ class Chain:
         template: str,
         llm: str,
         output: str,
-        json_path: str = None,
-        system_template: str = None,
-        response_format: BaseModel = None,
-        schema_template: str = None,
+        json_path: Optional[str] = None,
+        system_template: Optional[str] = None,
+        response_format: Optional[BaseModel] = None,
+        schema_template: Optional[str] = None,
         max_tokens: int = 1024,
         temperature: float = 0.1,
         name: str = "GENERATE-JSON",
     ):
-        schema = None
+        schema: Optional[str] = None
         if not schema_template and response_format:
-            schema = {
+            schema_dict: Dict[str, Any] = {
                 "name": response_format.__class__.__name__,
                 "schema": response_format.model_json_schema(),
                 "strict": True,
             }
-            schema["schema"]["additionalProperties"] = False
-            schema = json.dumps(schema)
+            schema_dict["schema"]["additionalProperties"] = False
+            schema = json.dumps(schema_dict)
 
         self.steps_chain.add_json_generation_step(
             self.__name(name),
@@ -106,7 +106,7 @@ class Chain:
         return self
 
     def add_column(self, output: str, func: Union[Callable, str], name: str = "PY-ADD-COLUMN"):
-        if isinstance(func, Callable):
+        if callable(func):
 
             def wrapper(context):
                 if output in context["data"]:
@@ -124,7 +124,7 @@ class Chain:
         return self
 
     def filter(self, condition: Union[Callable, str], name: str = "PY-FILTER"):
-        if isinstance(condition, Callable):
+        if callable(condition):
 
             def condition_wrapper(context):
                 if not condition(context["data"]):
@@ -141,7 +141,7 @@ class Chain:
         return self
 
     def mutate(self, output: str, func: Union[Callable, str], name: str = "PY-ADD-COLUMN"):
-        if isinstance(func, Callable):
+        if callable(func):
 
             def wrapper(context):
                 context["data"][output] = func(context["data"][output])

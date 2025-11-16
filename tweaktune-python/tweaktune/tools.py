@@ -1,13 +1,13 @@
 import inspect
 import json
 import re
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Tuple, Type
 
 from pydantic import BaseModel, Field, create_model
 from pydantic.fields import FieldInfo
 
 
-def class_to_schema(model: BaseModel) -> dict:
+def class_to_schema(model: Type[BaseModel]) -> dict:
     """
     Converts a Pydantic model to JSON schema.
     """
@@ -23,11 +23,11 @@ def class_to_schema(model: BaseModel) -> dict:
     }
 
 
-def pydantic_to_json_schema(model: BaseModel) -> dict:
+def pydantic_to_json_schema(model: Type[BaseModel]) -> str:
     return json.dumps(class_to_schema(model), ensure_ascii=False)
 
 
-def function_to_schema(func: callable, include_response: bool = False) -> BaseModel:
+def function_to_schema(func: Callable, include_response: bool = False) -> dict:
     """
     Converts a function with annotated parameters to json schema https://json-schema.org/
     including descriptions from Field(..., description=...).
@@ -56,7 +56,7 @@ def function_to_schema(func: callable, include_response: bool = False) -> BaseMo
         else:
             model_fields[param_name] = (param_type, Field(...))
 
-    schema = create_model(func_name, **model_fields).model_json_schema()
+    schema = create_model(func_name, **model_fields).model_json_schema()  # type: ignore[call-overload]
     schema = normalize_schema(schema)
     schema.pop("title", None)
 
@@ -90,7 +90,7 @@ def function_to_schema(func: callable, include_response: bool = False) -> BaseMo
     return result
 
 
-def function_to_json_schema(func: callable, include_response: bool = False) -> BaseModel:
+def function_to_json_schema(func: Callable, include_response: bool = False) -> str:
     return json.dumps(
         function_to_schema(func, include_response=include_response), ensure_ascii=False
     )
@@ -144,8 +144,12 @@ class Message(BaseModel):
 
 class Tools:
     def __init__(self, tools: list[Callable]):
-        self._tools = [(function_to_schema(func), func) for func in tools]
-        self._tools = {tool[0]["name"]: tool for tool in self._tools}
+        tools_list: List[Tuple[dict, Callable]] = [
+            (function_to_schema(func), func) for func in tools
+        ]
+        self._tools: Dict[str, Tuple[dict, Callable]] = {
+            tool[0]["name"]: tool for tool in tools_list
+        }
         for tool in self._tools.values():
             params = tool[0].get("parameters")
             if params:
@@ -153,7 +157,7 @@ class Tools:
                 if props and isinstance(props, str):
                     tool[0]["parameters"]["properties"] = json.loads(props)
 
-        self._messages = []
+        self._messages: List[Message] = []
 
     @property
     def tools(self):

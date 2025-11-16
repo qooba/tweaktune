@@ -1,7 +1,7 @@
 import inspect
 import json
 import os
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 from pydantic import BaseModel
 
@@ -106,14 +106,14 @@ class Pipeline:
         self.graph.config.datasets.append(config_item(name))
         return self
 
-    def with_tools_dataset(self, name: str, tools: List[callable]):
+    def with_tools_dataset(self, name: str, tools: List[Callable]):
         """Converts a list of functions to json schema and adds them to the pipeline."""
         json_list = [function_to_json_schema(tool, include_response=True) for tool in tools]
         self.builder.with_json_list_dataset(name, json_list, None)
         self.graph.config.datasets.append(config_item(name))
         return self
 
-    def with_pydantic_models_dataset(self, name: str, models: List[BaseModel]):
+    def with_pydantic_models_dataset(self, name: str, models: List[Type[BaseModel]]):
         """Converts a list of Pydantic models to json schema and adds them to the pipeline."""
         json_list = [pydantic_to_json_schema(model) for model in models]
         self.builder.with_json_list_dataset(name, json_list, None)
@@ -243,22 +243,28 @@ class Pipeline:
 
     def with_templates(self, path: str = "templates", op_config: Optional[dict] = None):
         """Adds a templates from dir to the pipeline."""
-        op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
-        self.builder.with_dir_templates(path, op_config)
+        op_config_str: Optional[str] = (
+            json.dumps(op_config, ensure_ascii=False) if op_config else None
+        )
+        self.builder.with_dir_templates(path, op_config_str)
         self.graph.config.templates.append(config_item("DIR-TEMPLATES"))
         return self
 
     def with_j2_template(self, name: str, path: str, op_config: Optional[dict] = None):
         """Adds a template from file to the pipeline."""
-        op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
-        self.builder.with_j2_template(name, path, op_config)
+        op_config_str: Optional[str] = (
+            json.dumps(op_config, ensure_ascii=False) if op_config else None
+        )
+        self.builder.with_j2_template(name, path, op_config_str)
         self.graph.config.templates.append(config_item(name))
         return self
 
     def with_j2_templates(self, path: str, op_config: Optional[dict] = None):
         """Adds a template from file to the pipeline."""
-        op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
-        self.builder.with_j2_templates(path, op_config)
+        op_config_str: Optional[str] = (
+            json.dumps(op_config, ensure_ascii=False) if op_config else None
+        )
+        self.builder.with_j2_templates(path, op_config_str)
         self.graph.config.templates.append(config_item("J2-TEMPLATES"))
         return self
 
@@ -459,11 +465,12 @@ class PipelineRunner:
         name: str = "PY-IFELSE",
     ):
         name = self.__name(name)
-        if isinstance(condition, Callable):
+        if callable(condition):
+            condition_func: Callable = condition
             step = type(
                 name.replace("-", "_"),
                 (object,),
-                {"check": lambda self, context: condition(context)},
+                {"check": lambda self, context: condition_func(context)},
             )()
             self.builder.add_ifelse_step(
                 name, PyConditionWrapper(step), None, then_chain.steps_chain, else_chain.steps_chain
@@ -499,7 +506,7 @@ class PipelineRunner:
         is_json: bool = True,
         name: str = "ADD-COLUMN",
     ):
-        if isinstance(func, Callable):
+        if callable(func):
 
             def wrapper(context):
                 if output in context["data"]:
@@ -526,7 +533,7 @@ class PipelineRunner:
         return self
 
     def filter(self, condition: Union[Callable, str], name: str = "FILTER"):
-        if isinstance(condition, Callable):
+        if callable(condition):
 
             def condition_wrapper(context):
                 if not condition(context["data"]):
@@ -546,7 +553,7 @@ class PipelineRunner:
     def mutate(
         self, output: str, func: Union[Callable, str], is_json: bool = True, name: str = "MUTATE"
     ):
-        if isinstance(func, Callable):
+        if callable(func):
 
             def wrapper(context):
                 context["data"][output] = func(context["data"][output])
@@ -584,23 +591,23 @@ class PipelineRunner:
         template: str,
         llm: str,
         output: str,
-        json_path: str = None,
-        system_template: str = None,
-        response_format: BaseModel = None,
-        schema_template: str = None,
+        json_path: Optional[str] = None,
+        system_template: Optional[str] = None,
+        response_format: Optional[BaseModel] = None,
+        schema_template: Optional[str] = None,
         max_tokens: int = 1024,
         temperature: float = 0.1,
         name: str = "GENERATE-JSON",
     ):
-        schema = None
+        schema: Optional[str] = None
         if not schema_template and response_format:
-            schema = {
+            schema_dict: Dict[str, Any] = {
                 "name": response_format.__class__.__name__,
                 "schema": response_format.model_json_schema(),
                 "strict": True,
             }
-            schema["schema"]["additionalProperties"] = False
-            schema = json.dumps(schema)
+            schema_dict["schema"]["additionalProperties"] = False
+            schema = json.dumps(schema_dict)
 
         self.builder.add_json_generation_step(
             self.__name(name),
@@ -927,7 +934,7 @@ class ChatTokenizer(BaseModel):
 
 
 class ChatTemplateBuilder:
-    def __init__(self, path: str = None, template: str = None):
+    def __init__(self, path: Optional[str] = None, template: Optional[str] = None):
         if not path and not template:
             raise ValueError("Either path or template must be provided.")
         if path and template:
@@ -942,14 +949,14 @@ class ChatTemplateBuilder:
         if not isinstance(template, str):
             raise TypeError("Template must be a string.")
         self.builder = _ChatTemplateBuilder(template)
-        self.chat_tokenizer = None
-        self.bos_token = None
+        self.chat_tokenizer: Optional[Any] = None
+        self.bos_token: Optional[str] = None
 
     def with_tools_json(self, tools):
         self.builder.with_tools(json.dumps(tools, ensure_ascii=False))
         return self
 
-    def with_tools(self, tools: List[callable]):
+    def with_tools(self, tools: List[Callable]):
         """Converts a list of functions to json schema and adds them to the pipeline."""
         json_list = [json.loads(function_to_json_schema(tool)) for tool in tools]
         for tool in json_list:
@@ -977,11 +984,13 @@ class ChatTemplateBuilder:
 
 
 class ChatTemplate:
-    def __init__(self, builder: _ChatTemplateBuilder, chat_tokenizer: ChatTokenizer = None):
+    def __init__(
+        self, builder: _ChatTemplateBuilder, chat_tokenizer: Optional[ChatTokenizer] = None
+    ):
         self.builder = builder
         self.chat_tokenizer = chat_tokenizer
 
-    def _tokenize(self, item: str):
+    def _tokenize(self, item: Dict[str, Any]):
         if self.chat_tokenizer:
             enc = self.chat_tokenizer.tokenizer(
                 item["text"],
@@ -999,9 +1008,9 @@ class ChatTemplate:
 
     def render(self, messages: List[dict], tokenize: bool = False):
         """Renders the chat template with the given context."""
-        messages = json.dumps(messages, ensure_ascii=False)
+        messages_str: str = json.dumps(messages, ensure_ascii=False)
 
-        data = self.builder.render(messages)
+        data = self.builder.render(messages_str)
         if tokenize:
             data = [self._tokenize(item) for item in data]
         return data
@@ -1013,9 +1022,11 @@ class ChatTemplate:
         except ModuleNotFoundError:
             package_installation_hint("datasets")
             raise
-        op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
-        dataset = {"text": self.builder.render_jsonl(path, op_config)}
-        dataset = Dataset.from_dict(dataset)
+        op_config_str: Optional[str] = (
+            json.dumps(op_config, ensure_ascii=False) if op_config else None
+        )
+        dataset_dict: Dict[str, Any] = {"text": self.builder.render_jsonl(path, op_config_str)}
+        dataset = Dataset.from_dict(dataset_dict)
         if tokenize:
-            dataset = dataset.map(lambda x: self._tokenize(x), batched=False)
+            dataset = dataset.map(lambda x: self._tokenize(x), batched=False)  # type: ignore[attr-defined]
         return dataset

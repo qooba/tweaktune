@@ -1,4 +1,5 @@
 import json
+from typing import Any, Dict, List, Optional
 
 from transformers import AutoTokenizer
 from unsloth.chat_templates import get_chat_template
@@ -9,7 +10,11 @@ from datasets import Dataset
 class BaseDataset:
 
     def with_tokenizer(
-        self, model_name: str, chat_template: str, eos_token: str, mapping: dict = None
+        self,
+        model_name: str,
+        chat_template: str,
+        eos_token: str,
+        mapping: Optional[Dict[str, Any]] = None,
     ):
         """
         Prepare the tokenizer for the model.
@@ -68,22 +73,24 @@ class BaseDataset:
 
 
 class ToolsDataset(BaseDataset):
-    def _normalize(self, path: str = None) -> list:
-        dataset = []
-        with open(path) as f:
-            lines = f.readlines()
+    def _normalize(self, path: Optional[str] = None) -> List[Dict[str, Any]]:
+        dataset: List[Dict[str, Any]] = []
+        with open(path) as file_handle:
+            lines = file_handle.readlines()
             for line in lines:
                 try:
                     data = json.loads(line)
                     data["tools"] = []
-                    for f in data["function_descriptions"]:
-                        f["parameters"]["properties"] = json.loads(f["parameters"]["properties"])
-                        del f["strict"]
-                        del f["type"]
-                        if not f["parameters"]["required"]:
-                            f["parameters"]["required"] = []
+                    for func_desc in data["function_descriptions"]:
+                        func_desc["parameters"]["properties"] = json.loads(
+                            func_desc["parameters"]["properties"]
+                        )
+                        del func_desc["strict"]
+                        del func_desc["type"]
+                        if not func_desc["parameters"]["required"]:
+                            func_desc["parameters"]["required"] = []
 
-                        tool = {"type": "function", "function": f}
+                        tool = {"type": "function", "function": func_desc}
 
                         data["tools"].append(tool)
                     del data["function_descriptions"]
