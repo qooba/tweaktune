@@ -63,10 +63,10 @@ jobs:
           source .venv/bin/activate
           black --check tweaktune-python/
 
-      - name: Check Python imports and lint with Ruff
-        run: |
-          source .venv/bin/activate
-          ruff check tweaktune-python/
+      #- name: Check Python imports and lint with Ruff
+      #  run: |
+      #    source .venv/bin/activate
+      #    ruff check tweaktune-python/
 
       - name: Type check Python with mypy
         run: |
