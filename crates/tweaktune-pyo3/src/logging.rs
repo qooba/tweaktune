@@ -71,6 +71,12 @@ pub struct LogsCollector {
     entries: Arc<Mutex<Vec<CollectedLogEntry>>>,
 }
 
+impl Default for LogsCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LogsCollector {
     pub fn new() -> Self {
         LogsCollector {

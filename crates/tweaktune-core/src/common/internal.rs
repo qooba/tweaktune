@@ -433,15 +433,19 @@ pub fn python_functions_to_schemas(code: &str) -> Result<Value> {
     // regex for inputs with embedded commas in defaults.
     let mut functions = Vec::new();
     let lines: Vec<&str> = code.lines().collect();
+
+    // Pre-compile regexes outside the loop for better performance
+    let desc_regex_double = Regex::new(r#"description\s*=\s*"([^"]*)""#).ok();
+    let desc_regex_single = Regex::new(r#"description\s*=\s*'([^']*)'"#).ok();
+
     let mut i = 0usize;
     while i < lines.len() {
         let line = lines[i];
         let trimmed = line.trim_start();
-        if trimmed.starts_with("def ") {
+        if let Some(stripped) = trimmed.strip_prefix("def ") {
             // capture function name
-            if let Some(name_end) = trimmed[4..].find('(') {
-                let name = trimmed[4..4 + name_end]
-                    .trim()
+            if let Some(name_end) = stripped.find('(') {
+                let name = stripped[..name_end]
                     .split_whitespace()
                     .next()
                     .unwrap_or("")
@@ -660,16 +664,14 @@ pub fn python_functions_to_schemas(code: &str) -> Result<Value> {
 
                     if let Some(def) = default_opt {
                         if def.contains("description") {
-                            if let Some(c) = Regex::new(r#"description\s*=\s*"([^"]*)""#)
-                                .ok()
-                                .and_then(|re| re.captures(def))
+                            if let Some(c) =
+                                desc_regex_double.as_ref().and_then(|re| re.captures(def))
                             {
                                 if let Some(m) = c.get(1) {
                                     prop.insert("description".to_string(), json!(m.as_str()));
                                 }
-                            } else if let Some(c) = Regex::new(r#"description\s*=\s*'([^']*)'"#)
-                                .ok()
-                                .and_then(|re| re.captures(def))
+                            } else if let Some(c) =
+                                desc_regex_single.as_ref().and_then(|re| re.captures(def))
                             {
                                 if let Some(m) = c.get(1) {
                                     prop.insert("description".to_string(), json!(m.as_str()));

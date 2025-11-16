@@ -11,7 +11,6 @@ use anyhow::Result;
 use log::{debug, error};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use tokenizers::processors::template;
 
 pub struct TextGenerationStep {
     pub name: String,

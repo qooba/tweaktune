@@ -1,54 +1,64 @@
 import json
-from tweaktune import Pipeline, InternalDatasetType
+
+from tweaktune import InternalDatasetType, Pipeline
+
 
 def test_basic(request, output_dir, metadata):
     """Test the basic functionality of the pipeline."""
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(name=request.node.name, metadata=metadata)
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_template("output", """{"hello": "{{value}}", "number": {{"1,10"|random_range}}}""")
-    .iter_range(number)
+        .iter_range(number)
         .add_random("value", 1, 100)
         .write_jsonl(path=output_file, template="output")
-    .run())
+        .run()
+    )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == number
+
 
 def test_basic_j2(request, output_dir, j2_file, metadata):
     """Test the basic functionality of the pipeline."""
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(name=request.node.name, metadata=metadata)
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_j2_template("output", j2_file)
-    .iter_range(number)
+        .iter_range(number)
         .add_column("value", lambda data: "world")
         .write_jsonl(path=output_file, template="output")
-    .run())
+        .run()
+    )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == number
     item = json.loads(lines[0])
     assert item["hello"] == "world"
+
 
 def test_basic_j2_dir(request, output_dir, j2_dir, metadata):
     """Test the basic functionality of the pipeline."""
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(name=request.node.name, metadata=metadata)
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_templates(j2_dir)
-    .iter_range(number)
+        .iter_range(number)
         .add_column("value", lambda data: "world")
         .write_jsonl(path=output_file, template="example.j2")
-    .run())
+        .run()
+    )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == number
     item = json.loads(lines[0])
     assert item["hello"] == "world"
@@ -58,17 +68,19 @@ def test_basic_j2_yaml(request, output_dir, j2_file_yaml, metadata):
     """Test the basic functionality of the pipeline."""
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
-    print(open(j2_file_yaml, "r").read())
+    print(open(j2_file_yaml).read())
 
-    (Pipeline(name=request.node.name, metadata=metadata)
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_j2_templates(j2_file_yaml)
-    .iter_range(number)
+        .iter_range(number)
         .add_column("value", lambda data: "world")
         .write_jsonl(path=output_file, template="output")
-    .run())
+        .run()
+    )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == number
     item = json.loads(lines[0])
     assert item["hello"] == "world"
@@ -79,25 +91,31 @@ def test_internal_dataset(request, output_dir, metadata):
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    (Pipeline(name=request.node.name, metadata=metadata)
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_internal_dataset(InternalDatasetType.Openings)
-        .with_template("output", """{"question": "{{q[0].value}}", "ask": "{{a[0].value}}", "neutral": "{{n[0].value}}"}""")
-    .iter_range(number)
+        .with_template(
+            "output",
+            """{"question": "{{q[0].value}}", "ask": "{{a[0].value}}", "neutral": "{{n[0].value}}"}""",
+        )
+        .iter_range(number)
         .sample("openings::question", 1, "q")
         .sample("openings::ask", 1, "a")
         .sample("openings::neutral", 1, "n")
         .write_jsonl(path=output_file, template="output")
-    .run())
+        .run()
+    )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == number
     item = json.loads(lines[0])
     assert "question" in item
     assert "ask" in item
     assert "neutral" in item
 
-#def test_basic_j2_https(request, output_dir):
+
+# def test_basic_j2_https(request, output_dir):
 #    """Test the basic functionality of the pipeline."""
 #    number = 5
 #    output_file = f"{output_dir}/{request.node.name}.jsonl"

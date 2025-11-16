@@ -57,11 +57,13 @@ impl Step for CheckEmbeddingStep {
                         };
 
                         let instance = E5Model::lazy(spec.clone())?;
-                        let guard = instance
-                            .lock()
-                            .map_err(|e| anyhow::anyhow!("lock error: {:?}", e))?;
+                        let emb = {
+                            let guard = instance
+                                .lock()
+                                .map_err(|e| anyhow::anyhow!("lock error: {:?}", e))?;
+                            guard.embed(vec![text.to_string()])?
+                        }; // guard is dropped here, before any await
 
-                        let emb = guard.embed(vec![text.to_string()])?;
                         if let Some(state) = resources.state.as_ref() {
                             let nearest = state
                                 .knn_embeddings(&self.input.clone(), &emb[0], 1)

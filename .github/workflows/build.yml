@@ -40,7 +40,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run Clippy linter
-        run: cargo clippy --no-default-features
+        run: cargo clippy --no-default-features -- -D warnings -A clippy::upper_case_acronyms
 
       - name: Run cargo check
         run: cargo check --no-default-features
@@ -58,9 +58,24 @@ jobs:
           uv pip install maturin pytest
           maturin develop --release --uv --extras "dev,db,arrow"
 
-      - name: Run Python tests
+      - name: Check Python formatting with Black
         run: |
           source .venv/bin/activate
-          pytest
+          black --check tweaktune-python/
+
+      #- name: Check Python imports and lint with Ruff
+      #  run: |
+      #    source .venv/bin/activate
+      #    ruff check tweaktune-python/
+
+      - name: Type check Python with mypy
+        run: |
+          source .venv/bin/activate
+          mypy tweaktune-python/tweaktune --ignore-missing-imports
+
+      - name: Run Python tests with coverage
+        run: |
+          source .venv/bin/activate
+          pytest --cov=tweaktune --cov-report=xml --cov-report=term
 
 

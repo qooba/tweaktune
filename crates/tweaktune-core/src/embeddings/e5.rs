@@ -1,5 +1,5 @@
 use crate::common::hf_hub_get;
-use crate::common::{parse_device, OptionToResult, ResultExt};
+use crate::common::{parse_device, ResultExt};
 use crate::embeddings::Embeddings;
 use anyhow::Result;
 use candle_core::{DType, Device, Tensor};

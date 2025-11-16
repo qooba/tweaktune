@@ -1,3 +1,119 @@
 [tool.pytest.ini_options]
 pythonpath = ["tweaktune-python/tweaktune"]
 testpaths = ["tweaktune-python/tests"]
+addopts = "--cov=tweaktune --cov-report=term-missing --cov-report=html --cov-report=xml"
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | target
+  | projects
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_glob = ["projects/*", "target/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+extend-exclude = ["__pycache__", "*.pyc", "projects", "target"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "N803",  # argument name should be lowercase (conflicts with pyo3)
+    "N806",  # variable in function should be lowercase (conflicts with pyo3)
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+no_implicit_optional = false
+warn_redundant_casts = false
+warn_unused_ignores = false
+warn_no_return = false
+strict_optional = false
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tweaktune.ui.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tweaktune.tune"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tweaktune.wrappers"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tweaktune.tools"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tweaktune.structured"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tweaktune.chain"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tweaktune.__init__"
+ignore_errors = true
+
+[tool.coverage.run]
+source = ["tweaktune-python/tweaktune"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]

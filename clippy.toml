@@ -1,0 +1,9 @@
+# Clippy configuration
+avoid-breaking-exported-api = false
+
+# Set the maximum cognitive complexity before warnings
+cognitive-complexity-threshold = 30
+
+# Allow uppercase acronyms in names (MESSAGE, JSON, API, etc.)
+# This is disabled to allow common patterns like MESSAGE, JSON_PATH, etc.
+upper-case-acronyms-aggressive = false

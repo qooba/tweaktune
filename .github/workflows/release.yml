@@ -35,6 +35,15 @@ jobs:
           toolchain: stable
           override: true
 
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy linter
+        run: cargo clippy --release --no-default-features -- -D warnings -A clippy::upper_case_acronyms
+
+      - name: Run Rust tests
+        run: cargo test --release --no-default-features
+
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -45,7 +54,29 @@ jobs:
         run: |
           uv venv ../.venv
           source ../.venv/bin/activate
-          uv pip install maturin twine
+          uv pip install maturin twine pytest
+          maturin develop --release --uv --extras "dev,db,arrow"
+
+      - name: Check Python code quality
+        run: |
+          source .venv/bin/activate
+          black --check tweaktune-python/
+          ruff check tweaktune-python/
+
+      - name: Type check Python with mypy
+        run: |
+          source .venv/bin/activate
+          mypy tweaktune-python/tweaktune --ignore-missing-imports
+
+      - name: Run Python tests
+        run: |
+          source .venv/bin/activate
+          pytest --cov=tweaktune --cov-report=xml --cov-report=term
+
+      - name: Build Python package
+        working-directory:  ./tweaktune-python
+        run: |
+          source ../.venv/bin/activate
           maturin build --release --compatibility manylinux2014  --skip-auditwheel
 
       - name: Publish to PyPI

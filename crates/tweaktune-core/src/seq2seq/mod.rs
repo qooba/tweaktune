@@ -14,21 +14,16 @@ static SEQ2SEQ_INSTANCES: OnceCell<Mutex<HashMap<String, Arc<Mutex<Seq2SeqModel>
     OnceCell::new();
 const DTYPE: DType = DType::F32;
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, Default)]
 pub enum Which {
     T5Base,
     T5Small,
     T5Large,
     T5_3B,
     Mt5Base,
+    #[default]
     Mt5Small,
     Mt5Large,
-}
-
-impl Default for Which {
-    fn default() -> Self {
-        Self::Mt5Small
-    }
 }
 
 #[derive(Clone, Debug)]

@@ -1,11 +1,13 @@
-import re
+import inspect
 import json
+import re
+from typing import Any, Callable, Dict, List, Tuple, Type
+
 from pydantic import BaseModel, Field, create_model
 from pydantic.fields import FieldInfo
-import inspect
-from typing import Callable, Dict, Any, List
 
-def class_to_schema(model: BaseModel) -> dict:
+
+def class_to_schema(model: Type[BaseModel]) -> dict:
     """
     Converts a Pydantic model to JSON schema.
     """
@@ -20,10 +22,12 @@ def class_to_schema(model: BaseModel) -> dict:
         "strict": True,
     }
 
-def pydantic_to_json_schema(model: BaseModel) -> dict:
+
+def pydantic_to_json_schema(model: Type[BaseModel]) -> str:
     return json.dumps(class_to_schema(model), ensure_ascii=False)
 
-def function_to_schema(func: callable, include_response: bool = False) -> BaseModel:
+
+def function_to_schema(func: Callable, include_response: bool = False) -> dict:
     """
     Converts a function with annotated parameters to json schema https://json-schema.org/
     including descriptions from Field(..., description=...).
@@ -52,7 +56,7 @@ def function_to_schema(func: callable, include_response: bool = False) -> BaseMo
         else:
             model_fields[param_name] = (param_type, Field(...))
 
-    schema = create_model(func_name, **model_fields).model_json_schema()
+    schema = create_model(func_name, **model_fields).model_json_schema()  # type: ignore[call-overload]
     schema = normalize_schema(schema)
     schema.pop("title", None)
 
@@ -61,7 +65,11 @@ def function_to_schema(func: callable, include_response: bool = False) -> BaseMo
         # Detect if the function has a Pydantic return type and attach its schema
         return_type = func_params.get("return", sig.return_annotation)
         try:
-            if return_type is not inspect._empty and isinstance(return_type, type) and issubclass(return_type, BaseModel):
+            if (
+                return_type is not inspect._empty
+                and isinstance(return_type, type)
+                and issubclass(return_type, BaseModel)
+            ):
                 # pass the class; class_to_schema works with Pydantic classes
                 response_schema = class_to_schema(return_type)
         except Exception:
@@ -81,8 +89,12 @@ def function_to_schema(func: callable, include_response: bool = False) -> BaseMo
 
     return result
 
-def function_to_json_schema(func: callable, include_response: bool = False) -> BaseModel:
-    return json.dumps(function_to_schema(func, include_response=include_response), ensure_ascii=False)
+
+def function_to_json_schema(func: Callable, include_response: bool = False) -> str:
+    return json.dumps(
+        function_to_schema(func, include_response=include_response), ensure_ascii=False
+    )
+
 
 def normalize_schema(schema):
     defs = schema.pop("$defs", {})
@@ -108,22 +120,36 @@ def normalize_schema(schema):
 
     return schema
 
+
 class ToolFunction(BaseModel):
     name: str = Field(..., description="Name of the tool function")
-    arguments: Dict[str,Any] = Field(..., description="Parameters for the tool function in JSON schema format")
+    arguments: Dict[str, Any] = Field(
+        ..., description="Parameters for the tool function in JSON schema format"
+    )
+
 
 class ToolCall(BaseModel):
     function: ToolFunction = Field(..., description="Name of the function to call")
 
+
 class Message(BaseModel):
-    role: str = Field(..., description="Role of the message sender (e.g., 'user', 'assistant', 'system', 'tool')")
+    role: str = Field(
+        ..., description="Role of the message sender (e.g., 'user', 'assistant', 'system', 'tool')"
+    )
     content: str | None = Field(..., description="Content of the message")
-    tool_calls: List[ToolCall] | None = Field(None, description="List of tool calls made in this message")
+    tool_calls: List[ToolCall] | None = Field(
+        None, description="List of tool calls made in this message"
+    )
+
 
 class Tools:
     def __init__(self, tools: list[Callable]):
-        self._tools = [(function_to_schema(func), func) for func in tools]
-        self._tools = {tool[0]["name"]:tool for tool in self._tools }
+        tools_list: List[Tuple[dict, Callable]] = [
+            (function_to_schema(func), func) for func in tools
+        ]
+        self._tools: Dict[str, Tuple[dict, Callable]] = {
+            tool[0]["name"]: tool for tool in tools_list
+        }
         for tool in self._tools.values():
             params = tool[0].get("parameters")
             if params:
@@ -131,16 +157,16 @@ class Tools:
                 if props and isinstance(props, str):
                     tool[0]["parameters"]["properties"] = json.loads(props)
 
-        self._messages = []
+        self._messages: List[Message] = []
 
     @property
     def tools(self):
         return [tool[0] for tool in self._tools.values()]
-    
+
     @property
     def messages(self):
         return self._messages
-    
+
     @messages.setter
     def messages(self, messages: list):
         self._messages = [Message(**m) for m in messages]
@@ -159,7 +185,7 @@ class Tools:
                 data = json.loads(m.strip())
                 name = data.get("name")
                 tool_calls.append(ToolCall(function=ToolFunction(**data)))
-                
+
                 if name in self._tools:
                     tool = self._tools[name]
                     func = tool[1]
@@ -167,9 +193,12 @@ class Tools:
 
             self._messages.append(Message(role="assistant", content=None, tool_calls=tool_calls))
             for result in results:
-                self._messages.append(Message(role="tool", content=json.dumps(result, ensure_ascii=False), tool_calls=None))
-                
+                self._messages.append(
+                    Message(
+                        role="tool", content=json.dumps(result, ensure_ascii=False), tool_calls=None
+                    )
+                )
+
             return results
         except (json.JSONDecodeError, KeyError, AttributeError) as e:
             raise ValueError(f"Invalid tool call format: {response}") from e
-
