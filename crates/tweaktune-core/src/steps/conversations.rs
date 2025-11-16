@@ -371,6 +371,7 @@ pub struct RenderDPOStep {
     pub messages: String,
     pub chosen: String,
     pub rejected: String,
+    pub tool_call_template_key: String,
     pub tools: Option<String>,
     pub output: String,
 }
@@ -381,6 +382,7 @@ impl RenderDPOStep {
         messages: String,
         chosen: String,
         rejected: String,
+        tool_call_template_key: String,
         tools: Option<String>,
         output: String,
     ) -> Self {
@@ -389,6 +391,7 @@ impl RenderDPOStep {
             messages,
             chosen,
             rejected,
+            tool_call_template_key,
             tools,
             output,
         }
@@ -412,8 +415,14 @@ impl Step for RenderDPOStep {
             .templates
             .render(self.rejected.clone(), context.data.clone())?;
         let messages: Value = serde_json::from_str(&messages)?;
-        let chosen: Value = serde_json::from_str(&chosen)?;
-        let rejected: Value = serde_json::from_str(&rejected)?;
+        let chosen: String = resources.templates.render(
+            self.tool_call_template_key.clone(),
+            serde_json::from_str(&chosen)?,
+        )?;
+        let rejected: String = resources.templates.render(
+            self.tool_call_template_key.clone(),
+            serde_json::from_str(&rejected)?,
+        )?;
 
         let dpo = if let Some(tools_template) = &self.tools {
             let tools = resources

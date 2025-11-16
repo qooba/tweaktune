@@ -1,7 +1,7 @@
 use crate::common::ResultExt;
 use crate::logging::{BusEvent, ChannelWriter, LogsCollector};
 use anyhow::{bail, Result};
-use chrono::Local;
+use chrono::{format, Local};
 use core::fmt;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -905,11 +905,21 @@ impl PipelineBuilder {
             None
         };
 
+        let tool_call_template =
+            r#"<tool_call>{"name":"{{name}}","arguments":{{arguments | tojson}}}</tool_call>"#;
+
+        let tool_call_template_key = format!("{}_tool_call_template", &name);
+        self.resources.templates.add(
+            tool_call_template_key.clone(),
+            tool_call_template.to_string(),
+        );
+
         self.steps.push(StepType::RenderDPO(RenderDPOStep::new(
             name,
             messages_key,
             chosen_key,
             rejected_key,
+            tool_call_template_key,
             tools_key,
             output,
         )));

@@ -439,7 +439,9 @@ def test_step_render_dpo(request, output_dir, metadata):
     assert messages[1]["content"] == "Hello, who won the world series in 2020?"
 
     assert "chosen" in line
+    assert line["chosen"] == """<tool_call>{"name":"get_who_won","arguments":{"year":2020}}</tool_call>"""
     assert "rejected" in line
+    assert line["rejected"] == """<tool_call>{"name":"get_who_won","arguments":{"year":2021}}</tool_call>"""
 
 def test_step_render_grpo(request, output_dir, metadata):
     """Test the basic functionality of the pipeline."""
@@ -468,7 +470,9 @@ def test_step_render_grpo(request, output_dir, metadata):
     assert messages[1]["content"] == "Hello, who won the world series in 2020?"
 
     assert "solution" in line
+    assert line["solution"] == """{"arguments": {"year": 2020}, "name": "get_who_won"}"""
     assert "validator_id" in line
+    assert line["validator_id"] == "tool_use"
 
     
 
