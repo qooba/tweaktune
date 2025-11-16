@@ -410,8 +410,7 @@ pub fn murmur3_hash(value: &str) -> Result<String> {
 }
 
 pub fn blake3_hash(value: &str) -> String {
-    let hash = blake3::hash(value.as_bytes());
-    hash.to_hex().to_string()
+    blake3::hash(value.as_bytes()).to_hex().as_str().to_string()
 }
 
 pub fn khash(step_type: &str, name: &str, value: &str) -> String {

@@ -253,6 +253,63 @@ Format a tool call:
 )
 ```
 
+### render_sft
+
+Render conversation for Supervised Fine-Tuning (SFT):
+
+```python
+.render_sft(
+    conversation="@s:system|@u:question|@a:tool_calls([call1])|@t:response|@a:answer",
+    output="conversation"
+)
+```
+
+Same format as `render_conversation` - creates standard OpenAI-style conversation format.
+
+### render_dpo
+
+Render conversation for Direct Preference Optimization (DPO):
+
+```python
+.render_dpo(
+    conversation="@s:system|@u:question",
+    chosen="call1_chosen",
+    rejected="call1_rejected",
+    output="conversation"
+)
+```
+
+Creates conversation with `chosen` and `rejected` fields for preference learning.
+
+Parameters:
+- `conversation` - Conversation template (context messages)
+- `chosen` - Variable containing the preferred response
+- `rejected` - Variable containing the non-preferred response
+- `output` - Output variable name
+- `separator` - Message separator (default: "|", optional)
+
+### render_grpo
+
+Render conversation for Group Relative Policy Optimization (GRPO):
+
+```python
+.render_grpo(
+    conversation="@s:system|@u:question",
+    solution="solution",
+    validator_id="tool_use",
+    output="conversation"
+)
+```
+
+Creates conversation with `solution` and `validator_id` fields for RL training.
+
+Parameters:
+- `conversation` - Conversation template (context messages)
+- `solution` - Variable containing the correct solution
+- `validator_id` - Identifier for the validation method
+- `output` - Output variable name
+- `separator` - Message separator (default: "|", optional)
+
 ## Generation Steps
 
 ### generate_text

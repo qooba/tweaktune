@@ -27,6 +27,7 @@ This directory contains practical examples demonstrating various tweaktune featu
 ## Training Examples
 
 - [14_chat_templates.py](14_chat_templates.py) - Format data for model fine-tuning
+- [15_rl_formats.py](15_rl_formats.py) - Generate datasets for RL methods (SFT, DPO, GRPO)
 
 ## Running Examples
 

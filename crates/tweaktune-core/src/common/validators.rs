@@ -1,6 +1,13 @@
 use anyhow::{anyhow, Result};
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::{json, Value};
+use std::collections::HashMap;
+
+// Compile regex once and reuse across all validation calls
+static NAME_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^[a-zA-Z0-9_.-]+$").expect("Failed to compile name regex")
+});
 
 pub fn validate_function_call_format(value: &Value) -> Result<()> {
     // Accept both a "tool" definition (as in OpenAI function-calling tool schema)
@@ -19,8 +26,7 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
         .as_str()
         .ok_or_else(|| anyhow!("🐔 'name' must be a string"))?;
     // Basic name character validation: letters, digits, underscore, dot or hyphen
-    let name_re = Regex::new(r"^[a-zA-Z0-9_.-]+$")?;
-    if !name_re.is_match(name) {
+    if !NAME_REGEX.is_match(name) {
         return Err(anyhow!("🐔 invalid function/tool name '{}'", name));
     }
 
@@ -50,17 +56,14 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
                     }
                 }
                 Value::Array(arr) => {
-                    let mut found = false;
+                    // Check all items are strings first
                     for item in arr.iter() {
-                        let s = item.as_str().ok_or_else(|| {
-                            anyhow!("🐔 entries in 'parameters.type' array must be strings")
-                        })?;
-                        if s == "object" {
-                            found = true;
-                            break;
+                        if !item.is_string() {
+                            return Err(anyhow!("🐔 entries in 'parameters.type' array must be strings"));
                         }
                     }
-                    if !found {
+                    // Use iterator combinator for cleaner check
+                    if !arr.iter().any(|item| item.as_str() == Some("object")) {
                         return Err(anyhow!(
                             "🐔 'parameters.type' array must include \"object\" when present"
                         ));
@@ -78,24 +81,27 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
         // array inside `properties` (instead of at the same level as `properties`).
         // Detect and extract that case so the `required` validation below can use it.
         let mut required_from_props: Option<Vec<String>> = None;
+
+        // Parse properties string if needed (allocate only if string)
+        let parsed_props: Option<Value>;
+
         if let Some(props_val) = params.get("properties") {
             // Accept either an object or a JSON string encoding an object for properties.
-            let props_map: serde_json::Map<String, Value> = if props_val.is_object() {
-                props_val.as_object().unwrap().clone()
+            let props = if props_val.is_object() {
+                props_val.as_object().unwrap()
             } else if props_val.is_string() {
                 let s = props_val.as_str().unwrap();
-                let parsed = serde_json::from_str::<Value>(s)
-                    .map_err(|_| anyhow!("🐔 'parameters.properties' string is not valid JSON"))?;
-                if !parsed.is_object() {
+                parsed_props = Some(serde_json::from_str::<Value>(s)
+                    .map_err(|_| anyhow!("🐔 'parameters.properties' string is not valid JSON"))?);
+                if !parsed_props.as_ref().unwrap().is_object() {
                     return Err(anyhow!(
                         "🐔 'parameters.properties' string must decode to a JSON object"
                     ));
                 }
-                parsed.as_object().unwrap().clone()
+                parsed_props.as_ref().unwrap().as_object().unwrap()
             } else {
                 return Err(anyhow!("🐔 'parameters.properties' must be an object or a JSON string encoding an object"));
             };
-            let props = props_map;
 
             // If a `required` key was accidentally put inside `properties` and it's an array,
             // extract it and treat it as parameters.required.
@@ -122,7 +128,7 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
                 }
 
                 // property names should be simple identifiers
-                if !name_re.is_match(prop_name) {
+                if !NAME_REGEX.is_match(prop_name) {
                     return Err(anyhow!(
                         "🐔 invalid parameter property name '{}' (only letters/digits/_ . - allowed)",
                         prop_name
@@ -156,7 +162,7 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
                             declared_types = Some(vec![s.clone()]);
                         }
                         Value::Array(arr) => {
-                            let mut vec_types = Vec::new();
+                            // Validate all types first
                             for item in arr.iter() {
                                 let s = item.as_str().ok_or_else(|| {
                                     anyhow!("🐔 entries in property 'type' array must be strings")
@@ -168,9 +174,13 @@ pub fn validate_function_call_format(value: &Value) -> Result<()> {
                                         prop_name
                                     ));
                                 }
-                                vec_types.push(s.to_string());
                             }
-                            declared_types = Some(vec_types);
+                            // Collect using iterator for efficiency
+                            declared_types = Some(
+                                arr.iter()
+                                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                    .collect()
+                            );
                         }
                         _ => {
                             return Err(anyhow!(
@@ -425,8 +435,6 @@ pub fn validate_function_call_conversation(value: &Value) -> Result<()> {
     if !conv.is_array() {
         return Err(anyhow!("🐔 'conversation' must be an array"));
     }
-
-    let name_re = Regex::new(r"^[a-zA-Z0-9_.-]+$")?;
     for (idx, entry) in conv.as_array().unwrap().iter().enumerate() {
         if !entry.is_object() {
             return Err(anyhow!("🐔 conversation[{}] must be an object", idx));
@@ -554,7 +562,7 @@ pub fn validate_function_call_conversation(value: &Value) -> Result<()> {
                     }
                     for (k, v) in map.iter() {
                         // key should be a simple name
-                        if !name_re.is_match(k) {
+                        if !NAME_REGEX.is_match(k) {
                             return Err(anyhow!("🐔 conversation[{}] function-response has invalid function name '{}'", idx, k));
                         }
                         // value may be object or primitive
@@ -592,7 +600,8 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
 
     // Validate optional `tools` array. If `tools` key is present (even if empty),
     // enforce that assistant tool_calls reference only names from this list.
-    let mut known_tools: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // Use HashMap for O(1) tool lookups instead of O(n) linear search
+    let mut known_tools: HashMap<&str, &Value> = HashMap::new();
     let tools_provided = obj.get("tools").is_some();
     if let Some(tools) = obj.get("tools") {
         if !tools.is_array() {
@@ -602,7 +611,7 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
             // reuse existing validation for tool schema
             validate_function_call_format(t)?;
             if let Some(n) = t.get("name").and_then(|v| v.as_str()) {
-                known_tools.insert(n.to_string());
+                known_tools.insert(n, t);
             }
         }
     }
@@ -614,8 +623,6 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
     if !conv.is_array() {
         return Err(anyhow!("🐔 'messages' must be an array"));
     }
-
-    let name_re = Regex::new(r"^[a-zA-Z0-9_.-]+$")?;
     for (idx, entry) in conv.as_array().unwrap().iter().enumerate() {
         if !entry.is_object() {
             return Err(anyhow!("🐔 messages[{}] must be an object", idx));
@@ -703,7 +710,7 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
                         .ok_or_else(|| {
                             anyhow!("🐔 messages[].tool_calls[].function.name must be a string")
                         })?;
-                    if !name_re.is_match(name) {
+                    if !NAME_REGEX.is_match(name) {
                         return Err(anyhow!(
                             "🐔 messages[{}].tool_calls[{}] invalid function name '{}'",
                             idx,
@@ -711,7 +718,7 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
                             name
                         ));
                     }
-                    if tools_provided && !known_tools.contains(name) {
+                    if tools_provided && !known_tools.contains_key(name) {
                         return Err(anyhow!(
                             "🐔 messages[{}].tool_calls[{}] references unknown tool '{}'",
                             idx,
@@ -729,49 +736,33 @@ pub fn validate_tool_format_messages(value: &Value) -> Result<()> {
                             }
                         }
 
-                        if tools_provided && known_tools.contains(name) {
-                            let used_tool = known_tools.get(name).unwrap();
-                            let used_tool_schema = obj
-                                .get("tools")
-                                .and_then(|t| {
-                                    t.as_array().and_then(|arr| {
-                                        for item in arr.iter() {
-                                            if let Some(n) =
-                                                item.get("name").and_then(|v| v.as_str())
-                                            {
-                                                if n == *used_tool {
-                                                    return Some(item);
-                                                }
-                                            }
-                                        }
-                                        None
-                                    })
-                                })
-                                .unwrap();
+                        // O(1) HashMap lookup instead of O(n) linear search
+                        if tools_provided {
+                            if let Some(used_tool_schema) = known_tools.get(name) {
+                                let properties = if let Value::String(ref v) =
+                                    used_tool_schema["parameters"]["properties"]
+                                {
+                                    serde_json::from_str(v).unwrap()
+                                } else {
+                                    used_tool_schema["parameters"]["properties"].clone()
+                                };
 
-                            let properties = if let Value::String(v) =
-                                used_tool_schema["parameters"]["properties"].clone()
-                            {
-                                serde_json::from_str(&v).unwrap()
-                            } else {
-                                used_tool_schema["parameters"]["properties"].clone()
-                            };
+                                let schema_value = json!({
+                                    "type": "object",
+                                    "properties": properties,
+                                    "required": used_tool_schema["parameters"]["required"],
+                                    "additionalProperties": used_tool_schema["parameters"]["additionalProperties"].as_bool().unwrap_or(false),
+                                });
 
-                            let schema_value = json!({
-                                "type": "object",
-                                "properties": properties,
-                                "required": used_tool_schema["parameters"]["required"],
-                                "additionalProperties": used_tool_schema["parameters"]["additionalProperties"].as_bool().unwrap_or(false),
-                            });
+                                let is_valid = jsonschema::is_valid(&schema_value, args);
 
-                            let is_valid = jsonschema::is_valid(&schema_value, args);
-
-                            if !is_valid {
-                                return Err(anyhow!(
-                                    "🐔 messages[{}].tool_calls[{}].function.arguments does not conform to tool schema",
-                                    idx,
-                                    j
-                                ));
+                                if !is_valid {
+                                    return Err(anyhow!(
+                                        "🐔 messages[{}].tool_calls[{}].function.arguments does not conform to tool schema",
+                                        idx,
+                                        j
+                                    ));
+                                }
                             }
                         }
                     } else {

@@ -515,6 +515,24 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
+    def render_sft(self, conversation: str, output: str, tools: Optional[str] = None, separator: Optional[str] = "|", name: str = "RENDER-SFT"):   
+        self.builder.add_render_sft_step(self.__name(name), conversation, output, tools, separator)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
+    def render_dpo(self, conversation: str, output: str, chosen: str, rejected: str, tools: Optional[str] = None, separator: Optional[str] = "|", name: str = "RENDER-DPO"):   
+        self.builder.add_render_dpo_step(self.__name(name), conversation, output, chosen, rejected, tools, separator)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
+    def render_grpo(self, conversation: str, output: str, solution: str, validator_id: str, tools: Optional[str] = None, separator: Optional[str] = "|", name: str = "RENDER-GRPO"):   
+        self.builder.add_render_grpo_step(self.__name(name), conversation, output, solution, validator_id, tools, separator)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
     def render_tool_call(self, arguments: str, output: str, tool: str = None, tool_name: str = None, additional_template: Optional[str] = None, name: str = "RENDER-TOOL-CALL"):
         if tool:
             tool_name = f"{self.__name(name)}-TOOL"
