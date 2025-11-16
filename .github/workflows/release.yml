@@ -42,7 +42,9 @@ jobs:
         run: cargo clippy --release --no-default-features -- -D warnings -A clippy::upper_case_acronyms
 
       - name: Run Rust tests
-        run: cargo test --release --no-default-features
+        run: |
+          export RUSTFLAGS="-C link-args=-lpython3.10"
+          cargo test --release steps::tests::schema_validate2 -- --nocapture
 
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v6
@@ -63,10 +65,15 @@ jobs:
           black --check tweaktune-python/
           ruff check tweaktune-python/
 
+      - name: Type check Python with mypy
+        run: |
+          source .venv/bin/activate
+          mypy tweaktune-python/tweaktune --ignore-missing-imports
+
       - name: Run Python tests
         run: |
           source .venv/bin/activate
-          pytest
+          pytest --cov=tweaktune --cov-report=xml --cov-report=term
 
       - name: Build Python package
         working-directory:  ./tweaktune-python

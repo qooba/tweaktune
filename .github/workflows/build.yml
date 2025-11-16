@@ -40,10 +40,12 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run Clippy linter
-        run: cargo clippy --no-default-features -- -D warnings -A clippy::upper_case_acronyms
+        run: cargo clippy --release --no-default-features -- -D warnings -A clippy::upper_case_acronyms
 
-      - name: Run cargo check
-        run: cargo check --no-default-features
+      - name: Run Rust tests
+        run: |
+          export RUSTFLAGS="-C link-args=-lpython3.10"
+          cargo test --release steps::tests::schema_validate2 -- --nocapture
 
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v6
