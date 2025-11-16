@@ -373,6 +373,118 @@ class SearchResult(BaseModel):
 .with_pydantic_models_dataset("schemas", [SearchResult])
 ```
 
+## Reinforcement Learning Formats
+
+Generate datasets for various RL fine-tuning methods.
+
+### Supervised Fine-Tuning (SFT)
+
+Format conversations for standard supervised fine-tuning:
+
+```python
+.add_column("system", lambda data: "You are a helpful assistant.")
+.add_column("question", lambda data: "Hello, who won the world series in 2020?")
+.add_column("call1", lambda data: {"name": "get_who_won", "arguments": {"year": 2020}})
+.add_column("response", lambda data: '{"winner": "Los Angeles Dodgers", "year": 2020}')
+.add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
+
+.render_sft(
+    conversation="""
+        @s:system
+        @u:question
+        @a:tool_calls([call1])
+        @t:response
+        @a:answer
+    """,
+    output="conversation",
+    separator="\n"
+)
+```
+
+Result:
+```json
+{
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Hello, who won the world series in 2020?"},
+    {"role": "assistant", "tool_calls": [{"function": {"name": "get_who_won", "arguments": {"year": 2020}}}]},
+    {"role": "tool", "content": "{\"winner\": \"Los Angeles Dodgers\", \"year\": 2020}"},
+    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."}
+  ]
+}
+```
+
+### Direct Preference Optimization (DPO)
+
+Format conversations with chosen and rejected responses:
+
+```python
+.add_column("system", lambda data: "You are a helpful assistant.")
+.add_column("question", lambda data: "Hello, who won the world series in 2020?")
+.add_column("call1_chosen", lambda data: {"name": "get_who_won", "arguments": {"year": 2020}})
+.add_column("call1_rejected", lambda data: {"name": "get_who_won", "arguments": {"year": 2021}})
+
+.render_dpo(
+    conversation="""
+        @s:system
+        @u:question
+    """,
+    chosen="call1_chosen",
+    rejected="call1_rejected",
+    output="conversation",
+    separator="\n"
+)
+```
+
+Result:
+```json
+{
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Hello, who won the world series in 2020?"}
+  ],
+  "chosen": "<tool_call>{\"name\":\"get_who_won\",\"arguments\":{\"year\":2020}}</tool_call>",
+  "rejected": "<tool_call>{\"name\":\"get_who_won\",\"arguments\":{\"year\":2021}}</tool_call>"
+}
+```
+
+The `chosen` and `rejected` fields contain the preferred and non-preferred responses in tool call format.
+
+### Group Relative Policy Optimization (GRPO)
+
+Format conversations with solution and validator:
+
+```python
+.add_column("system", lambda data: "You are a helpful assistant.")
+.add_column("question", lambda data: "Hello, who won the world series in 2020?")
+.add_column("solution", lambda data: {"name": "get_who_won", "arguments": {"year": 2020}})
+
+.render_grpo(
+    conversation="""
+        @s:system
+        @u:question
+    """,
+    solution="solution",
+    validator_id="tool_use",
+    output="conversation",
+    separator="\n"
+)
+```
+
+Result:
+```json
+{
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Hello, who won the world series in 2020?"}
+  ],
+  "solution": "{\"arguments\": {\"year\": 2020}, \"name\": \"get_who_won\"}",
+  "validator_id": "tool_use"
+}
+```
+
+The `solution` field contains the correct response, and `validator_id` identifies the validation method to use.
+
 ## Next Steps
 
 - Learn about [Chat Templates](10-chat-templates.md)
