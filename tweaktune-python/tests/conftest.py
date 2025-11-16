@@ -1,4 +1,3 @@
-import os
 import shutil
 import tempfile
 
@@ -102,7 +101,6 @@ def arrow_builder():
 @pytest.fixture(scope="session")
 def sqlite_database():
     """Create a SQLite database and a table with some data."""
-    import os
     import sqlite3
 
     output_db_dir = tempfile.mkdtemp()

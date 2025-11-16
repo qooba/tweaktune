@@ -70,7 +70,7 @@ class BaseDataset:
 class ToolsDataset(BaseDataset):
     def _normalize(self, path: str = None) -> list:
         dataset = []
-        with open(path, "r") as f:
+        with open(path) as f:
             lines = f.readlines()
             for line in lines:
                 try:
@@ -110,7 +110,7 @@ class ToolsDataset(BaseDataset):
                             del c["speaker"]
 
                     dataset.append(data)
-                except Exception as ex:
+                except Exception:
                     pass
 
         return dataset

@@ -103,7 +103,7 @@ class MistralrsWrapper(LLMWrapper):
         max_tokens: int = 1024,
         temperature: float = 0.1,
     ):
-        from mistralrs import ChatCompletionRequest, Runner, Which
+        from mistralrs import ChatCompletionRequest
 
         messages = self.prepare_messages(messages, json_schema)
 

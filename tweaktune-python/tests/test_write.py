@@ -1,8 +1,6 @@
 import csv
 import json
 
-import pytest
-
 from tweaktune import Pipeline
 
 
@@ -19,7 +17,7 @@ def test_write_json(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     hello = json.loads(lines[0])["hello"]
 
     assert hello == "world"
@@ -40,7 +38,7 @@ def test_write_json_render(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     hello = json.loads(lines[0])["hello"]
 
     assert hello == "world"
@@ -61,7 +59,7 @@ def test_write_csv(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
 
     reader = csv.DictReader(lines)
     hello = next(reader)["world"]

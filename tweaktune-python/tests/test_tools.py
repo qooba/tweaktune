@@ -1,13 +1,7 @@
 import json
-import os
-import shutil
-import tempfile
-from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
-import polars as pl
-import pytest
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from tweaktune import Pipeline
 
@@ -99,7 +93,7 @@ def test_tools_sample(request, output_dir, data_dir, arrow_dataset, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "function" in item
     assert "all_functions" in item
@@ -127,7 +121,7 @@ def test_tools_sample(request, output_dir, data_dir, arrow_dataset, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "all_functions" in item
     assert len(lines) == 10
@@ -153,7 +147,7 @@ def test_tools_sample_2(request, output_dir, data_dir, arrow_dataset, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "all_functions" in item
     assert len(lines) == 10

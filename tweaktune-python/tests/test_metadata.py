@@ -1,4 +1,3 @@
-import json
 import sqlite3
 
 from tweaktune import Metadata, Pipeline
@@ -32,7 +31,7 @@ def test_metadata(request, output_dir):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
 
     assert len(lines) == number
 

@@ -50,7 +50,7 @@ def test_tools_sample_normalized(request, output_dir, data_dir, arrow_dataset, m
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "function" in item
     assert "all_functions" in item

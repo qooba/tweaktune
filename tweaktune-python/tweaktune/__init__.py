@@ -938,7 +938,7 @@ class ChatTemplateBuilder:
         if path:
             if not os.path.exists(path):
                 raise FileNotFoundError(f"Template file not found: {path}")
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 template = f.read()
         if not template:
             raise ValueError("Template cannot be None or empty.")

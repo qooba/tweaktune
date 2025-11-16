@@ -40,7 +40,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run Clippy linter
-        run: cargo clippy --no-default-features
+        run: cargo clippy --no-default-features -- -D warnings -A clippy::upper_case_acronyms
 
       - name: Run cargo check
         run: cargo check --no-default-features

@@ -1,7 +1,6 @@
-import json
-from typing import List, Optional
+from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from tweaktune import ChatTemplateBuilder
 from tweaktune.chat_templates import bielik

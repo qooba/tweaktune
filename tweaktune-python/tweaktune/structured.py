@@ -7,10 +7,10 @@ from pydantic import BaseModel
 def parse(result: str, model: BaseModel):
     try:
         result = json.loads(result)
-    except Exception as ex:
+    except Exception:
         try:
             result = extract_json_block_md(result)
-        except Exception as ex:
+        except Exception:
             result = extract_json_block(result)
 
     return model(**result)

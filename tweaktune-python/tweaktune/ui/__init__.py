@@ -57,7 +57,7 @@ graph TD;\n"""
         graph_str += gr
         callback_str += cb
 
-    callback_str += f'\n  click START call emitEvent("mermaid_click", "START@0")'
+    callback_str += '\n  click START call emitEvent("mermaid_click", "START@0")'
     graph_str += "\n\n"
 
     for ix, step in enumerate(graph.steps):
@@ -152,7 +152,7 @@ def run_ui(builder, graph, host: str = "0.0.0.0", port: int = 8080):
 
         def run_data_range():
             file_data = []
-            with open(data_file["filename"], "r") as f:
+            with open(data_file["filename"]) as f:
                 for i, line in enumerate(f):
                     if i < data_range.value["min"]:
                         continue
@@ -219,7 +219,7 @@ def run_ui(builder, graph, host: str = "0.0.0.0", port: int = 8080):
                 data_button.visible = True
                 data_range.visible = True
 
-                with open(step.args.get("path"), "r") as f:
+                with open(step.args.get("path")) as f:
                     num_lines = sum(1 for _ in f)
 
                 data_range.props(f"max={num_lines}")
@@ -282,7 +282,7 @@ def run_ui(builder, graph, host: str = "0.0.0.0", port: int = 8080):
             elif m["event_type"] == "finished":
                 ui.notify(m["data"]["message"])
                 data = m["data"]
-                progress.props(f"color=blue")
+                progress.props("color=blue")
                 progress.props(":thickness=1")
 
             # ui.notify(message)

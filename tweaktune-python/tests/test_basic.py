@@ -18,7 +18,7 @@ def test_basic(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == number
 
 
@@ -37,7 +37,7 @@ def test_basic_j2(request, output_dir, j2_file, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == number
     item = json.loads(lines[0])
     assert item["hello"] == "world"
@@ -58,7 +58,7 @@ def test_basic_j2_dir(request, output_dir, j2_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == number
     item = json.loads(lines[0])
     assert item["hello"] == "world"
@@ -68,7 +68,7 @@ def test_basic_j2_yaml(request, output_dir, j2_file_yaml, metadata):
     """Test the basic functionality of the pipeline."""
     number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
-    print(open(j2_file_yaml, "r").read())
+    print(open(j2_file_yaml).read())
 
     (
         Pipeline(name=request.node.name, metadata=metadata)
@@ -80,7 +80,7 @@ def test_basic_j2_yaml(request, output_dir, j2_file_yaml, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == number
     item = json.loads(lines[0])
     assert item["hello"] == "world"
@@ -107,7 +107,7 @@ def test_internal_dataset(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == number
     item = json.loads(lines[0])
     assert "question" in item

@@ -1,8 +1,7 @@
 import json
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
-import polars as pl
 import pytest
 from pydantic import BaseModel, Field
 
@@ -36,7 +35,7 @@ def test_read_mixed(request, output_dir, data_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "mixed" in item
     assert "functions" in item["mixed"]
@@ -95,7 +94,7 @@ def test_read_csv(request, output_dir, data_dir, metadata, file_name, delimeter,
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "functions" in item
     if has_header:
@@ -119,7 +118,7 @@ def test_read_parquet(request, output_dir, data_dir, parquet_file, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "items" in item
     assert "name" in item["items"]
@@ -143,7 +142,7 @@ def test_read_parquet_sql(request, output_dir, data_dir, parquet_file, metadata)
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "items" in item
     assert "name" in item["items"]
@@ -167,7 +166,7 @@ def test_read_db(request, output_dir, data_dir, sqlite_database, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "functions" in item
 
@@ -187,7 +186,7 @@ def test_read_arrow(request, output_dir, data_dir, arrow_dataset, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "functions" in item
     assert len(lines) == 10
@@ -227,7 +226,7 @@ def test_read_dicts(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     for line in lines:
         data = json.loads(line)
         assert data["class"] in classes_list
@@ -272,7 +271,7 @@ def test_read_tools(request, data_dir, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
 
     assert len(lines) == number
 
@@ -315,7 +314,7 @@ def test_read_pydantic(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
 
     assert len(lines) == number
 
@@ -336,7 +335,7 @@ def test_read_openapi(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
 
     assert len(lines) == number
 
@@ -365,7 +364,7 @@ def test_read_jsonl(request, data_dir, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     line = json.loads(lines[0])
     assert "description" in line
     assert line["description"] == "This is function."

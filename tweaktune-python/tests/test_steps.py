@@ -20,7 +20,7 @@ def test_step_sample(request, output_dir, data_dir, arrow_dataset, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "my_items" in item
     print("ITEM:", item)
@@ -53,7 +53,7 @@ def test_step_py(request, output_dir, data_dir, arrow_dataset, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "my_items" in item
     assert "name" in item["my_items"]
@@ -86,7 +86,7 @@ def test_step_map(request, output_dir, data_dir, arrow_dataset, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "my_items" in item
     assert "name" in item["my_items"]
@@ -110,7 +110,7 @@ def test_step_add_column_lambda(request, output_dir, data_dir, arrow_dataset, me
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert len(lines) == 10
     assert "my_random" in item
@@ -138,7 +138,7 @@ def test_step_add_column(request, output_dir, data_dir, arrow_dataset, metadata)
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert len(lines) == 10
     assert "new_column_3" in item
@@ -164,7 +164,7 @@ def test_step_filter_lambda(request, output_dir, data_dir, arrow_dataset, metada
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     for line in lines:
         item = json.loads(line)
         assert "my_random" in item
@@ -187,7 +187,7 @@ def test_step_filter(request, output_dir, data_dir, arrow_dataset, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     for line in lines:
         item = json.loads(line)
         assert "my_random" in item
@@ -210,7 +210,7 @@ def test_step_mutate_lambda(request, output_dir, data_dir, arrow_dataset, metada
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     for line in lines:
         item = json.loads(line)
         assert "my_random" in item
@@ -234,7 +234,7 @@ def test_step_mutate(request, output_dir, data_dir, arrow_dataset, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     for line in lines:
         item = json.loads(line)
         assert "val" in item
@@ -257,7 +257,7 @@ def test_step_render(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     line = json.loads(lines[0])
     assert "hello" in line
     assert line["hello"] == "HELLO WORLD"
@@ -303,7 +303,7 @@ def test_step_render_conversation(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == 1
     line = json.loads(lines[0])
     messages = line["messages"]
@@ -368,7 +368,7 @@ def test_step_render_conversation_rendered(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == 1
     line = json.loads(lines[0])
     messages = line["messages"]
@@ -416,7 +416,7 @@ def test_step_render_conversation_aliases(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == 1
     line = json.loads(lines[0])
     messages = line["messages"]
@@ -458,7 +458,7 @@ def test_step_render_sft(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == 1
     line = json.loads(lines[0])
     messages = line["messages"]
@@ -503,7 +503,7 @@ def test_step_render_dpo(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == 1
     line = json.loads(lines[0])
     messages = line["messages"]
@@ -545,7 +545,7 @@ def test_step_render_grpo(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == 1
     line = json.loads(lines[0])
     messages = line["messages"]
@@ -580,7 +580,7 @@ def test_step_check_language(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == 1
 
 
@@ -604,7 +604,7 @@ def test_step_check_language_polish(request, output_dir, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     assert len(lines) == 1
 
 
@@ -634,7 +634,7 @@ def test_step_ifelse_then_lambda(request, output_dir, data_dir, arrow_dataset, m
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     for line in lines:
         item = json.loads(line)
         assert "my_1" in item
@@ -671,7 +671,7 @@ def test_step_ifelse_then(request, output_dir, data_dir, arrow_dataset, metadata
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     for line in lines:
         item = json.loads(line)
         assert "my_1" in item
@@ -708,7 +708,7 @@ def test_step_ifelse_else_lambda(request, output_dir, data_dir, arrow_dataset, m
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     for line in lines:
         item = json.loads(line)
         assert "my_1" in item
@@ -745,7 +745,7 @@ def test_step_ifelse_else(request, output_dir, data_dir, arrow_dataset, metadata
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     for line in lines:
         item = json.loads(line)
         assert "my_1" in item
@@ -773,7 +773,7 @@ def test_step_into_list(request, output_dir, data_dir, arrow_dataset, metadata):
         .run()
     )
 
-    lines = open(output_file, "r").readlines()
+    lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert len(lines) == 10
     assert "my_list" in item
