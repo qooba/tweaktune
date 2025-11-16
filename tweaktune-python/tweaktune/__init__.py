@@ -1,50 +1,88 @@
-from unittest import result
-from tweaktune.tweaktune import PipelineBuilder, IterBy, LLM, Embeddings, Metadata, JudgeType, InternalDatasetType
-from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
-from tweaktune.common import LogLevel, StepStatus, record_batches_to_ipc_bytes, package_installation_hint
-from tweaktune.tools import pydantic_to_json_schema, function_to_json_schema
-from tweaktune.wrappers import PyStepWrapper, UnslothWrapper, MistralrsWrapper, PyStepValidatorWrapper, PyConditionWrapper
-from tweaktune.chain import Chain
-import json
-import sys
-import os
 import inspect
-from typing import Dict, List, Union, Tuple, Callable, Optional, Any
+import json
+import os
+import sys
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from unittest import result
+
 from pydantic import BaseModel
+
+from tweaktune.chain import Chain
+from tweaktune.common import (
+    LogLevel,
+    StepStatus,
+    package_installation_hint,
+    record_batches_to_ipc_bytes,
+)
+from tweaktune.tools import function_to_json_schema, pydantic_to_json_schema
+from tweaktune.tweaktune import (
+    LLM,
+)
+from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
+from tweaktune.tweaktune import (
+    Embeddings,
+    InternalDatasetType,
+    IterBy,
+    JudgeType,
+    Metadata,
+    PipelineBuilder,
+)
+from tweaktune.wrappers import (
+    MistralrsWrapper,
+    PyConditionWrapper,
+    PyStepValidatorWrapper,
+    PyStepWrapper,
+    UnslothWrapper,
+)
+
 
 def step_item(name: str):
     frame = inspect.currentframe().f_back
-    args_info = {str(k):v for k,v in inspect.getargvalues(frame).locals.items() if k != 'self'}
+    args_info = {str(k): v for k, v in inspect.getargvalues(frame).locals.items() if k != "self"}
     return StepItem(name=name, func=frame.f_code.co_name, args=args_info)
+
 
 class StepItem(BaseModel):
     name: str
     func: str
     args: Dict[str, Any] = {}
-    children: List['StepItem'] = []
+    children: List["StepItem"] = []
 
-    def add_child(self, child: 'StepItem'):
+    def add_child(self, child: "StepItem"):
         self.children.append(child)
+
 
 def config_item(name: str):
     frame = inspect.currentframe().f_back
-    args_info = {str(k):str(v).replace('"','') for k,v in inspect.getargvalues(frame).locals.items() if k != 'ipc_data' and k != 'self'}
+    args_info = {
+        str(k): str(v).replace('"', "")
+        for k, v in inspect.getargvalues(frame).locals.items()
+        if k != "ipc_data" and k != "self"
+    }
     return ConfigItem(name=name, func=frame.f_code.co_name, args=args_info)
-    
+
+
 class ConfigItem(BaseModel):
     name: str
     func: str
     args: Dict[str, str] = {}
 
+
 def start_item(name: str):
     frame = inspect.currentframe().f_back
-    args_info = {str(k):str(v).replace('"','') for k,v in inspect.getargvalues(frame).locals.items() if k != 'ipc_data' and k != 'self'}
+    args_info = {
+        str(k): str(v).replace('"', "")
+        for k, v in inspect.getargvalues(frame).locals.items()
+        if k != "ipc_data" and k != "self"
+    }
     return ConfigItem(name=name, func=frame.f_code.co_name, args=args_info)
-    
+
+
 class StartItem(BaseModel):
     name: str
     func: str
     args: Dict[str, str] = {}
+
 
 class GraphConfig(BaseModel):
     llms: List[ConfigItem] = []
@@ -52,11 +90,11 @@ class GraphConfig(BaseModel):
     templates: List[ConfigItem] = []
     workers: int = 1
 
+
 class Graph(BaseModel):
     config: GraphConfig = GraphConfig()
     steps: List[StepItem] = []
     start: Optional[StartItem] = None
-
 
 
 class Pipeline:
@@ -78,7 +116,7 @@ class Pipeline:
         self.builder.with_json_list_dataset(name, json_list, None)
         self.graph.config.datasets.append(config_item(name))
         return self
-    
+
     def with_pydantic_models_dataset(self, name: str, models: List[BaseModel]):
         """Converts a list of Pydantic models to json schema and adds them to the pipeline."""
         json_list = [pydantic_to_json_schema(model) for model in models]
@@ -104,7 +142,7 @@ class Pipeline:
         self.builder.with_jsonl_dataset(name, path, sql)
         self.graph.config.datasets.append(config_item(name))
         return self
-    
+
     def with_json_dataset(self, name: str, path: str, sql: str = None):
         """Adds a json dataset to the pipeline."""
         self.builder.with_json_dataset(name, path, sql)
@@ -128,8 +166,10 @@ class Pipeline:
         self.builder.with_parquet_dataset(name, path, sql)
         self.graph.config.datasets.append(config_item(name))
         return self
-    
-    def with_csv_dataset(self, name: str, path: str, delimiter: str, has_header: bool, sql: str = None):
+
+    def with_csv_dataset(
+        self, name: str, path: str, delimiter: str, has_header: bool, sql: str = None
+    ):
         """Adds a csv dataset to the pipeline."""
         self.builder.with_csv_dataset(name, path, delimiter, has_header, sql)
         self.graph.config.datasets.append(config_item(name))
@@ -145,7 +185,8 @@ class Pipeline:
         """
         try:
             import connectorx as cx
-            table  = cx.read_sql(conn, query, return_type="arrow")
+
+            table = cx.read_sql(conn, query, return_type="arrow")
             ipc_data = record_batches_to_ipc_bytes(table.to_reader())
             self.builder.with_ipc_dataset(name, ipc_data)
             self.graph.config.datasets.append(config_item(name))
@@ -154,9 +195,17 @@ class Pipeline:
             package_installation_hint("connectorx")
             raise
 
-    def with_hf_dataset(self, name: str, dataset_path: str, dataset_name: str = None, dataset_split = "train", sql: str = None):
+    def with_hf_dataset(
+        self,
+        name: str,
+        dataset_path: str,
+        dataset_name: str = None,
+        dataset_split="train",
+        sql: str = None,
+    ):
         try:
             from datasets import load_dataset
+
             dataset = load_dataset(dataset_path, name=dataset_name, split=dataset_split)
             ipc_data = record_batches_to_ipc_bytes(dataset.data.to_reader())
             self.builder.with_ipc_dataset(name, ipc_data, sql)
@@ -180,7 +229,7 @@ class Pipeline:
                 self.builder.with_ipc_dataset(name, ipc_data, sql)
             else:
                 raise ValueError("Invalid dataset type")
-            
+
             self.graph.config.datasets.append(config_item(name))
             return self
 
@@ -188,7 +237,7 @@ class Pipeline:
             package_installation_hint("datasets")
             package_installation_hint("pyarrow")
             raise
-    
+
     def with_template(self, name: str, template: str):
         """Adds a template to the pipeline."""
         self.builder.with_jinja_template(name, template)
@@ -201,55 +250,76 @@ class Pipeline:
         self.builder.with_dir_templates(path, op_config)
         self.graph.config.templates.append(config_item("DIR-TEMPLATES"))
         return self
-    
+
     def with_j2_template(self, name: str, path: str, op_config: Optional[dict] = None):
         """Adds a template from file to the pipeline."""
         op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
         self.builder.with_j2_template(name, path, op_config)
         self.graph.config.templates.append(config_item(name))
         return self
-    
+
     def with_j2_templates(self, path: str, op_config: Optional[dict] = None):
         """Adds a template from file to the pipeline."""
         op_config = json.dumps(op_config, ensure_ascii=False) if op_config else None
         self.builder.with_j2_templates(path, op_config)
         self.graph.config.templates.append(config_item("J2-TEMPLATES"))
         return self
-    
+
     def with_llm(self, llm: LLM):
         """Adds a LLM to the pipeline."""
         if llm.__class__ == LLM.OpenAI:
-            self.builder.with_llm_api(llm.name, llm.base_url, llm.api_key, llm.model, llm.max_tokens)
+            self.builder.with_llm_api(
+                llm.name, llm.base_url, llm.api_key, llm.model, llm.max_tokens
+            )
             self.graph.config.llms.append(config_item(llm.name))
         else:
             raise ValueError("Invalid LLM type")
-        
+
         return self
-    
-    def with_llm_api(self, name: str, base_url: str, api_key: str, model: str, max_tokens: int = 2048, temperature: float = 0.7):
+
+    def with_llm_api(
+        self,
+        name: str,
+        base_url: str,
+        api_key: str,
+        model: str,
+        max_tokens: int = 2048,
+        temperature: float = 0.7,
+    ):
         """Adds an OpenAI LLM to the pipeline."""
         self.builder.with_llm_api(name, base_url, api_key, model, max_tokens, temperature)
         self.graph.config.llms.append(config_item(name))
         return self
-    
-    def with_llm_openai(self, name: str, api_key: str, model: str, max_tokens: int = 2048, temperature: float = 0.7):
+
+    def with_llm_openai(
+        self, name: str, api_key: str, model: str, max_tokens: int = 2048, temperature: float = 0.7
+    ):
         """Adds an OpenAI LLM to the pipeline."""
         self.builder.with_llm_openai(name, api_key, model, max_tokens, temperature)
         self.graph.config.llms.append(config_item(name))
         return self
 
-    def with_llm_azure_openai(self, name: str, api_key: str, endpoint: str, deployment_name: str, api_version: str, max_tokens: int = 2048, temperature: float = 0.7):
+    def with_llm_azure_openai(
+        self,
+        name: str,
+        api_key: str,
+        endpoint: str,
+        deployment_name: str,
+        api_version: str,
+        max_tokens: int = 2048,
+        temperature: float = 0.7,
+    ):
         """Adds an OpenAI LLM to the pipeline."""
-        self.builder.with_llm_azure_openai(name, api_key, endpoint, deployment_name, api_version, max_tokens, temperature)
+        self.builder.with_llm_azure_openai(
+            name, api_key, endpoint, deployment_name, api_version, max_tokens, temperature
+        )
         self.graph.config.llms.append(config_item(name))
         return self
-    
-    def with_llm_mistralrs(self, name: str, 
-                         model_id: str, 
-                         in_situ_quant: str
-                         ):
+
+    def with_llm_mistralrs(self, name: str, model_id: str, in_situ_quant: str):
         try:
             from mistralrs import ChatCompletionRequest, Runner, Which
+
             runner = Runner(
                 which=Which.Plain(model_id=model_id),
                 in_situ_quant=in_situ_quant,
@@ -261,37 +331,35 @@ class Pipeline:
             package_installation_hint("mistralrs")
             raise
 
-    
-    def with_llm_unsloth(self, name: str, 
-                         model_name: str, 
-                         load_in_4bit: bool = True, 
-                         dtype = None, 
-                         max_seq_length: int = 2048, 
-                         hf_token: str = None,
-                         chat_template: Union[str, Tuple[str, str]] = "chatml",
-                         mapping: dict = None,
-                         map_eos_token: bool = True,
-                         ):
+    def with_llm_unsloth(
+        self,
+        name: str,
+        model_name: str,
+        load_in_4bit: bool = True,
+        dtype=None,
+        max_seq_length: int = 2048,
+        hf_token: str = None,
+        chat_template: Union[str, Tuple[str, str]] = "chatml",
+        mapping: dict = None,
+        map_eos_token: bool = True,
+    ):
         try:
             from unsloth import FastLanguageModel
             from unsloth.chat_templates import get_chat_template
 
             model, tokenizer = FastLanguageModel.from_pretrained(
-                model_name = model_name,
-                max_seq_length = max_seq_length,
-                dtype = dtype,
-                load_in_4bit = load_in_4bit,
-                token = hf_token
+                model_name=model_name,
+                max_seq_length=max_seq_length,
+                dtype=dtype,
+                load_in_4bit=load_in_4bit,
+                token=hf_token,
             )
 
             if not mapping:
-                mapping = {"role" : "from", "content" : "value", "user" : "human", "assistant" : "gpt"}
+                mapping = {"role": "from", "content": "value", "user": "human", "assistant": "gpt"}
 
             tokenizer = get_chat_template(
-               tokenizer,
-               chat_template = chat_template,
-               mapping = mapping,
-               map_eos_token = map_eos_token
+                tokenizer, chat_template=chat_template, mapping=mapping, map_eos_token=map_eos_token
             )
             FastLanguageModel.for_inference(model)
             self.builder.with_llm_unsloth(name, UnslothWrapper(model, tokenizer))
@@ -304,11 +372,13 @@ class Pipeline:
 
     def with_embedings(self, embeddings: Embeddings):
         if embeddings.__class__ == Embeddings.OpenAI:
-            self.builder.with_embeddings_api(embeddings.name, embeddings.model, embeddings.base_url, embeddings.api_key)
+            self.builder.with_embeddings_api(
+                embeddings.name, embeddings.model, embeddings.base_url, embeddings.api_key
+            )
             self.graph.config.llms.append(config_item("EMBEDDINGS"))
         else:
             raise ValueError("Invalid Embeddings type")
-        
+
         return self
 
     def with_embedings_api(self, name: str, base_url: str, api_key: str, model: str):
@@ -320,16 +390,16 @@ class Pipeline:
         self.builder.with_embeddings_e5(name, model_repo)
         self.graph.config.llms.append(config_item("EMBEDDINGS"))
         return self
-    
+
     def with_workers(self, workers: int):
         self.builder.with_workers(workers)
         self.graph.config.workers = workers
         return self
-    
+
     def from_yaml(self, path_or_url: str):
-        #TODO: Implement fetch configuration from yaml
+        # TODO: Implement fetch configuration from yaml
         return self
-    
+
     def iter(self, iter_by: IterBy):
         if iter_by.__class__ == IterBy.Range:
             self.builder.iter_by_range(iter_by.start, iter_by.stop, iter_by.step)
@@ -339,18 +409,18 @@ class Pipeline:
             self.graph.start = start_item("ITER-DATASET")
         else:
             raise ValueError("Invalid IterBy type")
-        
+
         return PipelineRunner(self.builder, self.graph)
-    
+
     def iter_dataset(self, name: str):
         self.builder.iter_by_dataset(name)
         self.graph.start = start_item("ITER-DATASET")
         return PipelineRunner(self.builder, self.graph)
-    
+
     def iter_range(self, *args, **kwargs):
-        start = kwargs.get('start', 0)
-        stop = kwargs.get('stop', 0)
-        step = kwargs.get('step', 1)
+        start = kwargs.get("start", 0)
+        stop = kwargs.get("stop", 0)
+        step = kwargs.get("step", 1)
 
         if len(args) == 1:
             stop = args[0]
@@ -383,34 +453,57 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
-    
-    def ifelse(self, condition: Union[Callable, str], then_chain: Chain, else_chain: Chain, name: str = "PY-IFELSE"):
+
+    def ifelse(
+        self,
+        condition: Union[Callable, str],
+        then_chain: Chain,
+        else_chain: Chain,
+        name: str = "PY-IFELSE",
+    ):
         name = self.__name(name)
         if isinstance(condition, Callable):
-            step = type(name.replace("-","_"), (object,), {'check': lambda self, context: condition(context)})()
-            self.builder.add_ifelse_step(name, PyConditionWrapper(step), None, then_chain.steps_chain, else_chain.steps_chain)
+            step = type(
+                name.replace("-", "_"),
+                (object,),
+                {"check": lambda self, context: condition(context)},
+            )()
+            self.builder.add_ifelse_step(
+                name, PyConditionWrapper(step), None, then_chain.steps_chain, else_chain.steps_chain
+            )
         elif isinstance(condition, str):
-            self.builder.add_ifelse_step(name, None, condition, then_chain.steps_chain, else_chain.steps_chain)
-            
+            self.builder.add_ifelse_step(
+                name, None, condition, then_chain.steps_chain, else_chain.steps_chain
+            )
+
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
-    
+
     def map(self, func: Callable, name: str = "PY-MAP"):
         name = self.__name(name)
-        step = type(name.replace("-","_"), (object,), {'process': lambda self, context: func(context)})()
+        step = type(
+            name.replace("-", "_"), (object,), {"process": lambda self, context: func(context)}
+        )()
         self.builder.add_py_step(name, PyStepWrapper(step))
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
-    
+
     def add_columns(self, columns: Dict[str, Union[Callable, str]], name: str = "ADD-COLUMNS"):
         for output, func in columns.items():
             self.add_column(output, func, name=name)
         return self
 
-    def add_column(self, output: str, func: Union[Callable, str], is_json: bool = True, name: str = "ADD-COLUMN"):
+    def add_column(
+        self,
+        output: str,
+        func: Union[Callable, str],
+        is_json: bool = True,
+        name: str = "ADD-COLUMN",
+    ):
         if isinstance(func, Callable):
+
             def wrapper(context):
                 if output in context["data"]:
                     print("Warning: Output column already exists, overwriting it.")
@@ -422,19 +515,22 @@ class PipelineRunner:
             self.builder.add_new_column_step(self.__name(name), func, is_json, output)
         else:
             raise ValueError("Either lambda_func or func must be provided.")
-        
+
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
-    def add_random(self, output: str, start: int, stop:int, name: str = "ADD-RANDOM"):
-        self.builder.add_new_column_step(self.__name(name), f"\"{start},{stop}\"|random_range", False, output)
+    def add_random(self, output: str, start: int, stop: int, name: str = "ADD-RANDOM"):
+        self.builder.add_new_column_step(
+            self.__name(name), f'"{start},{stop}"|random_range', False, output
+        )
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
     def filter(self, condition: Union[Callable, str], name: str = "FILTER"):
         if isinstance(condition, Callable):
+
             def condition_wrapper(context):
                 if not condition(context["data"]):
                     context["status"] = StepStatus.FAILED.value
@@ -445,13 +541,16 @@ class PipelineRunner:
             self.builder.add_filter_step(self.__name(name), condition)
         else:
             raise ValueError("Either lambda_condition or condition must be provided.")
-        
+
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
-    
-    def mutate(self, output: str, func: Union[Callable, str], is_json: bool = True, name: str = "MUTATE"):
+
+    def mutate(
+        self, output: str, func: Union[Callable, str], is_json: bool = True, name: str = "MUTATE"
+    ):
         if isinstance(func, Callable):
+
             def wrapper(context):
                 context["data"][output] = func(context["data"][output])
                 return context
@@ -466,31 +565,85 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def generate_text(self, template: str, llm: str, output: str, system_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-TEXT"):
-        self.builder.add_text_generation_step(self.__name(name), template, llm, output, system_template, max_tokens, temperature)
+    def generate_text(
+        self,
+        template: str,
+        llm: str,
+        output: str,
+        system_template: str = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.1,
+        name: str = "GENERATE-TEXT",
+    ):
+        self.builder.add_text_generation_step(
+            self.__name(name), template, llm, output, system_template, max_tokens, temperature
+        )
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
-    def generate_json(self, template: str, llm: str, output: str, json_path: str = None, system_template: str = None, response_format: BaseModel = None, schema_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-JSON"):
+    def generate_json(
+        self,
+        template: str,
+        llm: str,
+        output: str,
+        json_path: str = None,
+        system_template: str = None,
+        response_format: BaseModel = None,
+        schema_template: str = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.1,
+        name: str = "GENERATE-JSON",
+    ):
         schema = None
         if not schema_template and response_format:
             schema = {
                 "name": response_format.__class__.__name__,
                 "schema": response_format.model_json_schema(),
-                "strict": True
+                "strict": True,
             }
             schema["schema"]["additionalProperties"] = False
             schema = json.dumps(schema)
 
-        self.builder.add_json_generation_step(self.__name(name), template, llm, output, json_path, system_template, schema, max_tokens, temperature, schema_template)
+        self.builder.add_json_generation_step(
+            self.__name(name),
+            template,
+            llm,
+            output,
+            json_path,
+            system_template,
+            schema,
+            max_tokens,
+            temperature,
+            schema_template,
+        )
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
-    
-    def generate_structured(self, template: str, llm: str, output: str, response_format: BaseModel, system_template: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "GENERATE-JSON"):
-        return self.generate_json(template, llm, output, json_path=None, system_template=system_template, response_format=response_format, max_tokens=max_tokens, temperature=temperature, name=name)
-    
+
+    def generate_structured(
+        self,
+        template: str,
+        llm: str,
+        output: str,
+        response_format: BaseModel,
+        system_template: str = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.1,
+        name: str = "GENERATE-JSON",
+    ):
+        return self.generate_json(
+            template,
+            llm,
+            output,
+            json_path=None,
+            system_template=system_template,
+            response_format=response_format,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            name=name,
+        )
+
     def sample(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
         self.builder.add_data_sampler_step(self.__name(name), dataset, size, output)
         self.graph.steps.append(step_item(name=self.__name(name)))
@@ -509,57 +662,114 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def render_conversation(self, conversation: str, output: str, tools: Optional[str] = None, separator: Optional[str] = "|", name: str = "RENDER-CONVERSATION"):   
-        self.builder.add_render_conversation_step(self.__name(name), conversation, output, tools, separator)
+    def render_conversation(
+        self,
+        conversation: str,
+        output: str,
+        tools: Optional[str] = None,
+        separator: Optional[str] = "|",
+        name: str = "RENDER-CONVERSATION",
+    ):
+        self.builder.add_render_conversation_step(
+            self.__name(name), conversation, output, tools, separator
+        )
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
-    def render_sft(self, conversation: str, output: str, tools: Optional[str] = None, separator: Optional[str] = "|", name: str = "RENDER-SFT"):   
+    def render_sft(
+        self,
+        conversation: str,
+        output: str,
+        tools: Optional[str] = None,
+        separator: Optional[str] = "|",
+        name: str = "RENDER-SFT",
+    ):
         self.builder.add_render_sft_step(self.__name(name), conversation, output, tools, separator)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
-    def render_dpo(self, conversation: str, output: str, chosen: str, rejected: str, tools: Optional[str] = None, separator: Optional[str] = "|", name: str = "RENDER-DPO"):   
-        self.builder.add_render_dpo_step(self.__name(name), conversation, output, chosen, rejected, tools, separator)
+    def render_dpo(
+        self,
+        conversation: str,
+        output: str,
+        chosen: str,
+        rejected: str,
+        tools: Optional[str] = None,
+        separator: Optional[str] = "|",
+        name: str = "RENDER-DPO",
+    ):
+        self.builder.add_render_dpo_step(
+            self.__name(name), conversation, output, chosen, rejected, tools, separator
+        )
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
-    def render_grpo(self, conversation: str, output: str, solution: str, validator_id: str, tools: Optional[str] = None, separator: Optional[str] = "|", name: str = "RENDER-GRPO"):   
-        self.builder.add_render_grpo_step(self.__name(name), conversation, output, solution, validator_id, tools, separator)
+    def render_grpo(
+        self,
+        conversation: str,
+        output: str,
+        solution: str,
+        validator_id: str,
+        tools: Optional[str] = None,
+        separator: Optional[str] = "|",
+        name: str = "RENDER-GRPO",
+    ):
+        self.builder.add_render_grpo_step(
+            self.__name(name), conversation, output, solution, validator_id, tools, separator
+        )
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
-    def render_tool_call(self, arguments: str, output: str, tool: str = None, tool_name: str = None, additional_template: Optional[str] = None, name: str = "RENDER-TOOL-CALL"):
+    def render_tool_call(
+        self,
+        arguments: str,
+        output: str,
+        tool: str = None,
+        tool_name: str = None,
+        additional_template: Optional[str] = None,
+        name: str = "RENDER-TOOL-CALL",
+    ):
         if tool:
             tool_name = f"{self.__name(name)}-TOOL"
             self.builder.add_new_column_step(self.__name(name), tool, True, output=tool_name)
-            
-        self.builder.add_render_tool_call_step(self.__name(name), tool_name, arguments, output, additional_template);
-        self.graph.steps.append(step_item(name=self.__name(name)));
-        self.step_index += 1;
-        return self;
+
+        self.builder.add_render_tool_call_step(
+            self.__name(name), tool_name, arguments, output, additional_template
+        )
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
 
     def check_hash(self, input: str, name: str = "CHECK-HASH"):
         self.builder.add_check_hash_step(self.__name(name), input)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
-        return self;
+        return self
 
     def check_simhash(self, input: str, treshold: int = 3, name: str = "CHECK-SIMHASH"):
         self.builder.add_check_simhash_step(self.__name(name), treshold, input)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
-        return self;
+        return self
 
-    def check_embedding(self, input: str, embedding: str, treshold: int = 3, similarity_output: str = None, name: str = "CHECK-EMBEDDING"):
-        self.builder.add_check_embeddings_step(self.__name(name), input, embedding, treshold, similarity_output)
+    def check_embedding(
+        self,
+        input: str,
+        embedding: str,
+        treshold: int = 3,
+        similarity_output: str = None,
+        name: str = "CHECK-EMBEDDING",
+    ):
+        self.builder.add_check_embeddings_step(
+            self.__name(name), input, embedding, treshold, similarity_output
+        )
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
-        return self;
+        return self
 
     def validate_json(self, schema: str, instance: str, name: str = "VALIDATE-JSON"):
         self.builder.add_validatejson_step(self.__name(name), schema, instance)
@@ -572,7 +782,7 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
-    
+
     def validate_conversation(self, instances: str, name: str = "VALIDATE-CONVERSATION"):
         self.builder.add_validateconversation_step(self.__name(name), instances)
         self.graph.steps.append(step_item(name=self.__name(name)))
@@ -584,7 +794,7 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
-    
+
     def into_list(self, inputs: List[str], output: str, name: str = "INTO-LIST"):
         self.builder.add_into_list_step(self.__name(name), inputs, output)
         self.graph.steps.append(step_item(name=self.__name(name)))
@@ -596,15 +806,40 @@ class PipelineRunner:
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
-    
+
     def read(self, dataset: str, output: str, name: str = "SAMPLE"):
         self.builder.add_data_read_step(self.__name(name), dataset, output)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
 
-    def judge_conversation(self, input: str, llm: str, output: str, language: str = "en", judge_type: JudgeType = JudgeType.ToolsCalling, attach_to_conversation: bool = False, custom_template: str = None, custom_json_schema: str = None, max_tokens: int = 1024, temperature: float = 0.1, name: str = "JUDGE-CONVERSATION"):
-        self.builder.add_judge_conversation_step(self.__name(name), input, llm, output, language, judge_type, attach_to_conversation, custom_template, custom_json_schema, max_tokens, temperature)
+    def judge_conversation(
+        self,
+        input: str,
+        llm: str,
+        output: str,
+        language: str = "en",
+        judge_type: JudgeType = JudgeType.ToolsCalling,
+        attach_to_conversation: bool = False,
+        custom_template: str = None,
+        custom_json_schema: str = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.1,
+        name: str = "JUDGE-CONVERSATION",
+    ):
+        self.builder.add_judge_conversation_step(
+            self.__name(name),
+            input,
+            llm,
+            output,
+            language,
+            judge_type,
+            attach_to_conversation,
+            custom_template,
+            custom_json_schema,
+            max_tokens,
+            temperature,
+        )
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self
@@ -615,28 +850,43 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def check_language(self, input: str, language: str, precision: float, detect_languages: List[str], name: str = "CHECK-LANGUAGE"):
-        self.builder.add_check_language_step(self.__name(name), input, language, precision, detect_languages);
-        self.graph.steps.append(step_item(name=self.__name(name)));
-        self.step_index += 1;
-        return self;
+    def check_language(
+        self,
+        input: str,
+        language: str,
+        precision: float,
+        detect_languages: List[str],
+        name: str = "CHECK-LANGUAGE",
+    ):
+        self.builder.add_check_language_step(
+            self.__name(name), input, language, precision, detect_languages
+        )
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
 
-    def write_jsonl(self, path: str, template: Optional[str] = None, value: Optional[str] = "output", name: str = "WRITE-JSONL"):
+    def write_jsonl(
+        self,
+        path: str,
+        template: Optional[str] = None,
+        value: Optional[str] = "output",
+        name: str = "WRITE-JSONL",
+    ):
         self.builder.add_write_jsonl_step(self.__name(name), path, template, value)
         self.graph.steps.append(step_item(name=self.__name(name)))
         return self
-    
+
     def write_csv(self, path: str, columns: List[str], delimeter: str, name: str = "WRITE-JSONL"):
         self.builder.add_write_csv_step(self.__name(name), path, columns, delimeter)
         self.graph.steps.append(step_item(name=self.__name(name)))
         return self
 
     def print(self, *args, **kwargs):
-        template = kwargs.get('template', None)
-        columns = kwargs.get('columns', None)
+        template = kwargs.get("template", None)
+        columns = kwargs.get("columns", None)
         if len(args) == 1:
             columns = args[0]
-            
+
         name = "PRINT"
         self.builder.add_print_step(self.__name(name), template=template, columns=columns)
         self.graph.steps.append(step_item(name=self.__name(name)))
@@ -647,11 +897,11 @@ class PipelineRunner:
         return self
 
     def log(self, level: str = LogLevel.ERROR.value, target: str = None):
-        #file = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        # file = os.path.splitext(os.path.basename(sys.argv[0]))[0]
         self.builder.log(level, target, None)
         self.logger = True
         return self
-    
+
     def run(self):
         if not self.logger:
             self.log(LogLevel.ERROR.value, None)
@@ -659,16 +909,18 @@ class PipelineRunner:
 
         self.builder.compile()
         return self.builder.run()
-    
+
     def ui(self, host: str = "0.0.0.0", port: int = 8080):
         self.builder.compile()
         try:
             from tweaktune.ui import run_ui
+
             run_ui(self.builder, self.graph, host, port)
         except ModuleNotFoundError:
             package_installation_hint("nicegui")
             raise
         return self
+
 
 class ChatTokenizer(BaseModel):
     tokenizer: Any
@@ -686,7 +938,7 @@ class ChatTemplateBuilder:
         if path:
             if not os.path.exists(path):
                 raise FileNotFoundError(f"Template file not found: {path}")
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, "r", encoding="utf-8") as f:
                 template = f.read()
         if not template:
             raise ValueError("Template cannot be None or empty.")
@@ -699,14 +951,14 @@ class ChatTemplateBuilder:
     def with_tools_json(self, tools):
         self.builder.with_tools(json.dumps(tools, ensure_ascii=False))
         return self
-    
+
     def with_tools(self, tools: List[callable]):
         """Converts a list of functions to json schema and adds them to the pipeline."""
         json_list = [json.loads(function_to_json_schema(tool)) for tool in tools]
         for tool in json_list:
             tool["parameters"]["properties"] = json.loads(tool["parameters"]["properties"])
         return self.with_tools_json(json_list)
-    
+
     def with_bos_token(self, bos_token: str):
         self.builder.with_bos_token(bos_token)
         self.bos_token = bos_token
@@ -714,20 +966,18 @@ class ChatTemplateBuilder:
 
     def with_tokenizer(self, tokenizer, truncation: bool, max_length: int, padding: bool):
         self.chat_tokenizer = ChatTokenizer(
-            tokenizer=tokenizer,
-            truncation=truncation,
-            max_length=max_length,
-            padding=padding
+            tokenizer=tokenizer, truncation=truncation, max_length=max_length, padding=padding
         )
         return self
-    
+
     def build(self):
         """Builds the chat template."""
         if not self.bos_token:
             self.builder.with_bos_token("<s>")
-            
+
         self.builder.build()
         return ChatTemplate(self.builder, self.chat_tokenizer)
+
 
 class ChatTemplate:
     def __init__(self, builder: _ChatTemplateBuilder, chat_tokenizer: ChatTokenizer = None):
@@ -737,25 +987,28 @@ class ChatTemplate:
     def _tokenize(self, item: str):
         if self.chat_tokenizer:
             enc = self.chat_tokenizer.tokenizer(
-                item["text"], 
-                truncation=self.chat_tokenizer.truncation, 
+                item["text"],
+                truncation=self.chat_tokenizer.truncation,
                 max_length=self.chat_tokenizer.max_length,
-                add_special_tokens=True, 
-                padding=self.chat_tokenizer.padding)
+                add_special_tokens=True,
+                padding=self.chat_tokenizer.padding,
+            )
             enc["labels"] = enc["input_ids"].copy()
             return enc
         else:
-            raise ValueError("Tokenizer not set. Please set tokenizer using 'with_tokenizer' method.")
+            raise ValueError(
+                "Tokenizer not set. Please set tokenizer using 'with_tokenizer' method."
+            )
 
     def render(self, messages: List[dict], tokenize: bool = False):
         """Renders the chat template with the given context."""
         messages = json.dumps(messages, ensure_ascii=False)
-        
-        data =  self.builder.render(messages)
+
+        data = self.builder.render(messages)
         if tokenize:
             data = [self._tokenize(item) for item in data]
         return data
-    
+
     def render_jsonl(self, path: str, op_config: Optional[dict] = None, tokenize: bool = False):
         """Renders the chat template with the given context from a JSONL file."""
         try:

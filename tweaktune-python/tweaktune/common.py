@@ -1,7 +1,9 @@
 import io
 from enum import Enum
+
 import pyarrow as pa
 import pyarrow.ipc as ipc
+
 
 def record_batches_to_ipc_bytes(reader: pa.RecordBatchReader) -> bytes:
     """
@@ -14,14 +16,17 @@ def record_batches_to_ipc_bytes(reader: pa.RecordBatchReader) -> bytes:
     writer.close()
     return sink.getvalue()
 
+
 def package_installation_hint(package_name: str):
-    OKGREEN = '\033[92m'
-    ENDC = '\033[0m'
+    OKGREEN = "\033[92m"
+    ENDC = "\033[0m"
     BOLD = "\033[1m"
     print(f"\t{BOLD}Please install:{ENDC}\t{OKGREEN}{package_name}{ENDC}{BOLD}{ENDC}")
 
+
 class StepStatus(Enum):
     """Enum for step status."""
+
     PENDING = "Pending"
     RUNNING = "Running"
     COMPLETED = "Completed"
@@ -30,8 +35,10 @@ class StepStatus(Enum):
     def __str__(self):
         return self.value
 
+
 class LogLevel(Enum):
     """Enum for log levels."""
+
     TRACE = "trace"
     DEBUG = "debug"
     INFO = "info"
@@ -44,6 +51,7 @@ class LogLevel(Enum):
 
 class DebugTargets(Enum):
     """Enum for debug targets."""
+
     EXTRACT_JSON = "extract_json"
     MISTRAL_LLM = "mistral_llm"
     UNSLOTH_LLM = "unsloth_llm"
