@@ -749,6 +749,7 @@ struct OpenApiSchema {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[allow(dead_code)]
 struct OpenApiProperty {
     description: String,
     type_: String,

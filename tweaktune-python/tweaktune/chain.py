@@ -3,7 +3,7 @@ from typing import Callable, Union
 
 from pydantic import BaseModel
 
-from tweaktune import StepStatus
+from tweaktune.common import StepStatus
 from tweaktune.tweaktune import StepsChain
 from tweaktune.wrappers import PyStepWrapper
 

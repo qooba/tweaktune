@@ -1,7 +1,7 @@
 use crate::common::ResultExt;
 use crate::logging::{BusEvent, ChannelWriter, LogsCollector};
 use anyhow::{bail, Result};
-use chrono::{format, Local};
+use chrono::Local;
 use core::fmt;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -124,6 +124,7 @@ impl Metadata {
 #[pyclass]
 pub struct PipelineBuilder {
     id: uuid::Uuid,
+    #[allow(dead_code)]
     name: String,
     workers: usize,
     resources: PipelineResources,
@@ -1153,8 +1154,8 @@ impl PipelineBuilder {
         self.resources.templates.compile().unwrap();
     }
 
-    #[pyo3(signature = (level=None, target=None, file=None))]
-    pub fn log(&mut self, level: Option<&str>, target: Option<&str>, file: Option<&str>) {
+    #[pyo3(signature = (level=None, _target=None, file=None))]
+    pub fn log(&mut self, level: Option<&str>, _target: Option<&str>, file: Option<&str>) {
         let level = match level {
             Some("debug") => log::LevelFilter::Debug,
             Some("info") => log::LevelFilter::Info,
@@ -1498,7 +1499,7 @@ async fn map_record_batches(
     if pipeline.metadata.enabled {
         if let Some(state) = &pipeline.resources.state {
             state
-                .add_item(&item_id, &pipeline.id.to_string(), inc.clone() as i64, None)
+                .add_item(&item_id, &pipeline.id.to_string(), *inc as i64, None)
                 .await
                 .unwrap();
         }
@@ -1768,15 +1769,15 @@ impl StepsChain {
         });
     }
 
-    pub fn add_new_column_step(&mut self, name: String, mutation: String, output: String) {
+    pub fn add_new_column_step(&mut self, _name: String, _mutation: String, _output: String) {
         todo!()
     }
 
-    pub fn add_filter_step(&mut self, name: String, condition: String) {
+    pub fn add_filter_step(&mut self, _name: String, _condition: String) {
         todo!()
     }
 
-    pub fn add_mutate_step(&mut self, name: String, mutation: String, output: String) {
+    pub fn add_mutate_step(&mut self, _name: String, _mutation: String, _output: String) {
         todo!()
     }
 }

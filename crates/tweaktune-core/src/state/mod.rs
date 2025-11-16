@@ -16,9 +16,14 @@ use std::{path::Path, str::FromStr};
 // }
 
 static EXTENSION_REGISTERED: Lazy<()> = Lazy::new(|| unsafe {
-    let rc = libsqlite3_sys::sqlite3_auto_extension(Some(std::mem::transmute(
-        sqlite3_vec_init as *const (),
-    )));
+    let rc = libsqlite3_sys::sqlite3_auto_extension(Some(std::mem::transmute::<
+        *const (),
+        unsafe extern "C" fn(
+            *mut libsqlite3_sys::sqlite3,
+            *mut *mut i8,
+            *const libsqlite3_sys::sqlite3_api_routines,
+        ) -> i32,
+    >(sqlite3_vec_init as *const ())));
 
     if rc != ffi::SQLITE_OK {
         panic!("Failed to register sqlite3_vec_init extension: {}", rc);

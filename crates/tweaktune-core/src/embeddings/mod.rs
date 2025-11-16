@@ -77,6 +77,7 @@ impl Embeddings for OpenAIEmbeddings {
     }
 }
 
+#[allow(dead_code)]
 fn quantize_f32_to_f16(rows: &[Vec<f32>]) -> Vec<Vec<u16>> {
     rows.iter()
         .map(|vec| {
@@ -87,6 +88,7 @@ fn quantize_f32_to_f16(rows: &[Vec<f32>]) -> Vec<Vec<u16>> {
         .collect()
 }
 
+#[allow(dead_code)]
 fn dequantize_f16_to_f32(input: &[Vec<u16>]) -> Vec<f32> {
     input
         .iter()
@@ -94,6 +96,7 @@ fn dequantize_f16_to_f32(input: &[Vec<u16>]) -> Vec<f32> {
         .collect()
 }
 
+#[allow(dead_code)]
 fn f16_to_blob(input: &[Vec<u16>]) -> Vec<u8> {
     let mut blob = Vec::with_capacity(input.len() * input[0].len() * 2);
     for row in input {
@@ -104,6 +107,7 @@ fn f16_to_blob(input: &[Vec<u16>]) -> Vec<u8> {
     blob
 }
 
+#[allow(dead_code)]
 fn blob_to_f16(blob: &[u8], dim: usize) -> Vec<Vec<u16>> {
     let num_rows = blob.len() / (dim * 2);
     let mut result = Vec::with_capacity(num_rows);
