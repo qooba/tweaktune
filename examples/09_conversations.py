@@ -19,7 +19,7 @@ def main():
 
             # Build conversation
             .render_conversation(
-                conversation="""@system:system|@user:user_msg|@assistant:assistant_msg""",
+                conversation="@system:system|@user:user_msg|@assistant:assistant_msg",
                 output="conversation"
             )
 
@@ -40,16 +40,7 @@ def main():
             .add_column("welcome", lambda data: "You're welcome! Feel free to ask more questions.")
 
             .render_conversation(
-                conversation="""
-@system:system
-@user:q1
-@assistant:a1
-@user:q2
-@assistant:a2
-@user:thanks
-@assistant:welcome
-                """,
-                separator="\n",  # Use newline as separator
+                conversation="@system:system|@user:q1|@assistant:a1|@user:q2|@assistant:a2|@user:thanks|@assistant:welcome",
                 output="conversation"
             )
 
@@ -69,14 +60,7 @@ def main():
 
             # Use short aliases: @s = system, @u = user, @a = assistant
             .render_conversation(
-                conversation="""
-@s:sys
-@u:request
-@a:response
-@u:genre
-@a:story
-                """,
-                separator="\n",
+                conversation="@s:sys|@u:request|@a:response|@u:genre|@a:story",
                 output="conversation"
             )
 
@@ -94,14 +78,8 @@ def main():
             .add_column("solution", lambda data: "Here are three optimization strategies...")
 
             .render_conversation(
-                conversation="""
-@system:system
-@user:problem
-@assistant:think(thinking)
-@assistant:solution
-                """,
-                output="conversation",
-                separator="\n"
+                conversation="@system:system|@user:problem|@assistant:think(thinking)|@assistant:solution",
+                output="conversation"
             )
 
             .write_jsonl(path="09_reasoning.jsonl", value="conversation")

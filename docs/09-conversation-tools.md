@@ -87,11 +87,7 @@ Build OpenAI-style conversations:
 .add_column("answer", lambda data: "I'll check that for you.")
 
 .render_conversation(
-    conversation="""
-        @system:system
-        @user:question
-        @assistant:answer
-    """,
+    conversation="@system:system|@user:question|@assistant:answer",
     output="messages"
 )
 ```
@@ -113,12 +109,7 @@ Shorthand notation:
 
 ```python
 .render_conversation(
-    conversation="""
-        @s:system_prompt
-        @u:user_message
-        @a:assistant_reply
-        @t:tool_result
-    """,
+    conversation="@s:system_prompt|@u:user_message|@a:assistant_reply|@t:tool_result",
     output="conversation"
 )
 ```
@@ -133,14 +124,7 @@ Aliases:
 
 ```python
 .render_conversation(
-    conversation="""
-        @system:system
-        @user:question
-        @assistant:tool_calls([call1, call2])
-        @tool:result1
-        @tool:result2
-        @assistant:final_answer
-    """,
+    conversation="@system:system|@user:question|@assistant:tool_calls([call1, call2])|@tool:result1|@tool:result2|@assistant:final_answer",
     output="conversation",
     tools="available_tools"
 )
@@ -172,11 +156,7 @@ Add reasoning/thinking steps:
 
 ```python
 .render_conversation(
-    conversation="""
-        @user:question
-        @assistant:think(reasoning)
-        @assistant:answer
-    """,
+    conversation="@user:question|@assistant:think(reasoning)|@assistant:answer",
     output="conversation"
 )
 ```
@@ -198,19 +178,17 @@ Result:
 
 ## Custom Separator
 
-Use custom separator instead of `|`:
+The default separator is `|`. Optionally, you can use a custom separator:
 
 ```python
 .render_conversation(
-    conversation="""
-        @system:system
-        @user:question
-        @assistant:answer
-    """,
-    separator="\n",  # Use newline
+    conversation="@system:system\n@user:question\n@assistant:answer",
+    separator="\n",  # Custom separator
     output="conversation"
 )
 ```
+
+This is useful when conversation definitions span multiple lines or when you prefer a different delimiter.
 
 ## Complete Example
 
@@ -276,13 +254,7 @@ def set_alarm(
 
         # Build conversation
         .render_conversation(
-            conversation="""
-                @system:system
-                @user:user_question
-                @assistant:tool_calls([tool_call])
-                @tool:tool_response
-                @assistant:assistant_answer
-            """,
+            conversation="@system:system|@user:user_question|@assistant:tool_calls([tool_call])|@tool:tool_response|@assistant:assistant_answer",
             tools="tool",
             output="conversation"
         )

@@ -197,11 +197,7 @@ Render conversation in OpenAI format:
 
 ```python
 .render_conversation(
-    conversation="""
-        @system:system_prompt
-        @user:user_message
-        @assistant:assistant_response
-    """,
+    conversation="@system:system_prompt|@user:user_message|@assistant:assistant_response",
     output="conversation"
 )
 ```
@@ -220,17 +216,18 @@ Special formats:
 
 ```python
 .render_conversation(
-    conversation="""
-        @s:system
-        @u:question
-        @a:tool_calls([tool_call1, tool_call2])
-        @t:tool_result
-        @a:think(reasoning)
-        @a:final_answer
-    """,
+    conversation="@s:system|@u:question|@a:tool_calls([tool_call1, tool_call2])|@t:tool_result|@a:think(reasoning)|@a:final_answer",
     output="messages",
-    tools="available_tools",  # Optional tools list
-    separator="\n"  # Default: "|"
+    tools="available_tools"  # Optional tools list
+)
+```
+
+Optional: Use custom separator instead of default `|`:
+```python
+.render_conversation(
+    conversation="@s:system\n@u:question\n@a:answer",
+    separator="\n",
+    output="messages"
 )
 ```
 
