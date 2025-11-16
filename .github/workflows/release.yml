@@ -42,9 +42,7 @@ jobs:
         run: cargo clippy --release --no-default-features -- -D warnings -A clippy::upper_case_acronyms
 
       - name: Run Rust tests
-        run: |
-          export RUSTFLAGS="-C link-args=-lpython3.10"
-          cargo test --release steps::tests::schema_validate2 -- --nocapture
+        run: cargo test --release --no-default-features
 
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v6
