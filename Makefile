@@ -55,7 +55,7 @@ test: ## Run Rust tests
 # Python formatting
 py-fmt: ## Format Python code
 	@if [ -d .venv ]; then \
-		. .venv/bin/activate && cd tweaktune-python && black . && isort .; \
+		. .venv/bin/activate && cd tweaktune-python && ruff check --select I --fix . && black .; \
 	else \
 		echo "Error: Virtual environment not found. Run 'uv venv .venv && uv pip install -e tweaktune-python[dev]' first"; \
 		exit 1; \
@@ -63,7 +63,7 @@ py-fmt: ## Format Python code
 
 py-fmt-check: ## Check Python formatting
 	@if [ -d .venv ]; then \
-		. .venv/bin/activate && cd tweaktune-python && black --check . && isort --check-only .; \
+		. .venv/bin/activate && cd tweaktune-python && black --check .; \
 	else \
 		echo "Error: Virtual environment not found. Run 'uv venv .venv && uv pip install -e tweaktune-python[dev]' first"; \
 		exit 1; \

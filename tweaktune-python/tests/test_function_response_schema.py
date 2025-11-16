@@ -1,7 +1,6 @@
 import json
 
 from pydantic import BaseModel, Field
-
 from tweaktune import Pipeline
 from tweaktune.tools import function_to_schema
 

@@ -4,7 +4,6 @@ from typing import Optional
 
 import pytest
 from pydantic import BaseModel, Field
-
 from tweaktune import Pipeline
 
 
@@ -20,7 +19,6 @@ def test_read_mixed(request, output_dir, data_dir, metadata):
             """{"name": "persona1", "description": "This is persona 1."}\n{"name": "persona2", "description": "This is persona 2."}"""
         )
 
-    number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
     (
@@ -79,7 +77,6 @@ def test_read_csv(request, output_dir, data_dir, metadata, file_name, delimeter,
             """name,description\nfunction1,This is function 1.\nfunction2,This is function 2."""
         )
 
-    number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
     (
@@ -105,7 +102,6 @@ def test_read_csv(request, output_dir, data_dir, metadata, file_name, delimeter,
 def test_read_parquet(request, output_dir, data_dir, parquet_file, metadata):
     """Test the basic functionality of the pipeline."""
 
-    number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
     (
@@ -129,7 +125,6 @@ def test_read_parquet(request, output_dir, data_dir, parquet_file, metadata):
 def test_read_parquet_sql(request, output_dir, data_dir, parquet_file, metadata):
     """Test the basic functionality of the pipeline."""
 
-    number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
     (
@@ -153,7 +148,6 @@ def test_read_parquet_sql(request, output_dir, data_dir, parquet_file, metadata)
 def test_read_db(request, output_dir, data_dir, sqlite_database, metadata):
     """Test the basic functionality of the pipeline."""
 
-    number = 5
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
     (
@@ -369,7 +363,7 @@ def test_read_jsonl(request, data_dir, output_dir, metadata):
     assert "description" in line
     assert line["description"] == "This is function."
     assert "test_bool" in line["functions"][0]
-    assert line["functions"][0]["test_bool"] == True
+    assert line["functions"][0]["test_bool"]
     assert "test_int" in line["functions"][0]
     assert line["functions"][0]["test_int"] == 1
     assert "test_float" in line["functions"][0]
@@ -380,7 +374,7 @@ def test_read_jsonl(request, data_dir, output_dir, metadata):
     assert "type" in line["functions"][0]["parameters"]
     assert line["functions"][0]["parameters"]["type"] == "object"
     assert "p_bool" in line["functions"][0]["parameters"]
-    assert line["functions"][0]["parameters"]["p_bool"] == True
+    assert line["functions"][0]["parameters"]["p_bool"]
     assert "p_int" in line["functions"][0]["parameters"]
     assert line["functions"][0]["parameters"]["p_int"] == 1
     assert "p_float" in line["functions"][0]["parameters"]
@@ -391,7 +385,7 @@ def test_read_jsonl(request, data_dir, output_dir, metadata):
     assert line["functions"][0]["parameters"]["properties"]["x"]["type"] == "integer"
     assert line["functions"][0]["parameters"]["properties"]["x"]["v_int"] == 1
     assert line["functions"][0]["parameters"]["properties"]["x"]["v_float"] == 0.7
-    assert line["functions"][0]["parameters"]["properties"]["x"]["v_bool"] == True
+    assert line["functions"][0]["parameters"]["properties"]["x"]["v_bool"]
     assert "y" in line["functions"][0]["parameters"]["properties"]
     assert line["functions"][0]["parameters"]["properties"]["y"]["type"] == "integer"
     assert "required" in line["functions"][0]["parameters"]

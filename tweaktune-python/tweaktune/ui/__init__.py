@@ -2,7 +2,6 @@ import inspect
 import json
 import queue
 import threading
-from collections import deque
 
 from nicegui import ui
 
@@ -14,7 +13,6 @@ def renger_graph_section(graph, section: str) -> str:
     callback_str = ""
     section_str = f"  subgraph {section.upper()} [**{section}**]\n    direction TB\n  "
     for ix, config_step in enumerate(getattr(graph.config, section)):
-        step_name = config_step.name
         step_func = config_step.func
         step_args = config_step.args
         if "self" in step_args:
@@ -38,7 +36,7 @@ def render_graph(graph: Graph) -> str:
 config:
   layout: elk
   look: handDrawn
-  theme: dark  
+  theme: dark
   securityLevel: loose
 ---
 graph TD;\n"""
@@ -61,7 +59,6 @@ graph TD;\n"""
     graph_str += "\n\n"
 
     for ix, step in enumerate(graph.steps):
-        step_name = step.name
         step_func = step.func
         step_args = {k: str(v) for k, v in step.args.items()}.copy()
         if "self" in step_args:
@@ -93,29 +90,29 @@ def run_ui(builder, graph, host: str = "0.0.0.0", port: int = 8080):
         /*.q-btn {
             background-color: #555 !important;
         }*/
-                     
+
         .q-drawer {
             width: 55px !important;
             transition: width 0.3s !important;
             overflow-x: hidden !important;
         }
-                     
+
         .q-drawer:hover {
             width: 220px !important;
         }
-                     
+
         .q-drawer .q-drawer__content {
             padding: 0.5em !important;
             overflow-x: hidden !important;
             white-space: nowrap !important;
             text-overflow: ellipsis !important;
         }
-                     
+
         .q-drawer::-webkit-scrollbar,
         .q-drawer__content::-webkit-scrollbar {
             display: none !important;
         }
-                     
+
         .mermaid-center svg{
             display: block !important;
             margin-left: auto !important;
@@ -163,7 +160,7 @@ def run_ui(builder, graph, host: str = "0.0.0.0", port: int = 8080):
             json_data = {"content": {"json": file_data}}
             dialog_data.clear()
             with dialog_data:
-                data_editor = ui.json_editor(json_data)
+                ui.json_editor(json_data)
             dialog_data.open()
 
         data_button = ui.button("SHOW DATA RANGE", on_click=run_data_range)
@@ -249,7 +246,7 @@ def run_ui(builder, graph, host: str = "0.0.0.0", port: int = 8080):
     with ui.tabs().classes("w-full") as tabs:
         one = ui.tab("Graph")
         two = ui.tab("Logs")
-    with ui.tab_panels(tabs, value=one).classes("w-full").style("height: 80vh;") as tab_panels:
+    with ui.tab_panels(tabs, value=one).classes("w-full").style("height: 80vh;"):
         with ui.tab_panel(one).classes("flex flex-col items-center justify-center"):
             with ui.element("div").style(
                 "width: 80vw; height: 60vh; display: flex !important; justify-content: center !important; align-items: center !important;"

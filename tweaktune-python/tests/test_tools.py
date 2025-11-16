@@ -2,7 +2,6 @@ import json
 from typing import Optional
 
 from pydantic import Field
-
 from tweaktune import Pipeline
 
 
@@ -100,8 +99,8 @@ def test_tools_sample(request, output_dir, data_dir, arrow_dataset, metadata):
     assert len(lines) == 10
 
 
-def test_tools_sample(request, output_dir, data_dir, arrow_dataset, metadata):
-    """Test the basic functionality of the pipeline."""
+def test_tools_sample_with_tojson(request, output_dir, data_dir, arrow_dataset, metadata):
+    """Test the basic functionality of the pipeline with tojson filter."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
     OUTPUT_TEMPLATE = """{"all_functions": {{all_functions|tojson}} }"""

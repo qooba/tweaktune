@@ -1,9 +1,7 @@
 import inspect
 import json
 import os
-import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-from unittest import result
 
 from pydantic import BaseModel
 
@@ -17,9 +15,6 @@ from tweaktune.common import (
 from tweaktune.tools import function_to_json_schema, pydantic_to_json_schema
 from tweaktune.tweaktune import (
     LLM,
-)
-from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
-from tweaktune.tweaktune import (
     Embeddings,
     InternalDatasetType,
     IterBy,
@@ -27,6 +22,7 @@ from tweaktune.tweaktune import (
     Metadata,
     PipelineBuilder,
 )
+from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
 from tweaktune.wrappers import (
     MistralrsWrapper,
     PyConditionWrapper,
@@ -218,8 +214,9 @@ class Pipeline:
     def with_arrow_dataset(self, name: str, dataset, sql: str = None):
         """Adds an arrow dataset to the pipeline."""
         try:
-            from datasets.arrow_dataset import Dataset as ArrowDataset
             from pyarrow.lib import RecordBatchReader
+
+            from datasets.arrow_dataset import Dataset as ArrowDataset
 
             if type(dataset) is ArrowDataset:
                 ipc_data = record_batches_to_ipc_bytes(dataset.data.to_reader())
@@ -318,7 +315,7 @@ class Pipeline:
 
     def with_llm_mistralrs(self, name: str, model_id: str, in_situ_quant: str):
         try:
-            from mistralrs import ChatCompletionRequest, Runner, Which
+            from mistralrs import Runner, Which
 
             runner = Runner(
                 which=Which.Plain(model_id=model_id),

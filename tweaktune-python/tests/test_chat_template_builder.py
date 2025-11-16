@@ -1,7 +1,6 @@
 from typing import Optional
 
 from pydantic import Field
-
 from tweaktune import ChatTemplateBuilder
 from tweaktune.chat_templates import bielik
 
