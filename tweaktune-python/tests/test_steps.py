@@ -385,13 +385,7 @@ def test_step_render_sft(request, output_dir, metadata):
         .add_column("call1", lambda data: "{ \"name\": \"get_who_won\", \"arguments\": { \"year\": 2020 } }")
         .add_column("response", lambda data: "{\"winner\": \"Los Angeles Dodgers\", \"year\": 2020}")
         .add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
-        .render_sft(conversation="""
-            @s:system
-            @u:question
-            @a:tool_calls([call1])
-            @t:response
-            @a:answer
-        """, output="conversation", separator="\n")
+        .render_sft(conversation="""@s:system|@u:question|@a:tool_calls([call1])|@t:response|@a:answer""", output="conversation")
         .write_jsonl(path=output_file, value="conversation")
     .run())
 
@@ -422,10 +416,7 @@ def test_step_render_dpo(request, output_dir, metadata):
         .add_column("question", lambda data: "Hello, who won the world series in 2020?")
         .add_column("call1_chosen", lambda data: { "name": "get_who_won", "arguments": { "year": 2020 } })
         .add_column("call1_rejected", lambda data: { "name": "get_who_won", "arguments": { "year": 2021 } })
-        .render_dpo(conversation="""
-            @s:system
-            @u:question
-        """, chosen="call1_chosen", rejected="call1_rejected", output="conversation", separator="\n")
+        .render_dpo(conversation="""@s:system|@u:question""", chosen="call1_chosen", rejected="call1_rejected", output="conversation")
         .write_jsonl(path=output_file, value="conversation")
     .run())
 
@@ -453,10 +444,7 @@ def test_step_render_grpo(request, output_dir, metadata):
         .add_column("system", lambda data: "You are a helpful assistant.")
         .add_column("question", lambda data: "Hello, who won the world series in 2020?")
         .add_column("solution", lambda data: { "name": "get_who_won", "arguments": { "year": 2020 } })
-        .render_grpo(conversation="""
-            @s:system
-            @u:question
-        """, solution="solution", validator_id="tool_use", output="conversation", separator="\n")
+        .render_grpo(conversation="""@s:system|@u:question""", solution="solution", validator_id="tool_use", output="conversation")
         .write_jsonl(path=output_file, value="conversation")
     .run())
 

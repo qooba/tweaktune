@@ -389,15 +389,8 @@ Format conversations for standard supervised fine-tuning:
 .add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
 
 .render_sft(
-    conversation="""
-        @s:system
-        @u:question
-        @a:tool_calls([call1])
-        @t:response
-        @a:answer
-    """,
-    output="conversation",
-    separator="\n"
+    conversation="@s:system|@u:question|@a:tool_calls([call1])|@t:response|@a:answer",
+    output="conversation"
 )
 ```
 
@@ -425,14 +418,10 @@ Format conversations with chosen and rejected responses:
 .add_column("call1_rejected", lambda data: {"name": "get_who_won", "arguments": {"year": 2021}})
 
 .render_dpo(
-    conversation="""
-        @s:system
-        @u:question
-    """,
+    conversation="@s:system|@u:question",
     chosen="call1_chosen",
     rejected="call1_rejected",
-    output="conversation",
-    separator="\n"
+    output="conversation"
 )
 ```
 
@@ -460,14 +449,10 @@ Format conversations with solution and validator:
 .add_column("solution", lambda data: {"name": "get_who_won", "arguments": {"year": 2020}})
 
 .render_grpo(
-    conversation="""
-        @s:system
-        @u:question
-    """,
+    conversation="@s:system|@u:question",
     solution="solution",
     validator_id="tool_use",
-    output="conversation",
-    separator="\n"
+    output="conversation"
 )
 ```
 
