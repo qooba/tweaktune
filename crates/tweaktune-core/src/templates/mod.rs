@@ -61,16 +61,20 @@ impl Templates {
             }
         });
 
-        e.add_filter("tool_call", |value: String| {
-            let val = serde_json::to_string(&value);
+        e.add_filter("tool_call", |value: JinjaValue| {
+            let val = serde_json::to_value(&value);
             match val {
-                Ok(v) => format!(
-                    "\"<tool_call>{}</tool_call>\"",
-                    v.strip_prefix('"')
-                        .unwrap_or(&v)
-                        .strip_suffix('"')
-                        .unwrap_or(&v)
-                ),
+                Ok(v) => {
+                    let v = serde_json::to_string(&v).unwrap();
+                    let v = serde_json::to_string(&v).unwrap();
+                    JinjaValue::from(format!(
+                        "\"<tool_call>{}</tool_call>\"",
+                        v.strip_prefix('"')
+                            .unwrap_or(&v)
+                            .strip_suffix('"')
+                            .unwrap_or(&v)
+                    ))
+                }
                 Err(_) => {
                     error!(target: "templates_err", "🐔 Failed to convert to JSON string");
                     value
