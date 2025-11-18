@@ -1,5 +1,5 @@
 pub mod embed;
-use crate::common::{kthash, OptionToResult, ResultExt};
+use crate::common::{blake3_hash, kthash, OptionToResult, ResultExt};
 use crate::readers::build_reader;
 use crate::steps::StepContextData;
 use anyhow::{bail, Result};
@@ -46,10 +46,14 @@ impl Templates {
 
     pub fn compile(&self) -> Result<()> {
         let mut e = Environment::new();
-        e.add_filter("jstr", |value: String| {
-            let val = serde_json::to_string(&value);
+        e.add_filter("jstr", |value: JinjaValue| {
+            let val = serde_json::to_value(&value);
             match val {
-                Ok(v) => v,
+                Ok(v) => {
+                    let v = serde_json::to_string(&v).unwrap();
+                    let v = serde_json::to_string(&v).unwrap();
+                    JinjaValue::from(&v)
+                }
                 Err(_) => {
                     error!(target: "templates_err", "🐔 Failed to convert to JSON string");
                     value
@@ -170,6 +174,8 @@ impl Templates {
                 }
             }
         });
+
+        e.add_filter("blake3_hash", |value: String| blake3_hash(&value));
 
         e.add_filter("deserialize", |value: String| {
             let val: serde_json::error::Result<Value> = serde_json::from_str(&value);
