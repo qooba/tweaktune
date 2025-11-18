@@ -4,6 +4,7 @@ use crate::readers::build_reader;
 use crate::steps::StepContextData;
 use anyhow::{bail, Result};
 use log::{debug, error};
+use minijinja::value::Value as JinjaValue;
 use minijinja::Environment;
 use rand::seq::SliceRandom;
 use rand::{rng, Rng};
@@ -13,6 +14,7 @@ use std::collections::HashMap;
 use std::io::BufRead;
 use std::io::Cursor;
 use std::sync::{OnceLock, RwLock};
+use toon_format::encode_default;
 
 static ENVIRONMENT: RwLock<OnceLock<Environment>> = RwLock::new(OnceLock::new());
 
@@ -83,6 +85,26 @@ impl Templates {
                     .to_string(),
                 Err(_) => {
                     error!(target: "templates_err", "🐔 Failed to convert to JSON string");
+                    value
+                }
+            }
+        });
+
+        e.add_filter("totoon", |value: JinjaValue| {
+            let val: Result<Value, _> = serde_json::to_value(&value);
+            match val {
+                Ok(v) => {
+                    let val = encode_default(&v);
+                    match val {
+                        Ok(v) => JinjaValue::from(v),
+                        Err(_) => {
+                            error!(target: "templates_err", "🐔 Failed to convert to TOON string");
+                            value
+                        }
+                    }
+                }
+                Err(_) => {
+                    error!(target: "templates_err", "🐔 Value is not valid JSON string");
                     value
                 }
             }
