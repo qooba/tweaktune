@@ -30,7 +30,7 @@ def main():
     (Pipeline()
         .with_workers(1)
         .with_dicts_dataset("people", sample_data)
-        .with_template("output", """{"name": {{person[0].name|jstr}}, "age": {{person[0].age}}}""")
+        .with_template("output", """{"name": "{{person[0].name}}", "age": {{person[0].age}}}""")
         .iter_range(5)
             .sample("people", 1, "person")
             .write_jsonl(path="02_from_dicts.jsonl", template="output")
@@ -41,7 +41,7 @@ def main():
     (Pipeline()
         .with_workers(1)
         .with_jsonl_dataset("people", "02_sample.jsonl")
-        .with_template("output", """{"person": {{person|jstr}}}""")
+        .with_template("output", """{"person": {{person|tojson}}}""")
         .iter_dataset("people")
             .write_jsonl(path="02_from_jsonl.jsonl", template="output")
         .run())
@@ -55,7 +55,7 @@ def main():
             "02_sample.jsonl",
             sql="SELECT * FROM people WHERE age > 28 ORDER BY age"
         )
-        .with_template("output", """{"name": {{people.name|jstr}}, "age": {{people.age}}}""")
+        .with_template("output", """{"name": "{{people.name}}", "age": {{people.age}}}""")
         .iter_dataset("people")
             .write_jsonl(path="02_filtered.jsonl", template="output")
         .run())

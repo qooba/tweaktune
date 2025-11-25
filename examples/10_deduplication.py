@@ -40,7 +40,7 @@ def main():
             model_repo="intfloat/e5-small"
         )
 
-        .with_template("output", """{"product": {{product|jstr}}, "index": {{index}}}""")
+        .with_template("output", """{"product": "{{product}}", "index": {{index}}}""")
 
         .iter_range(len(products))
             .add_column("product", lambda data: products[data["index"]])

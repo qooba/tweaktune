@@ -35,8 +35,8 @@ def main():
         .with_template("prompt", "Write a one-sentence description of {{topic}}")
         .with_template("output", """
 {
-  "topic": {{topic|jstr}},
-  "description": {{description|jstr}}
+  "topic": "{{topic}}",
+  "description": "{{description}}"
 }
 """)
         .iter_range(5)
@@ -71,7 +71,7 @@ def main():
         )
         .with_template("system", "You are an educational content creator.")
         .with_template("prompt", "Generate an interesting question about {{subject}}")
-        .with_template("output", """{"subject": {{subject|jstr}}, "question": {{question|jstr}}}""")
+        .with_template("output", """{"subject": "{{subject}}", "question": "{{question}}"}""")
         .iter_range(5)
             .add_column("subject", lambda data: [
                 "mathematics",

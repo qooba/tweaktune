@@ -202,7 +202,7 @@ metadata = Metadata(path="./.tweaktune", enabled=True)
 (Pipeline(name="dedup_example", metadata=metadata)
     .with_workers(5)
     .with_embeddings_e5("e5-small", "intfloat/e5-small")
-    .with_template("output", """{"question": {{question|jstr}}}""")
+    .with_template("output", """{"question": "{{question}}"}""")
     .iter_range(1000)
         .add_column("question", lambda data: generate_question(data["index"]))
 

@@ -251,7 +251,7 @@ Return JSON: {"question": "...", "answer": "..."}
 """)
     .with_template("output", """
 {
-  "topic": {{topic|jstr}},
+  "topic": "{{topic}}",
   "qa": {{qa_pair|tojson}}
 }
 """)
