@@ -83,7 +83,7 @@ import os
     .with_template("system", "You are an expert educator.")
     .with_template("question", "Generate a question about: {{topic}}")
     .with_template("answer", "Answer this question: {{question}}")
-    .with_template("output", """{"topic": {{topic|jstr}}, "question": {{question|jstr}}, "answer": {{answer|jstr}}}""")
+    .with_template("output", """{"topic": "{{topic}}", "question": "{{question}}", "answer": "{{answer}}"}""")
     .iter_range(100)
         .add_column("topic", lambda data: f"Topic {data['index']}")
         .generate_text(

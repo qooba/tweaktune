@@ -27,7 +27,7 @@ def test_read_mixed(request, output_dir, data_dir, metadata):
         .with_json_dataset("functions", f"{data_dir}/functions_micro.json")
         .with_jsonl_dataset("personas", f"{data_dir}/personas_micro.jsonl")
         .with_mixed_dataset("mixed", ["functions", "personas"])
-        .with_template("output", """{"mixed": {{mixed|jstr}} }""")
+        .with_template("output", """{"mixed": {{mixed|tojson}} }""")
         .iter_dataset("mixed")
         .write_jsonl(path=output_file, template="output")
         .run()
@@ -73,9 +73,7 @@ def test_read_csv(request, output_dir, data_dir, metadata, file_name, delimeter,
     """Test the basic functionality of the pipeline."""
 
     with open(f"{data_dir}/{file_name}", "w") as f:
-        f.write(
-            """name,description\nfunction1,This is function 1.\nfunction2,This is function 2."""
-        )
+        f.write(data)
 
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
@@ -85,7 +83,7 @@ def test_read_csv(request, output_dir, data_dir, metadata, file_name, delimeter,
         .with_csv_dataset(
             "functions", f"{data_dir}/{file_name}", delimiter=delimeter, has_header=has_header
         )
-        .with_template("output", """{"functions": {{functions|jstr}} }""")
+        .with_template("output", """{"functions": {{functions|tojson}} }""")
         .iter_dataset("functions")
         .write_jsonl(path=output_file, template="output")
         .run()
@@ -108,7 +106,7 @@ def test_read_parquet(request, output_dir, data_dir, parquet_file, metadata):
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_parquet_dataset("items", parquet_file)
-        .with_template("output", """{"items": {{items|jstr}} }""")
+        .with_template("output", """{"items": {{items|tojson}} }""")
         .iter_dataset("items")
         .write_jsonl(path=output_file, template="output")
         .run()
@@ -131,7 +129,7 @@ def test_read_parquet_sql(request, output_dir, data_dir, parquet_file, metadata)
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_parquet_dataset("items", parquet_file, "select * from items where price > 1.0")
-        .with_template("output", """{"items": {{items|jstr}} }""")
+        .with_template("output", """{"items": {{items|tojson}} }""")
         .iter_dataset("items")
         .write_jsonl(path=output_file, template="output")
         .run()
@@ -154,7 +152,7 @@ def test_read_db(request, output_dir, data_dir, sqlite_database, metadata):
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_db_dataset("functions", f"sqlite://{sqlite_database}", "select * from `functions`")
-        .with_template("output", """{"functions": {{functions|jstr}} }""")
+        .with_template("output", """{"functions": {{functions|tojson}} }""")
         .iter_dataset("functions")
         .write_jsonl(path=output_file, template="output")
         .run()
@@ -174,7 +172,7 @@ def test_read_arrow(request, output_dir, data_dir, arrow_dataset, metadata):
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("functions", arrow_dataset())
-        .with_template("output", """{"functions": {{functions|jstr}} }""")
+        .with_template("output", """{"functions": {{functions|tojson}} }""")
         .iter_dataset("functions")
         .write_jsonl(path=output_file, template="output")
         .run()
@@ -213,7 +211,7 @@ def test_read_dicts(request, output_dir, metadata):
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_dicts_dataset("json_list", classes)
-        .with_template("output", """{"class": {{json_object[0].class|jstr}} }""")
+        .with_template("output", """{"class": "{{json_object[0].class}}" }""")
         .iter_range(number)
         .sample(dataset="json_list", size=1, output="json_object")
         .write_jsonl(path=output_file, template="output")
@@ -258,7 +256,7 @@ def test_read_tools(request, data_dir, output_dir, metadata):
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_tools_dataset("tools", [my_function])
-        .with_template("output", """{"tool": {{tool|jstr}} }""")
+        .with_template("output", """{"tool": {{tool|tojson}} }""")
         .iter_range(number)
         .sample(dataset="tools", size=1, output="tool")
         .write_jsonl(path=output_file, template="output")
@@ -301,7 +299,7 @@ def test_read_pydantic(request, output_dir, metadata):
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_pydantic_models_dataset("pydantic_models", [Item])
-        .with_template("output", """{"pydantic_models": {{pydantic_model|jstr}} }""")
+        .with_template("output", """{"pydantic_models": {{pydantic_model|tojson}} }""")
         .iter_range(number)
         .sample(dataset="pydantic_models", size=1, output="pydantic_model")
         .write_jsonl(path=output_file, template="output")
@@ -322,7 +320,7 @@ def test_read_openapi(request, output_dir, metadata):
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_openapi_dataset("openapi", "./tweaktune-python/tests/openapi.json")
-        .with_template("output", """{"api": {{openapi|jstr}} }""")
+        .with_template("output", """{"api": {{openapi|tojson}} }""")
         .iter_range(number)
         .sample(dataset="openapi", size=1, output="openapi")
         .write_jsonl(path=output_file, template="output")
@@ -350,7 +348,7 @@ def test_read_jsonl(request, data_dir, output_dir, metadata):
         .with_jsonl_dataset("functions", functions_micro_file)
         .with_template(
             "output",
-            """{"description": {{functions[0].description|jstr}}, "functions": {{functions}} }""",
+            """{"description": "{{functions[0].description}}", "functions": {{functions}} }""",
         )
         .iter_range(number)
         .sample(dataset="functions", size=1, output="functions")

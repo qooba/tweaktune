@@ -16,8 +16,8 @@ def main():
         .with_template("output", """
 {
   "value": {{value}},
-  "category": {{category|jstr}},
-  "message": {{message|jstr}}
+  "category": "{{category}}",
+  "message": "{{message}}"
 }
 """)
         .iter_range(10)
@@ -44,7 +44,7 @@ def main():
 {
   "age": {{age}},
   "is_adult": {{is_adult}},
-  "category": {{category|jstr}},
+  "category": "{{category}}",
   "discount": {{discount}}
 }
 """)
@@ -73,8 +73,8 @@ def main():
         .with_template("output", """
 {
   "score": {{score}},
-  "grade": {{grade|jstr}},
-  "message": {{message|jstr}},
+  "grade": "{{grade}}",
+  "message": "{{message}}",
   "pass": {{pass}}
 }
 """)
@@ -118,11 +118,11 @@ def main():
         .with_workers(1)
         .with_template("output", """
 {
-  "customer_type": {{customer_type|jstr}},
+  "customer_type": "{{customer_type}}",
   "amount": {{amount}},
   "discount": {{discount}},
   "priority": {{priority}},
-  "shipping": {{shipping|jstr}}
+  "shipping": "{{shipping}}"
 }
 """)
         .iter_range(10)
@@ -159,12 +159,12 @@ def main():
 
             .with_template("full_output", """
 {
-  "customer_type": {{customer_type|jstr}},
+  "customer_type": "{{customer_type}}",
   "amount": {{amount}},
   "discount": {{discount}},
   "final_amount": {{final_amount}},
   "priority": {{priority}},
-  "shipping": {{shipping|jstr}}
+  "shipping": "{{shipping}}"
 }
 """)
             .write_jsonl(path="13_business_logic.jsonl", template="full_output")

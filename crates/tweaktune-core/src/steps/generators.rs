@@ -64,7 +64,13 @@ impl TextGenerationStep {
             }
         };
 
-        let llm = llms.get(&self.llm).expect("LLM");
+        let llm = match llms.get(&self.llm) {
+            Some(llm) => llm,
+            None => {
+                error!(target: "text_generation_step", "🐔 LLM '{}' not found", self.llm);
+                return Ok(None);
+            }
+        };
         let result = match llm {
             llms::LLMType::Api(llm) => match llm
                 .call(template, json_schema, max_tokens, temperature)

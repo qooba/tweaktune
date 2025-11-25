@@ -24,7 +24,7 @@ def main():
     print("Example 1: Inline template with filters")
     (Pipeline()
         .with_workers(1)
-        .with_template("output", """{"text": {{text|jstr}}, "number": {{number}}}""")
+        .with_template("output", """{"text": "{{text}}", "number": {{number}}}""")
         .iter_range(3)
             .add_column("text", lambda data: f"Hello World {data['index']}")
             .add_column("number", lambda data: data["index"] * 10)
@@ -65,7 +65,7 @@ def main():
 {
   "items": {{items|tojson}},
   "count": {{items|length}},
-  "first_item": {{items[0]|jstr}}
+  "first_item": "{{items[0]}}"
 }
 """)
         .iter_range(3)

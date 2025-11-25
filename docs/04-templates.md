@@ -9,7 +9,7 @@ Define templates directly in your code:
 ```python
 (Pipeline()
     .with_template("greeting", "Hello {{name}}!")
-    .with_template("output", """{"message": {{greeting|jstr}}}""")
+    .with_template("output", """{"message": "{{greeting}}"}""")
     .iter_range(5)
         .add_column("name", lambda data: f"Person {data['index']}")
         .render("greeting", output="greeting")
@@ -60,7 +60,7 @@ Define multiple templates in a YAML file:
 # templates:
 #   greeting: "Hello {{name}}!"
 #   output: |
-#     {"message": {{greeting|jstr}}, "id": {{id}}}
+#     {"message": "{{greeting}}", "id": {{id}}}
 
 .with_j2_templates("templates.yaml")
 ```
@@ -119,14 +119,14 @@ Access context data in templates:
 ```python
 .add_column("name", lambda data: "Alice")
 .add_column("age", lambda data: 25)
-.with_template("output", """{"name": {{name|jstr}}, "age": {{age}}}""")
+.with_template("output", """{"name": "{{name}}", "age": {{age}}}""")
 ```
 
 ### Arrays and Objects
 
 ```python
 .sample(dataset="items", size=3, output="items")
-.with_template("output", """{"first_item": {{items[0]|jstr}}}""")
+.with_template("output", """{"first_item": "{{items[0]}}"}""")
 ```
 
 ### Index Variable
@@ -143,13 +143,17 @@ tweaktune provides custom Jinja filters:
 
 ### jstr
 
-JSON string escape:
+Serializes JSON objects to properly escaped strings:
 
 ```python
-.with_template("output", """{"text": {{my_text|jstr}}}""")
+# Use for JSON objects that need to be serialized to strings
+.with_template("output", """{"metadata": {{json_object|jstr}}}""")
+
+# For simple string values, use quotes directly
+.with_template("output", """{"text": "{{simple_string}}"}""")
 ```
 
-Without `jstr`, quotes in `my_text` would break the JSON. With `jstr`, they're properly escaped.
+The `jstr` filter performs double JSON serialization, converting a JSON object into a properly escaped string representation. Use it only when you need to serialize complex JSON structures. For simple string values, use regular quoted interpolation like `"{{variable}}"`.
 
 ### tojson
 
@@ -180,9 +184,9 @@ Answer questions concisely.""")
 .with_template("output", """
 {
   "messages": [
-    {"role": "system", "content": {{system|jstr}}},
-    {"role": "user", "content": {{question|jstr}}},
-    {"role": "assistant", "content": {{answer|jstr}}}
+    {"role": "system", "content": "{{system}}"},
+    {"role": "user", "content": "{{question}}"},
+    {"role": "assistant", "content": "{{answer}}"}
   ]
 }
 """)
@@ -202,7 +206,7 @@ Answer questions concisely.""")
 .with_template("output", """
 {
   "user": {
-    "name": {{name|jstr}},
+    "name": "{{name}}",
     "age": {{age}}
   },
   "items": {{items|tojson}}
@@ -215,7 +219,7 @@ Answer questions concisely.""")
 ```python
 .with_template("output", """
 {
-  "name": {{name|jstr}}
+  "name": "{{name}}"
   {% if age %}
   , "age": {{age}}
   {% endif %}
@@ -230,7 +234,7 @@ Answer questions concisely.""")
 {
   "items": [
     {% for item in items %}
-    {"name": {{item.name|jstr}}, "price": {{item.price}}}
+    {"name": "{{item.name}}", "price": {{item.price}}}
     {% if not loop.last %},{% endif %}
     {% endfor %}
   ]
@@ -243,16 +247,16 @@ Answer questions concisely.""")
 ```python
 .with_template("chat", """
 [
-  {"role": "system", "content": {{system|jstr}}},
-  {"role": "user", "content": {{question|jstr}}},
-  {"role": "assistant", "content": {{answer|jstr}}}
+  {"role": "system", "content": "{{system}}"},
+  {"role": "user", "content": "{{question}}"},
+  {"role": "assistant", "content": "{{answer}}"}
 ]
 """)
 ```
 
 ## Best Practices
 
-1. **Always use `jstr` for text values** in JSON to avoid escaping issues
+1. **Use simple strings `"{{variable}}"` for string values** - only use `jstr` when serializing JSON objects to strings
 2. **Use `tojson` for complex objects** like arrays and nested dictionaries
 3. **Validate JSON** using an online validator or `json.loads()` when testing
 4. **Keep templates readable** with proper indentation and line breaks

@@ -17,7 +17,7 @@ def main():
     print("Example 1: Language detection")
     (Pipeline()
         .with_workers(1)
-        .with_template("output", """{"text": {{text|jstr}}, "lang": "english"}""")
+        .with_template("output", """{"text": "{{text}}", "lang": "english"}""")
         .iter_range(10)
             .add_column("text", lambda data: [
                 "Hello, how are you?",
@@ -61,7 +61,7 @@ def main():
 
     (Pipeline()
         .with_workers(1)
-        .with_template("output", """{"email": {{email|jstr}}, "name": {{name|jstr}}}""")
+        .with_template("output", """{"email": "{{email}}", "name": "{{name}}"}""")
         .iter_range(8)
             .add_column("name", lambda data: f"User{data['index']}")
             .add_column("email", lambda data: [
@@ -86,7 +86,7 @@ def main():
         .with_workers(1)
         .with_template("output", """
 {
-  "text": {{text|jstr}},
+  "text": "{{text}}",
   "length": {{length}},
   "word_count": {{word_count}}
 }
@@ -122,7 +122,7 @@ def main():
         .with_workers(1)
         .with_template("output", """
 {
-  "product": {{product|jstr}},
+  "product": "{{product}}",
   "price": {{price}},
   "rating": {{rating}}
 }

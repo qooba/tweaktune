@@ -13,7 +13,7 @@ def test_step_sample(request, output_dir, data_dir, arrow_dataset, metadata):
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
-        .with_template("output", """{"my_items": {{sampled_items[0]|jstr}} }""")
+        .with_template("output", """{"my_items": {{sampled_items[0]|tojson}} }""")
         .iter_range(10)
         .sample(dataset="items", size=1, output="sampled_items")
         .write_jsonl(path=output_file, template="output")
@@ -44,7 +44,7 @@ def test_step_py(request, output_dir, data_dir, arrow_dataset, metadata):
         .with_arrow_dataset("items", arrow_dataset())
         .with_template(
             "output",
-            """{"my_items": {{sampled_items[0]|jstr}}, "hello": {{hello|jstr}}, "my_custom": {{my_custom|jstr}} }""",
+            """{"my_items": {{sampled_items[0]|tojson}}, "hello": "{{hello}}", "my_custom": {{my_custom|tojson}} }""",
         )
         .iter_range(10)
         .sample(dataset="items", size=1, output="sampled_items")
@@ -77,7 +77,7 @@ def test_step_map(request, output_dir, data_dir, arrow_dataset, metadata):
         .with_arrow_dataset("items", arrow_dataset())
         .with_template(
             "output",
-            """{"my_items": {{sampled_items[0]|jstr}}, "hello": {{hello|jstr}}, "my_custom": {{my_custom|jstr}} }""",
+            """{"my_items": {{sampled_items[0]|tojson}}, "hello": "{{hello}}", "my_custom": {{my_custom|tojson}} }""",
         )
         .iter_range(10)
         .sample(dataset="items", size=1, output="sampled_items")
@@ -103,7 +103,7 @@ def test_step_add_column_lambda(request, output_dir, data_dir, arrow_dataset, me
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_arrow_dataset("items", arrow_dataset())
-        .with_template("output", """{"my_random": {{my_random|jstr}} }""")
+        .with_template("output", """{"my_random": "{{my_random}}" }""")
         .iter_range(10)
         .add_column("my_random", lambda data: f"random_{random.randint(0,9)}")
         .write_jsonl(path=output_file, template="output")
@@ -250,7 +250,7 @@ def test_step_render(request, output_dir, metadata):
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
         .with_template("my_template", """HELLO WORLD""")
-        .with_template("output", """{"hello": {{my|jstr}}}""")
+        .with_template("output", """{"hello": "{{my}}"}""")
         .iter_range(number)
         .render(template="my_template", output="my")
         .write_jsonl(path=output_file, template="output")

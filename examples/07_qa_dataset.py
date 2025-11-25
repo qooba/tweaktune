@@ -45,7 +45,7 @@ def main():
         .with_template("system", "You are an expert educator creating training materials.")
         .with_template("question_prompt", "Generate an intermediate-level question about: {{topic}}")
         .with_template("answer_prompt", "Answer this question concisely but completely: {{question}}")
-        .with_template("output", """{"topic": {{topic|jstr}},"question": {{question|jstr}},"answer": {{answer|jstr}}}""")
+        .with_template("output", """{"topic": "{{topic}}","question": "{{question}}","answer": "{{answer}}"}""")
 
         .iter_range(len(topics))
             # Select topic

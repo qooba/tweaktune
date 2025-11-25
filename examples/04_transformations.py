@@ -40,7 +40,7 @@ def main():
     print("Example 2: Filter data")
     (Pipeline()
         .with_workers(1)
-        .with_template("output", """{"value": {{value}}, "category": {{category|jstr}}}""")
+        .with_template("output", """{"value": {{value}}, "category": "{{category}}"}""")
         .iter_range(20)
             .add_random("value", 1, 100)
             .add_column("category", lambda data:
@@ -84,8 +84,8 @@ def main():
 {
   "value": {{value}},
   "is_even": {{is_even}},
-  "category": {{category|jstr}},
-  "formatted": {{formatted|jstr}}
+  "category": "{{category}}",
+  "formatted": "{{formatted}}"
 }
 """)
         .iter_range(10)

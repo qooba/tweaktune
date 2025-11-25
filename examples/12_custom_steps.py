@@ -28,7 +28,7 @@ def main():
 
     (Pipeline()
         .with_workers(1)
-        .with_template("output", """{"name": {{name|jstr}}, "greeting": {{greeting|jstr}}}""")
+        .with_template("output", """{"name": "{{name}}", "greeting": "{{greeting}}"}""")
         .iter_range(5)
             .add_column("name", lambda data: f"Person_{data['index']}")
             .step(GreetingStep())
@@ -108,7 +108,7 @@ def main():
 {
   "value": {{value}},
   "validated": {{validated}},
-  "status": {{validation_status|jstr}}
+  "status": "{{validation_status}}"
 }
 """)
         .iter_range(10)
@@ -139,8 +139,8 @@ def main():
   "value": {{value}},
   "squared": {{squared}},
   "is_even": {{is_even}},
-  "category": {{category|jstr}},
-  "formatted": {{formatted|jstr}}
+  "category": "{{category}}",
+  "formatted": "{{formatted}}"
 }
 """)
         .iter_range(5)
@@ -175,7 +175,7 @@ def main():
 
     (Pipeline()
         .with_workers(1)
-        .with_template("output", """{"text": {{text|jstr}}, "price": {{price}}}""")
+        .with_template("output", """{"text": "{{text}}", "price": {{price}}}""")
         .iter_range(5)
             .add_column("text", lambda data: f"  hello   world  {data['index']}  ")
             .add_column("price", lambda data: 10.12345 + data["index"])

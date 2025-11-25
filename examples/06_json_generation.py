@@ -84,8 +84,8 @@ Return JSON: {
 """)
         .with_template("output", """
 {
-  "topic": {{topic|jstr}},
-  "complexity": {{complexity|jstr}},
+  "topic": "{{topic}}",
+  "complexity": "{{complexity}}",
   "concepts": {{concepts|tojson}},
   "applications": {{applications|tojson}}
 }
