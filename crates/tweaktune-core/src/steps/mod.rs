@@ -21,7 +21,8 @@ use crate::{
         py::{PyStep, PyValidator},
         quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep},
         validators::{
-            ConversationValidateStep, ToolsNormalizeStep, ToolsValidateStep, ValidateJsonStep,
+            CheckJsonStep, ConversationValidateStep, ToolsNormalizeStep, ToolsValidateStep,
+            ValidateJsonStep,
         },
         writers::{CsvWriterStep, JsonlWriterStep},
     },
@@ -121,6 +122,7 @@ pub enum StepType {
     CheckHash(CheckHashStep),
     CheckSimHash(CheckSimHashStep),
     CheckEmbedding(CheckEmbeddingStep),
+    CheckJson(CheckJsonStep),
     JudgeConversation(JudgeConversationStep),
 }
 

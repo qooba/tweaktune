@@ -775,6 +775,12 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
+    def check_json(self, instance: str, name: str = "CHECK-JSON"):
+        self.builder.add_checkjson_step(self.__name(name), instance)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
     def validate_json(self, schema: str, instance: str, name: str = "VALIDATE-JSON"):
         self.builder.add_validatejson_step(self.__name(name), schema, instance)
         self.graph.steps.append(step_item(name=self.__name(name)))

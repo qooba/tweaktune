@@ -1,5 +1,6 @@
 import json
 import random
+from pathlib import Path
 
 from tweaktune import Pipeline
 from tweaktune.chain import Chain
@@ -778,3 +779,68 @@ def test_step_into_list(request, output_dir, data_dir, arrow_dataset, metadata):
     assert len(lines) == 10
     assert "my_list" in item
     assert item["my_list"] == [1, 2]
+
+
+def test_check_json(request, output_dir, data_dir, arrow_dataset, metadata):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .with_arrow_dataset("items", arrow_dataset())
+        .with_template("output", """{"my_json": {{my_json|tojson}} }""")
+        .iter_range(10)
+        .add_column("my_json", lambda data: {"key1": 1, "key2": 2})
+        .check_json("my_json")
+        .write_jsonl(path=output_file, template="output")
+        .run()
+    )
+
+    lines = open(output_file).readlines()
+    item = json.loads(lines[0])
+    assert len(lines) == 10
+    assert "my_json" in item
+    assert item["my_json"] == {"key1": 1, "key2": 2}
+
+
+def test_check_json_str(request, output_dir, data_dir, arrow_dataset, metadata):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .with_arrow_dataset("items", arrow_dataset())
+        .with_template("output", """{"my_json": {{my_json}} }""")
+        .iter_range(10)
+        .add_column("my_json", lambda data: """{"key1": 1, "key2": 2}""")
+        .check_json("my_json")
+        .write_jsonl(path=output_file, template="output")
+        .run()
+    )
+
+    lines = open(output_file).readlines()
+    item = json.loads(lines[0])
+    assert len(lines) == 10
+    assert "my_json" in item
+    assert item["my_json"] == {"key1": 1, "key2": 2}
+
+
+def test_check_json_invalid(request, output_dir, data_dir, arrow_dataset, metadata):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .with_arrow_dataset("items", arrow_dataset())
+        .with_template("output", """{"my_json": {{my_json}} }""")
+        .iter_range(10)
+        .add_column("my_json", lambda data: """{"key1": 1, "key2": 2, }""")
+        .check_json("my_json")
+        .write_jsonl(path=output_file, template="output")
+        .run()
+    )
+
+    assert not Path(output_file).is_file()

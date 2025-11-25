@@ -28,6 +28,7 @@ use tweaktune_core::steps::conversations::{
 use tweaktune_core::steps::embeddings::CheckEmbeddingStep;
 use tweaktune_core::steps::generators::{JudgeConversationStep, JudgeType as JudgeTypeCore};
 use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep};
+use tweaktune_core::steps::validators::CheckJsonStep;
 use tweaktune_core::steps::{
     logic::{FilterStep, MutateStep},
     validators::{
@@ -997,6 +998,18 @@ impl PipelineBuilder {
             )));
     }
 
+    pub fn add_checkjson_step(&mut self, name: String, instance: String) {
+        debug!("Added validate JSON step");
+
+        let instance_key = self.resources.templates.add_inline(
+            "validatejson_instance",
+            &name,
+            &format!("{instance}|tojson"),
+        );
+        self.steps
+            .push(StepType::CheckJson(CheckJsonStep::new(name, instance_key)));
+    }
+
     pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
         debug!("Added validate JSON step");
 
@@ -1595,6 +1608,7 @@ async fn process_steps(
             }
             StepType::RenderDPO(render_dpostep) => process_common!(render_dpostep),
             StepType::RenderGRPO(render_grpostep) => process_common!(render_grpostep),
+            StepType::CheckJson(check_json_step) => process_common!(check_json_step),
         }
     }
 

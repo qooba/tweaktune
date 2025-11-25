@@ -8,6 +8,51 @@ use anyhow::Result;
 use log::error;
 use serde_json::{json, Value};
 
+pub struct CheckJsonStep {
+    pub name: String,
+    pub instance: String,
+}
+
+impl CheckJsonStep {
+    pub fn new(name: String, instance: String) -> Self {
+        Self { name, instance }
+    }
+}
+
+impl Step for CheckJsonStep {
+    async fn process(
+        &self,
+        resources: &PipelineResources,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        let instance_json = resources
+            .templates
+            .render(self.instance.clone(), context.data.clone())?;
+
+        println!("Checking JSON: {}", &instance_json);
+
+        match serde_json::from_str::<Value>(&instance_json) {
+            Ok(Value::String(s)) => {
+                if serde_json::from_str::<Value>(&s).is_ok() {
+                    Ok(context)
+                } else {
+                    error!(target: "check_json_step", "🐔 INVALID JSON STRING: {}", &instance_json);
+                    context.set_status(StepStatus::Failed);
+                    Ok(context)
+                }
+            }
+            Ok(_instance) => Ok(context),
+            Err(_e) => {
+                error!(target: "check_json_step", "🐔 INVALID JSON: {}", &instance_json);
+                context.set_status(StepStatus::Failed);
+                Ok(context)
+            }
+        }
+    }
+}
+
 pub struct ValidateJsonStep {
     pub name: String,
     pub schema: String,
