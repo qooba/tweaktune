@@ -12,6 +12,7 @@ from tweaktune.common import (
     package_installation_hint,
     record_batches_to_ipc_bytes,
 )
+from tweaktune.conversation import ConversationBuilder as Conv
 from tweaktune.tools import function_to_json_schema, pydantic_to_json_schema
 from tweaktune.tweaktune import (
     LLM,
@@ -668,12 +669,15 @@ class PipelineRunner:
 
     def render_conversation(
         self,
-        conversation: str,
+        conversation: Union[str, Conv],
         output: str,
         tools: Optional[str] = None,
         separator: Optional[str] = "|",
         name: str = "RENDER-CONVERSATION",
     ):
+        if conversation.__class__ == Conv:
+            conversation = conversation.build()
+
         self.builder.add_render_conversation_step(
             self.__name(name), conversation, output, tools, separator
         )
@@ -683,12 +687,15 @@ class PipelineRunner:
 
     def render_sft(
         self,
-        conversation: str,
+        conversation: Union[str, Conv],
         output: str,
         tools: Optional[str] = None,
         separator: Optional[str] = "|",
         name: str = "RENDER-SFT",
     ):
+        if conversation.__class__ == Conv:
+            conversation = conversation.build()
+
         self.builder.add_render_sft_step(self.__name(name), conversation, output, tools, separator)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
@@ -696,7 +703,7 @@ class PipelineRunner:
 
     def render_dpo(
         self,
-        conversation: str,
+        conversation: Union[str, Conv],
         output: str,
         chosen: str,
         rejected: str,
@@ -704,6 +711,9 @@ class PipelineRunner:
         separator: Optional[str] = "|",
         name: str = "RENDER-DPO",
     ):
+        if conversation.__class__ == Conv:
+            conversation = conversation.build()
+
         self.builder.add_render_dpo_step(
             self.__name(name), conversation, output, chosen, rejected, tools, separator
         )
@@ -713,7 +723,7 @@ class PipelineRunner:
 
     def render_grpo(
         self,
-        conversation: str,
+        conversation: Union[str, Conv],
         output: str,
         solution: str,
         validator_id: str,
@@ -721,6 +731,9 @@ class PipelineRunner:
         separator: Optional[str] = "|",
         name: str = "RENDER-GRPO",
     ):
+        if conversation.__class__ == Conv:
+            conversation = conversation.build()
+
         self.builder.add_render_grpo_step(
             self.__name(name), conversation, output, solution, validator_id, tools, separator
         )

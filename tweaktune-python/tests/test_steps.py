@@ -2,7 +2,7 @@ import json
 import random
 from pathlib import Path
 
-from tweaktune import Pipeline
+from tweaktune import Conv, Pipeline
 from tweaktune.chain import Chain
 
 
@@ -297,6 +297,71 @@ def test_step_render_conversation(request, output_dir, metadata):
         .render_conversation(
             conversation="""@system:system|@user:question|@assistant:tool_calls([call1])|@tool:response|@assistant:think(thinking)|@assistant:answer
             """,
+            tools="tools",
+            output="conversation",
+        )
+        .write_jsonl(path=output_file, value="conversation")
+        .run()
+    )
+
+    lines = open(output_file).readlines()
+    assert len(lines) == 1
+    line = json.loads(lines[0])
+    messages = line["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == "You are a helpful assistant."
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"] == "Hello, who won the world series in 2020?"
+    assert messages[2]["role"] == "assistant"
+    assert "tool_calls" in messages[2]
+    assert messages[2]["tool_calls"] == [
+        {"function": {"name": "get_who_won", "arguments": {"year": 2020}}}
+    ]
+    assert messages[3]["role"] == "tool"
+    assert "winner" in messages[3]["content"]
+    assert messages[4]["role"] == "assistant"
+    assert "I should look up" in messages[4]["reasoning_content"]
+    assert messages[5]["role"] == "assistant"
+    assert "Los Angeles Dodgers" in messages[5]["content"]
+
+
+def test_step_render_conversation_builder(request, output_dir, metadata):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    def get_who_won(year: int) -> dict:
+        """Example tool that returns who won the world series in a given year"""
+        winners = {
+            2020: "Los Angeles Dodgers",
+            2019: "Washington Nationals",
+            2018: "Boston Red Sox",
+            2017: "Houston Astros",
+            2016: "Chicago Cubs",
+        }
+        return {"winner": winners.get(year, "Unknown"), "year": year}
+
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .with_tools_dataset("tools", [get_who_won])
+        .iter_range(1)
+        .sample_tools("tools", 1, "tools")
+        .add_column("system", lambda data: "You are a helpful assistant.")
+        .add_column("question", lambda data: "Hello, who won the world series in 2020?")
+        .add_column("tool_name", lambda data: data["tools"][0]["name"])
+        .add_column("call_args", lambda data: '{ "year": 2020 }')
+        .render_tool_call(tool="tools[0].name", arguments="call_args", output="call1")
+        .add_column("response", lambda data: '{"winner": "Los Angeles Dodgers", "year": 2020}')
+        .add_column("thinking", lambda data: "I should look up who won the world series in 2020.")
+        .add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
+        .render_conversation(
+            conversation=Conv()
+            .system("system")
+            .user("question")
+            .tool_calls(["call1"])
+            .tool("response")
+            .think("thinking")
+            .assistant("answer"),
             tools="tools",
             output="conversation",
         )
