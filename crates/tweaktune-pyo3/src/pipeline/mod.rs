@@ -31,6 +31,7 @@ use tweaktune_core::steps::embeddings::CheckEmbeddingStep;
 use tweaktune_core::steps::generators::{JudgeConversationStep, JudgeType as JudgeTypeCore};
 use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep};
 use tweaktune_core::steps::validators::CheckJsonStep;
+use tweaktune_core::steps::ToolArgumentsSamplerStep;
 use tweaktune_core::steps::{
     logic::{FilterStep, MutateStep},
     validators::{
@@ -803,22 +804,15 @@ impl PipelineBuilder {
             "Added data sampler on tool: {} with size: {}",
             &tool_name, &size
         );
-        self.resources
-            .datasets
-            .resources
-            .iter()
-            .for_each(|(dataset_name, _dataset)| {
-                if dataset_name.starts_with(&format!("@tool::{}::", &tool_name)) {
-                    let argument_name =
-                        dataset_name.replace(&format!("@tool::{}::", &tool_name), "");
-                    self.steps.push(StepType::DataSampler(DataSamplerStep::new(
-                        format!("{}_{}", &name, &argument_name),
-                        dataset_name.clone(),
-                        Some(size),
-                        format!("{}.{}", &output, &argument_name),
-                    )));
-                }
-            });
+
+        let tool_name_key = self.resources.templates.add_inline(
+            "add_tool_argument_sampler_step",
+            &name,
+            &tool_name,
+        );
+        self.steps.push(StepType::ToolArgumentsSampler(
+            ToolArgumentsSamplerStep::new(name, tool_name_key, Some(size), output),
+        ));
     }
 
     pub fn add_tool_sampler_step(

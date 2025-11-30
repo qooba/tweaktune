@@ -582,6 +582,9 @@ async fn process_steps(
             StepType::RenderDPO(render_dpostep) => process_common!(render_dpostep, step_name),
             StepType::RenderGRPO(render_grpostep) => process_common!(render_grpostep, step_name),
             StepType::CheckJson(check_json_step) => process_common!(check_json_step, step_name),
+            StepType::ToolArgumentsSampler(tool_arguments_sampler_step) => {
+                process_common!(tool_arguments_sampler_step, step_name)
+            }
         }
     }
 

@@ -140,6 +140,7 @@ pub enum StepType {
     CheckEmbedding(CheckEmbeddingStep),
     CheckJson(CheckJsonStep),
     JudgeConversation(JudgeConversationStep),
+    ToolArgumentsSampler(ToolArgumentsSamplerStep),
 }
 
 pub struct IfElseStep {
@@ -391,6 +392,89 @@ impl Step for DataSamplerStep {
         };
 
         context.set(&self.output, json_rows);
+        Ok(context)
+    }
+}
+
+pub struct ToolArgumentsSamplerStep {
+    pub name: String,
+    pub tool_key: String,
+    pub size: Option<usize>,
+    pub output: String,
+}
+
+impl ToolArgumentsSamplerStep {
+    pub fn new(name: String, tool_name: String, size: Option<usize>, output: String) -> Self {
+        Self {
+            name,
+            tool_key: tool_name,
+            size,
+            output,
+        }
+    }
+}
+
+impl Step for ToolArgumentsSamplerStep {
+    async fn process(
+        &self,
+        resources: &PipelineResources,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+
+        let tool_name = resources
+            .templates
+            .render(self.tool_key.clone(), context.data.clone())?;
+
+        resources
+            .datasets
+            .resources
+            .iter()
+            .for_each(|(dataset_name, _dataset)| {
+                if dataset_name.starts_with(&format!("@tool::{}::", &tool_name)) {
+                    let argument_name =
+                        dataset_name.replace(&format!("@tool::{}::", &tool_name), "");
+
+                    let dataset_type = resources
+                        .datasets
+                        .get(&argument_name)
+                        .ok_or_err(&argument_name)
+                        .unwrap();
+
+                    let json_rows = if let DatasetType::Mixed(mixed_dataset) = dataset_type {
+                        mixed_dataset
+                            .sample(self.size.unwrap(), &resources.datasets.resources)
+                            .unwrap()
+                    } else {
+                        let df = match dataset_type {
+                            DatasetType::Polars(polars_dataset) => polars_dataset.df(),
+                            DatasetType::Json(json_dataset) => json_dataset.df(),
+                            DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
+                            DatasetType::OpenApi(openapi_dataset) => openapi_dataset.df(),
+                            DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
+                            DatasetType::Csv(csv_dataset) => csv_dataset.df(),
+                            DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
+                            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
+                            DatasetType::Mixed(_mixed_dataset) => unreachable!(),
+                            DatasetType::PhfSet(phf_set_dataset) => phf_set_dataset.df(),
+                        };
+
+                        let df = df
+                            .sample_n_literal(
+                                self.size.unwrap_or(df.size()),
+                                false,
+                                false,
+                                Some(rand::rng().next_u64()),
+                            )
+                            .unwrap();
+
+                        df_to_values(&df).unwrap()
+                    };
+
+                    context.set(&self.output, json_rows);
+                }
+            });
+
         Ok(context)
     }
 }

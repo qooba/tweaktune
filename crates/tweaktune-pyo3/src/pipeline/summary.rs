@@ -220,5 +220,12 @@ fn get_step_info(step: &tweaktune_core::steps::StepType) -> (String, String) {
         StepType::IfElse(_) => ("IfElse".to_string(), "Conditional branching".to_string()),
         StepType::Py(s) => ("Python".to_string(), format!("Name: {}", s.name)),
         StepType::PyValidator(s) => ("PyValidator".to_string(), format!("Name: {}", s.name)),
+        StepType::ToolArgumentsSampler(tool_arguments_sampler_step) => (
+            "ToolArgumentsSampler".to_string(),
+            format!(
+                "ToolKey: {}, Output: {}",
+                tool_arguments_sampler_step.tool_key, tool_arguments_sampler_step.output
+            ),
+        ),
     }
 }
