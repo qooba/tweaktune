@@ -41,6 +41,107 @@ Sample random tools:
 .sample_tools(dataset="tools", size=2, output="selected_tools")
 ```
 
+## Sampling Tool Arguments
+
+For more control over function arguments, you can provide custom datasets for specific tool parameters and sample from them:
+
+### Define Argument Datasets
+
+```python
+from tweaktune import Pipeline
+
+# Define a tool with parameters
+def search_products(
+    query: str = Field(..., description="Search query"),
+    category: Optional[str] = Field(None, description="Product category"),
+    min_price: Optional[float] = Field(None, description="Minimum price")
+):
+    """Search for products in the catalog."""
+    pass
+
+# Create custom dataset for the 'category' argument
+.with_tools_dataset("tools", [search_products])
+.with_tool_argument_dicts_dataset(
+    "search_products",  # Tool name
+    "category",         # Argument name
+    [
+        {"name": "electronics", "description": "Electronic devices and gadgets"},
+        {"name": "books", "description": "Books and publications"},
+        {"name": "clothing", "description": "Apparel and accessories"}
+    ]
+)
+```
+
+### Sample Argument Values
+
+After defining argument datasets, sample values for a specific tool's arguments:
+
+```python
+.sample_tools("tools", 1, "tool")  # Sample a tool
+.sample_tool_arguments(
+    tool_name="tool[0].name",        # Reference to tool name
+    size=1,                          # Number of values to sample per argument
+    output="function_arguments"      # Output key
+)
+```
+
+This creates a structured output with sampled values for each argument that has a custom dataset:
+
+```json
+{
+  "function_arguments": {
+    "category": [
+      {
+        "name": "electronics",
+        "description": "Electronic devices and gadgets"
+      }
+    ]
+  }
+}
+```
+
+### Complete Example
+
+```python
+(Pipeline()
+    .with_workers(1)
+    .with_tools_dataset("tools", [search_products])
+
+    # Define custom values for specific arguments
+    .with_tool_argument_dicts_dataset(
+        "search_products",
+        "category",
+        [
+            {"name": "electronics", "description": "Electronics category"},
+            {"name": "books", "description": "Books category"}
+        ]
+    )
+    .with_tool_argument_dicts_dataset(
+        "search_products",
+        "query",
+        [
+            {"value": "laptop", "intent": "find computer"},
+            {"value": "notebook", "intent": "find paper product or computer"}
+        ]
+    )
+
+    .iter_range(10)
+        .sample_tools("tools", 1, "tool")
+        .sample_tool_arguments("tool[0].name", 1, "args")
+
+        # Access sampled values
+        .add_column("category_name", lambda data: data["args"]["category"][0]["name"])
+        .add_column("query_value", lambda data: data["args"]["query"][0]["value"])
+
+    .run())
+```
+
+**Use Cases:**
+- Generate synthetic function calling datasets with realistic argument values
+- Create diverse test cases by sampling from predefined argument pools
+- Control the distribution of argument values in training data
+- Combine with LLM generation for hybrid synthetic data creation
+
 ## Tool Call Formatting
 
 Format a tool call:
