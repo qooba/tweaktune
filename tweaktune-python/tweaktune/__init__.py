@@ -12,7 +12,7 @@ from tweaktune.common import (
     package_installation_hint,
     record_batches_to_ipc_bytes,
 )
-from tweaktune.conversation import ConversationBuilder as Conv
+from tweaktune.conversation import ConversationBuilder as Conv, ConversationFinalTurnBuilder
 from tweaktune.tools import function_to_json_schema, pydantic_to_json_schema
 from tweaktune.tweaktune import (
     LLM,
@@ -675,7 +675,7 @@ class PipelineRunner:
         separator: Optional[str] = "|",
         name: str = "RENDER-CONVERSATION",
     ):
-        if conversation.__class__ == Conv:
+        if isinstance(conversation, ConversationFinalTurnBuilder):
             conversation = conversation.build()
 
         self.builder.add_render_conversation_step(
@@ -693,7 +693,7 @@ class PipelineRunner:
         separator: Optional[str] = "|",
         name: str = "RENDER-SFT",
     ):
-        if conversation.__class__ == Conv:
+        if isinstance(conversation, ConversationFinalTurnBuilder):
             conversation = conversation.build()
 
         self.builder.add_render_sft_step(self.__name(name), conversation, output, tools, separator)
@@ -711,7 +711,7 @@ class PipelineRunner:
         separator: Optional[str] = "|",
         name: str = "RENDER-DPO",
     ):
-        if conversation.__class__ == Conv:
+        if isinstance(conversation, ConversationFinalTurnBuilder):
             conversation = conversation.build()
 
         self.builder.add_render_dpo_step(
@@ -731,7 +731,7 @@ class PipelineRunner:
         separator: Optional[str] = "|",
         name: str = "RENDER-GRPO",
     ):
-        if conversation.__class__ == Conv:
+        if isinstance(conversation, ConversationFinalTurnBuilder):
             conversation = conversation.build()
 
         self.builder.add_render_grpo_step(
