@@ -112,6 +112,8 @@ py-test-simple: ## Run Python tests without coverage
 		exit 1; \
 	fi
 
+fix: fmt py-fmt py-lint-fix ## Fix all formatting and linting issues
+
 # All Python checks
 py-check: py-fmt-check py-lint py-typecheck py-test ## Run all Python quality checks
 

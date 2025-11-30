@@ -48,55 +48,61 @@ impl Templates {
         let mut e = Environment::new();
         e.set_undefined_behavior(minijinja::UndefinedBehavior::Strict);
         log::info!(target: "templates", "🔧 Template environment compiled with strict undefined behavior");
-        e.add_filter("jstr", |value: JinjaValue| -> Result<JinjaValue, minijinja::Error> {
-            // Check if value is undefined and fail in strict mode
-            if value.is_undefined() {
-                return Err(minijinja::Error::new(
-                    minijinja::ErrorKind::UndefinedError,
-                    "cannot apply jstr filter to undefined value"
-                ));
-            }
-            let val = serde_json::to_value(&value);
-            match val {
-                Ok(v) => {
-                    let v = serde_json::to_string(&v).unwrap();
-                    let v = serde_json::to_string(&v).unwrap();
-                    Ok(JinjaValue::from(&v))
+        e.add_filter(
+            "jstr",
+            |value: JinjaValue| -> Result<JinjaValue, minijinja::Error> {
+                // Check if value is undefined and fail in strict mode
+                if value.is_undefined() {
+                    return Err(minijinja::Error::new(
+                        minijinja::ErrorKind::UndefinedError,
+                        "cannot apply jstr filter to undefined value",
+                    ));
                 }
-                Err(_) => {
-                    error!(target: "templates_err", "🐔 Failed to convert to JSON string");
-                    Ok(value)
+                let val = serde_json::to_value(&value);
+                match val {
+                    Ok(v) => {
+                        let v = serde_json::to_string(&v).unwrap();
+                        let v = serde_json::to_string(&v).unwrap();
+                        Ok(JinjaValue::from(&v))
+                    }
+                    Err(_) => {
+                        error!(target: "templates_err", "🐔 Failed to convert to JSON string");
+                        Ok(value)
+                    }
                 }
-            }
-        });
+            },
+        );
 
-        e.add_filter("tool_call", |value: JinjaValue| -> Result<JinjaValue, minijinja::Error> {
-            // Check if value is undefined and fail in strict mode
-            if value.is_undefined() {
-                return Err(minijinja::Error::new(
-                    minijinja::ErrorKind::UndefinedError,
-                    "cannot apply tool_call filter to undefined value"
-                ));
-            }
-            let val = serde_json::to_value(&value);
-            match val {
-                Ok(v) => {
-                    let v = serde_json::to_string(&v).unwrap();
-                    let v = serde_json::to_string(&v).unwrap();
-                    Ok(JinjaValue::from(format!(
-                        "\"<tool_call>{}</tool_call>\"",
-                        v.strip_prefix('"')
-                            .unwrap_or(&v)
-                            .strip_suffix('"')
-                            .unwrap_or(&v)
-                    )))
+        e.add_filter(
+            "tool_call",
+            |value: JinjaValue| -> Result<JinjaValue, minijinja::Error> {
+                // Check if value is undefined and fail in strict mode
+                if value.is_undefined() {
+                    return Err(minijinja::Error::new(
+                        minijinja::ErrorKind::UndefinedError,
+                        "cannot apply tool_call filter to undefined value",
+                    ));
                 }
-                Err(_) => {
-                    error!(target: "templates_err", "🐔 Failed to convert to JSON string");
-                    Ok(value)
+                let val = serde_json::to_value(&value);
+                match val {
+                    Ok(v) => {
+                        let v = serde_json::to_string(&v).unwrap();
+                        let v = serde_json::to_string(&v).unwrap();
+                        Ok(JinjaValue::from(format!(
+                            "\"<tool_call>{}</tool_call>\"",
+                            v.strip_prefix('"')
+                                .unwrap_or(&v)
+                                .strip_suffix('"')
+                                .unwrap_or(&v)
+                        )))
+                    }
+                    Err(_) => {
+                        error!(target: "templates_err", "🐔 Failed to convert to JSON string");
+                        Ok(value)
+                    }
                 }
-            }
-        });
+            },
+        );
 
         e.add_filter("tool_call_args", |value: String| {
             let val = serde_json::to_string(&value);
