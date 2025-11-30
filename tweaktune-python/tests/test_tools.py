@@ -189,6 +189,7 @@ def test_tool_arguments_sample(request, output_dir, data_dir, arrow_dataset, met
 
     lines = open(output_file).readlines()
     item = json.loads(lines[0])
-    print("ITEM:", item)
     assert "function" in item
+    assert "function_arguments" in item
+    assert item["function_arguments"]["category"][0]["name"] in ["electronics", "books", "clothing"]
     assert len(lines) == 10

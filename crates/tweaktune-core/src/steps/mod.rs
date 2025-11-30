@@ -338,6 +338,42 @@ pub struct DataSamplerStep {
 //     json_rows
 // }
 
+/// Samples data from a dataset and returns JSON values
+fn sample_dataset(
+    dataset_type: &DatasetType,
+    size: Option<usize>,
+    resources: &HashMap<String, DatasetType>,
+) -> Result<Vec<serde_json::Value>> {
+    if let DatasetType::Mixed(mixed_dataset) = dataset_type {
+        return mixed_dataset.sample(
+            size.ok_or_else(|| anyhow::anyhow!("Size is required for mixed datasets"))?,
+            resources,
+        );
+    }
+
+    let df = match dataset_type {
+        DatasetType::Polars(polars_dataset) => polars_dataset.df(),
+        DatasetType::Json(json_dataset) => json_dataset.df(),
+        DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
+        DatasetType::OpenApi(openapi_dataset) => openapi_dataset.df(),
+        DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
+        DatasetType::Csv(csv_dataset) => csv_dataset.df(),
+        DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
+        DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
+        DatasetType::Mixed(_) => unreachable!(), // Already handled above
+        DatasetType::PhfSet(phf_set_dataset) => phf_set_dataset.df(),
+    };
+
+    let df = df.sample_n_literal(
+        size.unwrap_or(df.size()),
+        false,
+        false,
+        Some(rand::rng().next_u64()),
+    )?;
+
+    df_to_values(&df)
+}
+
 impl DataSamplerStep {
     pub fn new(name: String, dataset: String, size: Option<usize>, output: String) -> Self {
         Self {
@@ -360,36 +396,9 @@ impl Step for DataSamplerStep {
         let dataset_type = resources
             .datasets
             .get(&self.dataset)
-            .ok_or_err(&self.dataset)
-            .unwrap();
+            .ok_or_err(&self.dataset)?;
 
-        let json_rows = if let DatasetType::Mixed(mixed_dataset) = dataset_type {
-            mixed_dataset.sample(self.size.unwrap(), &resources.datasets.resources)?
-        } else {
-            let df = match dataset_type {
-                DatasetType::Polars(polars_dataset) => polars_dataset.df(),
-                DatasetType::Json(json_dataset) => json_dataset.df(),
-                DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
-                DatasetType::OpenApi(openapi_dataset) => openapi_dataset.df(),
-                DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
-                DatasetType::Csv(csv_dataset) => csv_dataset.df(),
-                DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
-                DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
-                DatasetType::Mixed(_mixed_dataset) => unreachable!(),
-                DatasetType::PhfSet(phf_set_dataset) => phf_set_dataset.df(),
-            };
-
-            let df = df
-                .sample_n_literal(
-                    self.size.unwrap_or(df.size()),
-                    false,
-                    false,
-                    Some(rand::rng().next_u64()),
-                )
-                .unwrap();
-
-            df_to_values(&df)?
-        };
+        let json_rows = sample_dataset(dataset_type, self.size, &resources.datasets.resources)?;
 
         context.set(&self.output, json_rows);
         Ok(context)
@@ -426,48 +435,16 @@ impl Step for ToolArgumentsSamplerStep {
             .templates
             .render(self.tool_key.clone(), context.data.clone())?;
 
-        resources
-            .datasets
-            .resources
-            .iter()
-            .for_each(|(dataset_name, dataset_type)| {
-                if dataset_name.starts_with(&format!("@tools::{}::", &tool_name)) {
-                    let argument_name =
-                        dataset_name.replace(&format!("@tools::{}::", &tool_name), "");
+        for (dataset_name, dataset_type) in resources.datasets.resources.iter() {
+            if dataset_name.starts_with(&format!("@tools::{}::", &tool_name)) {
+                let argument_name = dataset_name.replace(&format!("@tools::{}::", &tool_name), "");
 
-                    let json_rows = if let DatasetType::Mixed(mixed_dataset) = dataset_type {
-                        mixed_dataset
-                            .sample(self.size.unwrap(), &resources.datasets.resources)
-                            .unwrap()
-                    } else {
-                        let df = match dataset_type {
-                            DatasetType::Polars(polars_dataset) => polars_dataset.df(),
-                            DatasetType::Json(json_dataset) => json_dataset.df(),
-                            DatasetType::JsonList(json_list_dataset) => json_list_dataset.df(),
-                            DatasetType::OpenApi(openapi_dataset) => openapi_dataset.df(),
-                            DatasetType::Ipc(ipc_dataset) => ipc_dataset.df(),
-                            DatasetType::Csv(csv_dataset) => csv_dataset.df(),
-                            DatasetType::Parquet(parquet_dataset) => parquet_dataset.df(),
-                            DatasetType::Jsonl(jsonl_dataset) => jsonl_dataset.df(),
-                            DatasetType::Mixed(_mixed_dataset) => unreachable!(),
-                            DatasetType::PhfSet(phf_set_dataset) => phf_set_dataset.df(),
-                        };
+                let json_rows =
+                    sample_dataset(dataset_type, self.size, &resources.datasets.resources)?;
 
-                        let df = df
-                            .sample_n_literal(
-                                self.size.unwrap_or(df.size()),
-                                false,
-                                false,
-                                Some(rand::rng().next_u64()),
-                            )
-                            .unwrap();
-
-                        df_to_values(&df).unwrap()
-                    };
-
-                    context.set(&format!("{}.{}", &self.output, &argument_name), json_rows);
-                }
-            });
+                context.set(&format!("{}.{}", &self.output, &argument_name), json_rows);
+            }
+        }
 
         Ok(context)
     }
