@@ -62,20 +62,18 @@ impl Step for JsonlWriterStep {
             return Ok(context);
         };
 
-        let mut context = context.clone();
         match row {
             Ok(r) => {
                 let r = r.replace("\\n", "\n").replace('\n', "\\n");
                 writeln!(writer, "{}", r)?;
                 writer.flush()?;
+                Ok(context.clone())
             }
             Err(e) => {
                 error!(target: "json_writer_step", "🐔 Failed to render template: {}", e);
-                context.set_status(StepStatus::Failed);
+                anyhow::bail!("{}", e)
             }
-        };
-
-        Ok(context)
+        }
     }
 }
 

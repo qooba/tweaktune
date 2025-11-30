@@ -174,7 +174,7 @@ impl PipelineBuilder {
                                             "Stopped due to configuration error",
                                         );
                                         return Err(format!(
-                                            "CONFIGURATION_ERROR:{}::{}::{}",
+                                            "CONFIGURATION_ERROR|||{}|||{}|||{}",
                                             step_name, error_msg, count
                                         ));
                                     }
@@ -191,8 +191,8 @@ impl PipelineBuilder {
                     for result in iter_results {
                         if let Err(e) = result {
                             // Check if it's a configuration error
-                            if e.starts_with("CONFIGURATION_ERROR:") {
-                                let parts: Vec<&str> = e.split("::").collect();
+                            if e.starts_with("CONFIGURATION_ERROR|||") {
+                                let parts: Vec<&str> = e.split("|||").collect();
                                 if parts.len() >= 4 {
                                     let step_name = parts[1];
                                     let error_msg = parts[2];
@@ -259,7 +259,7 @@ impl PipelineBuilder {
                                                     "Stopped due to configuration error",
                                                 );
                                                 return Err(format!(
-                                                    "CONFIGURATION_ERROR:{}::{}::{}",
+                                                    "CONFIGURATION_ERROR|||{}|||{}|||{}",
                                                     step_name, error_msg, count
                                                 ));
                                             }
@@ -274,8 +274,8 @@ impl PipelineBuilder {
                             for result in iter_results {
                                 if let Err(e) = result {
                                     // Check if it's a configuration error
-                                    if e.starts_with("CONFIGURATION_ERROR:") {
-                                        let parts: Vec<&str> = e.split("::").collect();
+                                    if e.starts_with("CONFIGURATION_ERROR|||") {
+                                        let parts: Vec<&str> = e.split("|||").collect();
                                         if parts.len() >= 4 {
                                             let step_name = parts[1];
                                             let error_msg = parts[2];
@@ -334,7 +334,7 @@ impl PipelineBuilder {
                                                             "Stopped due to configuration error",
                                                         );
                                                         return Err(format!(
-                                                            "CONFIGURATION_ERROR:{}::{}::{}",
+                                                            "CONFIGURATION_ERROR|||{}|||{}|||{}",
                                                             step_name, error_msg, count
                                                         ));
                                                     }
@@ -353,8 +353,8 @@ impl PipelineBuilder {
                             for result in iter_results {
                                 if let Err(e) = result {
                                     // Check if it's a configuration error
-                                    if e.starts_with("CONFIGURATION_ERROR:") {
-                                        let parts: Vec<&str> = e.split("::").collect();
+                                    if e.starts_with("CONFIGURATION_ERROR|||") {
+                                        let parts: Vec<&str> = e.split("|||").collect();
                                         if parts.len() >= 4 {
                                             let step_name = parts[1];
                                             let error_msg = parts[2];
