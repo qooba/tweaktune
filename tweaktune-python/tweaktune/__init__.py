@@ -133,6 +133,12 @@ class Pipeline:
         self.builder.with_json_list_dataset(name, json_list, sql)
         self.graph.config.datasets.append(config_item(name))
         return self
+    
+    def with_tool_argument_dicts_dataset(self, tool_name: str, argument_name: str, dicts: List[dict], sql: str = None):
+        """Converts a list of dictionaries to json schema and adds them to the pipeline with tool context."""
+        name = f"@tools::{tool_name}::{argument_name}"
+        self.with_dicts_dataset(name, dicts, sql)
+        return self
 
     def with_jsonl_dataset(self, name: str, path: str, sql: str = None):
         """Adds a jsonl dataset to the pipeline."""
