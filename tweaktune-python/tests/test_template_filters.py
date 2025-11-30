@@ -90,6 +90,31 @@ def test_jstr(request, output_dir, metadata):
     )
 
 
+def test_jstr_error(request, output_dir, metadata):
+    """Test jstr filter functionality of the pipeline."""
+    number = 1
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .with_template("output", "{{value1 | jstr}}")
+        .iter_range(number)
+        .add_column(
+            "value",
+            lambda data: {
+                "key": "value",
+                "list": [1, 2, 3],
+                "nested": {"a": 1},
+                "bool": True,
+                "none": None,
+            },
+        )
+        .write_jsonl(path=output_file, template="output")
+        .run()
+    )
+
+
 def test_hash(request, output_dir, metadata):
     """Test hash filter functionality of the pipeline."""
     number = 1

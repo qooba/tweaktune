@@ -12,7 +12,8 @@ from tweaktune.common import (
     package_installation_hint,
     record_batches_to_ipc_bytes,
 )
-from tweaktune.conversation import ConversationBuilder as Conv, ConversationFinalTurnBuilder
+from tweaktune.conversation import ConversationBuilder as Conv
+from tweaktune.conversation import ConversationFinalTurnBuilder
 from tweaktune.tools import function_to_json_schema, pydantic_to_json_schema
 from tweaktune.tweaktune import (
     LLM,
@@ -133,8 +134,10 @@ class Pipeline:
         self.builder.with_json_list_dataset(name, json_list, sql)
         self.graph.config.datasets.append(config_item(name))
         return self
-    
-    def with_tool_argument_dicts_dataset(self, tool_name: str, argument_name: str, dicts: List[dict], sql: str = None):
+
+    def with_tool_argument_dicts_dataset(
+        self, tool_name: str, argument_name: str, dicts: List[dict], sql: str = None
+    ):
         """Converts a list of dictionaries to json schema and adds them to the pipeline with tool context."""
         name = f"@tools::{tool_name}::{argument_name}"
         self.with_dicts_dataset(name, dicts, sql)

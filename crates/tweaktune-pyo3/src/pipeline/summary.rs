@@ -66,7 +66,10 @@ impl PipelineBuilder {
             } else if template_count > 5 {
                 format!("{} templates", template_count)
             } else {
-                self.resources.templates.templates.keys()
+                self.resources
+                    .templates
+                    .templates
+                    .keys()
                     .take(5)
                     .cloned()
                     .collect::<Vec<_>>()
@@ -97,10 +100,7 @@ impl PipelineBuilder {
             .apply_modifier(UTF8_ROUND_CORNERS)
             .set_content_arrangement(ContentArrangement::Dynamic);
 
-        config_table.set_header(vec![
-            Cell::from("Configuration"),
-            Cell::from("Value"),
-        ]);
+        config_table.set_header(vec![Cell::from("Configuration"), Cell::from("Value")]);
 
         config_table.add_row(vec![
             Cell::from("Workers"),
@@ -116,10 +116,7 @@ impl PipelineBuilder {
                 format!("Dataset: {}", name)
             }
         };
-        config_table.add_row(vec![
-            Cell::from("Iteration"),
-            Cell::from(iter_info),
-        ]);
+        config_table.add_row(vec![Cell::from("Iteration"), Cell::from(iter_info)]);
 
         config_table.add_row(vec![
             Cell::from("Steps"),
@@ -165,89 +162,63 @@ fn get_step_info(step: &tweaktune_core::steps::StepType) -> (String, String) {
     use tweaktune_core::steps::StepType;
 
     match step {
-        StepType::TextGeneration(s) => {
-            ("TextGeneration".to_string(), format!("LLM: {}, Output: {}", s.llm, s.output))
-        }
-        StepType::JsonGeneration(s) => {
-            ("JsonGeneration".to_string(), format!("LLM: {}, Output: {}", s.generation_step.llm, s.output))
-        }
-        StepType::DataSampler(s) => {
-            ("DataSampler".to_string(), format!("Dataset: {}, Output: {}", s.dataset, s.output))
-        }
-        StepType::Print(_) => {
-            ("Print".to_string(), "-".to_string())
-        }
-        StepType::JsonWriter(s) => {
-            ("JsonWriter".to_string(), format!("Path: {}", s.path))
-        }
-        StepType::CsvWriter(s) => {
-            ("CsvWriter".to_string(), format!("Path: {}", s.path))
-        }
-        StepType::Render(s) => {
-            ("Render".to_string(), format!("Output: {}", s.output))
-        }
-        StepType::RenderConversation(s) => {
-            ("RenderConversation".to_string(), format!("Output: {}", s.output))
-        }
-        StepType::RenderToolCall(s) => {
-            ("RenderToolCall".to_string(), format!("Output: {}", s.output))
-        }
-        StepType::RenderDPO(s) => {
-            ("RenderDPO".to_string(), format!("Output: {}", s.output))
-        }
-        StepType::RenderGRPO(s) => {
-            ("RenderGRPO".to_string(), format!("Output: {}", s.output))
-        }
-        StepType::ValidateJson(_) => {
-            ("ValidateJson".to_string(), "-".to_string())
-        }
-        StepType::CheckJson(_) => {
-            ("CheckJson".to_string(), "-".to_string())
-        }
-        StepType::ValidateTools(_) => {
-            ("ValidateTools".to_string(), "-".to_string())
-        }
-        StepType::NormalizeTools(s) => {
-            ("NormalizeTools".to_string(), format!("Output: {}", s.output))
-        }
-        StepType::ConversationValidate(_) => {
-            ("ConversationValidate".to_string(), "-".to_string())
-        }
-        StepType::Filter(_) => {
-            ("Filter".to_string(), "-".to_string())
-        }
-        StepType::Mutate(s) => {
-            ("Mutate".to_string(), format!("Output: {}", s.output))
-        }
-        StepType::Chunk(s) => {
-            ("Chunk".to_string(), format!("Output: {}", s.output))
-        }
-        StepType::IntoList(s) => {
-            ("IntoList".to_string(), format!("Output: {}", s.output))
-        }
-        StepType::CheckLanguage(s) => {
-            ("CheckLanguage".to_string(), format!("Language: {}", s.language))
-        }
-        StepType::CheckHash(_) => {
-            ("CheckHash".to_string(), "-".to_string())
-        }
-        StepType::CheckSimHash(_) => {
-            ("CheckSimHash".to_string(), "-".to_string())
-        }
-        StepType::CheckEmbedding(s) => {
-            ("CheckEmbedding".to_string(), format!("Embedding: {}", s.embedding))
-        }
-        StepType::JudgeConversation(s) => {
-            ("JudgeConversation".to_string(), format!("LLM: {}, Output: {}", s.json_generation_step.generation_step.llm, s.json_generation_step.output))
-        }
-        StepType::IfElse(_) => {
-            ("IfElse".to_string(), "Conditional branching".to_string())
-        }
-        StepType::Py(s) => {
-            ("Python".to_string(), format!("Name: {}", s.name))
-        }
-        StepType::PyValidator(s) => {
-            ("PyValidator".to_string(), format!("Name: {}", s.name))
-        }
+        StepType::TextGeneration(s) => (
+            "TextGeneration".to_string(),
+            format!("LLM: {}, Output: {}", s.llm, s.output),
+        ),
+        StepType::JsonGeneration(s) => (
+            "JsonGeneration".to_string(),
+            format!("LLM: {}, Output: {}", s.generation_step.llm, s.output),
+        ),
+        StepType::DataSampler(s) => (
+            "DataSampler".to_string(),
+            format!("Dataset: {}, Output: {}", s.dataset, s.output),
+        ),
+        StepType::Print(_) => ("Print".to_string(), "-".to_string()),
+        StepType::JsonWriter(s) => ("JsonWriter".to_string(), format!("Path: {}", s.path)),
+        StepType::CsvWriter(s) => ("CsvWriter".to_string(), format!("Path: {}", s.path)),
+        StepType::Render(s) => ("Render".to_string(), format!("Output: {}", s.output)),
+        StepType::RenderConversation(s) => (
+            "RenderConversation".to_string(),
+            format!("Output: {}", s.output),
+        ),
+        StepType::RenderToolCall(s) => (
+            "RenderToolCall".to_string(),
+            format!("Output: {}", s.output),
+        ),
+        StepType::RenderDPO(s) => ("RenderDPO".to_string(), format!("Output: {}", s.output)),
+        StepType::RenderGRPO(s) => ("RenderGRPO".to_string(), format!("Output: {}", s.output)),
+        StepType::ValidateJson(_) => ("ValidateJson".to_string(), "-".to_string()),
+        StepType::CheckJson(_) => ("CheckJson".to_string(), "-".to_string()),
+        StepType::ValidateTools(_) => ("ValidateTools".to_string(), "-".to_string()),
+        StepType::NormalizeTools(s) => (
+            "NormalizeTools".to_string(),
+            format!("Output: {}", s.output),
+        ),
+        StepType::ConversationValidate(_) => ("ConversationValidate".to_string(), "-".to_string()),
+        StepType::Filter(_) => ("Filter".to_string(), "-".to_string()),
+        StepType::Mutate(s) => ("Mutate".to_string(), format!("Output: {}", s.output)),
+        StepType::Chunk(s) => ("Chunk".to_string(), format!("Output: {}", s.output)),
+        StepType::IntoList(s) => ("IntoList".to_string(), format!("Output: {}", s.output)),
+        StepType::CheckLanguage(s) => (
+            "CheckLanguage".to_string(),
+            format!("Language: {}", s.language),
+        ),
+        StepType::CheckHash(_) => ("CheckHash".to_string(), "-".to_string()),
+        StepType::CheckSimHash(_) => ("CheckSimHash".to_string(), "-".to_string()),
+        StepType::CheckEmbedding(s) => (
+            "CheckEmbedding".to_string(),
+            format!("Embedding: {}", s.embedding),
+        ),
+        StepType::JudgeConversation(s) => (
+            "JudgeConversation".to_string(),
+            format!(
+                "LLM: {}, Output: {}",
+                s.json_generation_step.generation_step.llm, s.json_generation_step.output
+            ),
+        ),
+        StepType::IfElse(_) => ("IfElse".to_string(), "Conditional branching".to_string()),
+        StepType::Py(s) => ("Python".to_string(), format!("Name: {}", s.name)),
+        StepType::PyValidator(s) => ("PyValidator".to_string(), format!("Name: {}", s.name)),
     }
 }

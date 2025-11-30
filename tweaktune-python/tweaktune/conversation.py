@@ -9,7 +9,6 @@ class Message:
     type: Optional[str] = None
 
 
-
 class ConversationFinalTurnBuilder:
     def __init__(self, messages: List[Message]):
         self.messages = messages
@@ -22,7 +21,8 @@ class ConversationFinalTurnBuilder:
             else:
                 parts.append(f"@{msg.role}:{msg.content}")
         return "|".join(parts)
-    
+
+
 class ConversationBuilder(ConversationFinalTurnBuilder):
     def __init__(self):
         self.messages: List[Message] = []
@@ -31,11 +31,13 @@ class ConversationBuilder(ConversationFinalTurnBuilder):
         self.messages.append(Message(role="system", content=content))
         return ConversationUserTurnBuilder(self.messages)
 
+
 class ConversationUserTurnBuilder(ConversationFinalTurnBuilder):
     def user(self, content: str):
         self.messages.append(Message(role="user", content=content))
         return ConversationAssistantTurnBuilder(self.messages)
-    
+
+
 class ConversationAssistantTurnBuilder(ConversationFinalTurnBuilder):
     def think(self, content: str):
         self.messages.append(Message(role="assistant", content=content, type="think"))
@@ -53,9 +55,9 @@ class ConversationAssistantTurnBuilder(ConversationFinalTurnBuilder):
         content = f"[{content}]"
         self.messages.append(Message(role="assistant", content=content, type="tool_calls"))
         return ConversationToolTurnBuilder(self.messages)
-    
+
+
 class ConversationToolTurnBuilder(ConversationFinalTurnBuilder):
     def tool(self, content: str):
         self.messages.append(Message(role="tool", content=content))
         return ConversationAssistantTurnBuilder(self.messages)
-
