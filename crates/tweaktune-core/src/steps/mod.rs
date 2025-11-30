@@ -430,16 +430,10 @@ impl Step for ToolArgumentsSamplerStep {
             .datasets
             .resources
             .iter()
-            .for_each(|(dataset_name, _dataset)| {
-                if dataset_name.starts_with(&format!("@tool::{}::", &tool_name)) {
+            .for_each(|(dataset_name, dataset_type)| {
+                if dataset_name.starts_with(&format!("@tools::{}::", &tool_name)) {
                     let argument_name =
-                        dataset_name.replace(&format!("@tool::{}::", &tool_name), "");
-
-                    let dataset_type = resources
-                        .datasets
-                        .get(&argument_name)
-                        .ok_or_err(&argument_name)
-                        .unwrap();
+                        dataset_name.replace(&format!("@tools::{}::", &tool_name), "");
 
                     let json_rows = if let DatasetType::Mixed(mixed_dataset) = dataset_type {
                         mixed_dataset
@@ -471,7 +465,7 @@ impl Step for ToolArgumentsSamplerStep {
                         df_to_values(&df).unwrap()
                     };
 
-                    context.set(&self.output, json_rows);
+                    context.set(&format!("{}.{}", &self.output, &argument_name), json_rows);
                 }
             });
 
