@@ -97,7 +97,7 @@ def test_jstr_error(request, output_dir, metadata):
 
     (
         Pipeline(name=request.node.name, metadata=metadata)
-        .with_workers(1)
+        .with_workers(100)
         .with_template("output", "{{value1 | jstr}}")
         .iter_range(number)
         .add_column(

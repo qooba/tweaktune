@@ -1,7 +1,9 @@
 mod chain;
+mod error_tracker;
 mod logo;
 mod run;
 mod summary;
+mod validation;
 
 use crate::logging::LogsCollector;
 use chain::map_step;
