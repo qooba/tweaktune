@@ -1230,6 +1230,9 @@ impl PipelineBuilder {
 
     #[pyo3(signature = (bus=None))]
     pub fn run(&self, bus: Option<PyObject>) -> PyResult<()> {
+        // Print TweakTune logo
+        println!("\n{}", Self::get_logo());
+
         self.running.store(true, Ordering::SeqCst);
         let r = self.running.clone();
         match ctrlc::set_handler(move || {
@@ -1477,6 +1480,24 @@ impl PipelineBuilder {
         println!("{}", self.logs_collector.summary_table());
 
         result.map_pyerr()
+    }
+}
+
+impl PipelineBuilder {
+    fn get_logo() -> String {
+        r#"
+              ▒▒                  ██                  ██                  ██
+          ▒▒▒    ▒▒▒          ███    ███          ███    ███          ███    ███   
+      ▒▒▒            ▒▒▒  ███            ███  ███            ███  ███            ███
+
+    ████████╗██╗    ██╗███████╗ █████╗ ██╗  ██╗████████╗██╗   ██╗███╗   ██╗███████╗
+    ╚══██╔══╝██║    ██║██╔════╝██╔══██╗██║ ██╔╝╚══██╔══╝██║   ██║████╗  ██║██╔════╝
+       ██║   ██║ █╗ ██║█████╗  ███████║█████╔╝    ██║   ██║   ██║██╔██╗ ██║█████╗
+       ██║   ██║███╗██║██╔══╝  ██╔══██║██╔═██╗    ██║   ██║   ██║██║╚██╗██║██╔══╝
+       ██║   ╚███╔███╔╝███████╗██║  ██║██║  ██╗   ██║   ╚██████╔╝██║ ╚████║███████╗
+       ╚═╝    ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+"#
+        .to_string()
     }
 }
 
