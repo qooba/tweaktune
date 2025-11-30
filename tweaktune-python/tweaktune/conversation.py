@@ -54,10 +54,8 @@ class ConversationAssistantTurnBuilder(ConversationFinalTurnBuilder):
         content = ",".join(calls)
         content = f"[{content}]"
         self.messages.append(Message(role="assistant", content=content, type="tool_calls"))
-        return ConversationToolTurnBuilder(self.messages)
+        return ConversationAssistantTurnBuilder(self.messages)
 
-
-class ConversationToolTurnBuilder(ConversationFinalTurnBuilder):
     def tool(self, content: str):
         self.messages.append(Message(role="tool", content=content))
         return ConversationAssistantTurnBuilder(self.messages)
