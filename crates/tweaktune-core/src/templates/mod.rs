@@ -46,38 +46,54 @@ impl Templates {
 
     pub fn compile(&self) -> Result<()> {
         let mut e = Environment::new();
-        e.add_filter("jstr", |value: JinjaValue| {
+        e.set_undefined_behavior(minijinja::UndefinedBehavior::Strict);
+        log::info!(target: "templates", "🔧 Template environment compiled with strict undefined behavior");
+        e.add_filter("jstr", |value: JinjaValue| -> Result<JinjaValue, minijinja::Error> {
+            // Check if value is undefined and fail in strict mode
+            if value.is_undefined() {
+                return Err(minijinja::Error::new(
+                    minijinja::ErrorKind::UndefinedError,
+                    "cannot apply jstr filter to undefined value"
+                ));
+            }
             let val = serde_json::to_value(&value);
             match val {
                 Ok(v) => {
                     let v = serde_json::to_string(&v).unwrap();
                     let v = serde_json::to_string(&v).unwrap();
-                    JinjaValue::from(&v)
+                    Ok(JinjaValue::from(&v))
                 }
                 Err(_) => {
                     error!(target: "templates_err", "🐔 Failed to convert to JSON string");
-                    value
+                    Ok(value)
                 }
             }
         });
 
-        e.add_filter("tool_call", |value: JinjaValue| {
+        e.add_filter("tool_call", |value: JinjaValue| -> Result<JinjaValue, minijinja::Error> {
+            // Check if value is undefined and fail in strict mode
+            if value.is_undefined() {
+                return Err(minijinja::Error::new(
+                    minijinja::ErrorKind::UndefinedError,
+                    "cannot apply tool_call filter to undefined value"
+                ));
+            }
             let val = serde_json::to_value(&value);
             match val {
                 Ok(v) => {
                     let v = serde_json::to_string(&v).unwrap();
                     let v = serde_json::to_string(&v).unwrap();
-                    JinjaValue::from(format!(
+                    Ok(JinjaValue::from(format!(
                         "\"<tool_call>{}</tool_call>\"",
                         v.strip_prefix('"')
                             .unwrap_or(&v)
                             .strip_suffix('"')
                             .unwrap_or(&v)
-                    ))
+                    )))
                 }
                 Err(_) => {
                     error!(target: "templates_err", "🐔 Failed to convert to JSON string");
-                    value
+                    Ok(value)
                 }
             }
         });
@@ -98,22 +114,29 @@ impl Templates {
             }
         });
 
-        e.add_filter("totoon", |value: JinjaValue| {
+        e.add_filter("totoon", |value: JinjaValue| -> Result<JinjaValue, minijinja::Error> {
+            // Check if value is undefined and fail in strict mode
+            if value.is_undefined() {
+                return Err(minijinja::Error::new(
+                    minijinja::ErrorKind::UndefinedError,
+                    "cannot apply totoon filter to undefined value"
+                ));
+            }
             let val: Result<Value, _> = serde_json::to_value(&value);
             match val {
                 Ok(v) => {
                     let val = encode_default(&v);
                     match val {
-                        Ok(v) => JinjaValue::from(v),
+                        Ok(v) => Ok(JinjaValue::from(v)),
                         Err(_) => {
                             error!(target: "templates_err", "🐔 Failed to convert to TOON string");
-                            value
+                            Ok(value)
                         }
                     }
                 }
                 Err(_) => {
                     error!(target: "templates_err", "🐔 Value is not valid JSON string");
-                    value
+                    Ok(value)
                 }
             }
         });
@@ -225,9 +248,13 @@ impl Templates {
             }
         };
         let rendered_template = match tmpl.render(items) {
-            Ok(t) => t,
+            Ok(t) => {
+                debug!(target:"templates", "✅ Template rendered successfully");
+                t
+            }
             Err(e) => {
                 error!(target:"templates_err", "🐔 Failed to render template: {}", e);
+                error!(target:"templates_err", "Error details: {:?}", e);
                 bail!("Failed to render template: {}", e);
             }
         };
@@ -252,6 +279,7 @@ impl ChatTemplate {
                 .unwrap();
         } else {
             let mut e = Environment::new();
+            e.set_undefined_behavior(minijinja::UndefinedBehavior::Strict);
             e.add_template_owned("chat_template".to_string(), template)
                 .map_anyhow_err()
                 .unwrap();

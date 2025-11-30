@@ -41,7 +41,10 @@ impl ErrorTracker {
         // Track consecutive failures for this specific error
         let error_key = format!("{}::{}", step_name, error_message);
         if let Ok(mut consecutive) = self.consecutive_failures.lock() {
-            *consecutive.entry(error_key).or_insert(0) += 1;
+            let count = consecutive.entry(error_key.clone()).or_insert(0);
+            *count += 1;
+            log::debug!(target: "error_tracker", "Tracked error: key={}, count={}, threshold={}",
+                error_key, *count, self.max_consecutive_before_stop);
         }
     }
 
@@ -56,15 +59,20 @@ impl ErrorTracker {
     /// Returns Some(error_info) if we should stop, None otherwise
     pub fn should_stop(&self) -> Option<(String, String, usize)> {
         if let Ok(consecutive) = self.consecutive_failures.lock() {
+            log::debug!(target: "error_tracker", "Checking should_stop: {} errors tracked, threshold={}",
+                consecutive.len(), self.max_consecutive_before_stop);
             for (key, count) in consecutive.iter() {
+                log::debug!(target: "error_tracker", "  Error key={}, count={}", key, count);
                 if *count >= self.max_consecutive_before_stop {
                     // Extract step_name and error_message from key
                     if let Some((step_name, error_message)) = key.split_once("::") {
+                        log::debug!(target: "error_tracker", "  STOPPING: count {} >= threshold {}", count, self.max_consecutive_before_stop);
                         return Some((step_name.to_string(), error_message.to_string(), *count));
                     }
                 }
             }
         }
+        log::debug!(target: "error_tracker", "  Not stopping");
         None
     }
 

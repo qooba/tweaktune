@@ -36,8 +36,21 @@ impl PipelineBuilder {
         }
         println!("✓ Pre-flight validation passed\n");
 
-        // Initialize error tracker (stop after 3 consecutive identical errors)
-        let error_tracker = ErrorTracker::new(3);
+        // Initialize error tracker with adaptive threshold
+        // For small iteration counts, fail fast (threshold = 1)
+        // For larger counts, allow more retries (threshold = 3)
+        let max_consecutive = match &self.iter_by {
+            IterBy::Range { start, stop, step } => {
+                let total_iterations = (stop - start) / step;
+                if total_iterations < 3 {
+                    1 // Fail fast for small iteration counts
+                } else {
+                    3 // Allow retries for larger iteration counts
+                }
+            }
+            IterBy::Dataset { .. } => 3, // Unknown size, use default
+        };
+        let error_tracker = ErrorTracker::new(max_consecutive);
 
         self.running.store(true, Ordering::SeqCst);
         let r = self.running.clone();

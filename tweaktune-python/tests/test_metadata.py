@@ -15,7 +15,7 @@ def test_metadata(request, output_dir):
     (
         Pipeline(name=request.node.name, metadata=metadata)
         .with_workers(1)
-        .with_template("output", """{"hello": "{{value}}"}""")
+        .with_template("output", """{"hello": "{{question}}"}""")
         .with_embedings_e5(name="e5-small", model_repo="intfloat/e5-small")
         .iter_range(number)
         .log("info")
