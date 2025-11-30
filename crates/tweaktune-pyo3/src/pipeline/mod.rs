@@ -1,4 +1,5 @@
 mod logo;
+mod summary;
 use crate::common::ResultExt;
 use crate::logging::{BusEvent, ChannelWriter, LogsCollector};
 use anyhow::{bail, Result};
@@ -1233,6 +1234,9 @@ impl PipelineBuilder {
     pub fn run(&self, bus: Option<PyObject>) -> PyResult<()> {
         // Print TweakTune logo
         println!("\n{}", Self::get_logo());
+
+        // Print pipeline summary
+        println!("{}", self.get_summary());
 
         self.running.store(true, Ordering::SeqCst);
         let r = self.running.clone();
