@@ -41,10 +41,8 @@ impl ErrorTracker {
         // Track consecutive failures for this specific error
         let error_key = format!("{}::{}", step_name, error_message);
         if let Ok(mut consecutive) = self.consecutive_failures.lock() {
-            let count = consecutive.entry(error_key.clone()).or_insert(0);
+            let count = consecutive.entry(error_key).or_insert(0);
             *count += 1;
-            log::debug!(target: "error_tracker", "Tracked error: key={}, count={}, threshold={}",
-                error_key, *count, self.max_consecutive_before_stop);
         }
     }
 
@@ -59,20 +57,15 @@ impl ErrorTracker {
     /// Returns Some(error_info) if we should stop, None otherwise
     pub fn should_stop(&self) -> Option<(String, String, usize)> {
         if let Ok(consecutive) = self.consecutive_failures.lock() {
-            log::debug!(target: "error_tracker", "Checking should_stop: {} errors tracked, threshold={}",
-                consecutive.len(), self.max_consecutive_before_stop);
             for (key, count) in consecutive.iter() {
-                log::debug!(target: "error_tracker", "  Error key={}, count={}", key, count);
                 if *count >= self.max_consecutive_before_stop {
                     // Extract step_name and error_message from key
                     if let Some((step_name, error_message)) = key.split_once("::") {
-                        log::debug!(target: "error_tracker", "  STOPPING: count {} >= threshold {}", count, self.max_consecutive_before_stop);
                         return Some((step_name.to_string(), error_message.to_string(), *count));
                     }
                 }
             }
         }
-        log::debug!(target: "error_tracker", "  Not stopping");
         None
     }
 
@@ -108,12 +101,15 @@ impl ErrorTracker {
 
         let mut output = String::new();
         output.push('\n');
-        output
-            .push_str("╭─────────────────────────────────────────────────────────────────────╮\n");
-        output
-            .push_str("│  ⚠️  ERROR SUMMARY                                                   │\n");
-        output
-            .push_str("╰─────────────────────────────────────────────────────────────────────╯\n");
+
+        // Header table
+        let mut header_table = Table::new();
+        header_table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            .set_content_arrangement(ContentArrangement::Dynamic);
+        header_table.add_row(vec![Cell::from("  ⚠️  ERROR SUMMARY")]);
+        output.push_str(&header_table.to_string());
         output.push('\n');
 
         // Create errors table
@@ -166,9 +162,8 @@ impl ErrorTracker {
         }
 
         output.push_str(&table.to_string());
-        output.push('\n');
         output.push_str(&format!(
-            "Total errors: {} across {} unique error types\n",
+            "\nTotal errors: {} across {} unique error types\n",
             errors.len(),
             error_groups.len()
         ));
@@ -185,14 +180,18 @@ impl ErrorTracker {
     ) -> String {
         let mut output = String::new();
         output.push('\n');
-        output
-            .push_str("╭─────────────────────────────────────────────────────────────────────╮\n");
-        output
-            .push_str("│  🛑 CONFIGURATION ERROR DETECTED                                    │\n");
-        output
-            .push_str("╰─────────────────────────────────────────────────────────────────────╯\n");
+
+        // Header table
+        let mut header_table = Table::new();
+        header_table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            .set_content_arrangement(ContentArrangement::Dynamic);
+        header_table.add_row(vec![Cell::from("  🛑 CONFIGURATION ERROR DETECTED")]);
+        output.push_str(&header_table.to_string());
         output.push('\n');
 
+        // Error details table
         let mut table = Table::new();
         table
             .load_preset(UTF8_FULL)
@@ -221,18 +220,13 @@ impl ErrorTracker {
         ]);
 
         output.push_str(&table.to_string());
-        output.push('\n');
-        output.push_str(
-            "This appears to be a configuration issue that will affect all iterations.\n",
-        );
-        output.push_str("Pipeline execution stopped to prevent wasted iterations.\n");
-        output.push('\n');
+        output.push_str("\nThis appears to be a configuration issue that will affect all iterations.\n");
+        output.push_str("Pipeline execution stopped to prevent wasted iterations.\n\n");
         output.push_str("Common causes:\n");
         output.push_str("  • Missing or incorrectly named templates, datasets, or LLMs\n");
         output.push_str("  • Template syntax errors\n");
         output.push_str("  • Invalid JSON schemas\n");
-        output.push_str("  • Missing required fields in context\n");
-        output.push('\n');
+        output.push_str("  • Missing required fields in context\n\n");
 
         output
     }

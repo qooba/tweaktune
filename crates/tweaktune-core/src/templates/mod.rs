@@ -47,7 +47,6 @@ impl Templates {
     pub fn compile(&self) -> Result<()> {
         let mut e = Environment::new();
         e.set_undefined_behavior(minijinja::UndefinedBehavior::Strict);
-        log::info!(target: "templates", "🔧 Template environment compiled with strict undefined behavior");
         e.add_filter(
             "jstr",
             |value: JinjaValue| -> Result<JinjaValue, minijinja::Error> {
@@ -254,13 +253,9 @@ impl Templates {
             }
         };
         let rendered_template = match tmpl.render(items) {
-            Ok(t) => {
-                debug!(target:"templates", "✅ Template rendered successfully");
-                t
-            }
+            Ok(t) => t,
             Err(e) => {
                 error!(target:"templates_err", "🐔 Failed to render template: {}", e);
-                error!(target:"templates_err", "Error details: {:?}", e);
                 bail!("Failed to render template: {}", e);
             }
         };
