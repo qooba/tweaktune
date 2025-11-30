@@ -52,7 +52,7 @@
     {%- if message["role"] == "user" %}
         {{- "<|im_start|>user\n" + message["content"] + "<|im_end|>\n"}}
     {%- elif message.tool_calls is defined and message.tool_calls is not none %}
-        {%- set content = message["content"] if message["content"] else "" %}
+        {%- set content = message["content"] if message["content"] is defined and message["content"] is not none else "" %}
         {{- "<|im_start|>assistant\n" + content }}
         {%- for tool_call in message.tool_calls %}
             {{- '<tool_call>{"name": "' + tool_call.function["name"] + '", "arguments": ' + tool_call.function["arguments"] | tojson + '}</tool_call>\n'}}
@@ -72,7 +72,7 @@
     {%- endif %}
 {%- endfor %}
 
-{%- if add_generation_prompt %}
+{%- if add_generation_prompt is defined and add_generation_prompt %}
     {{- '<|im_start|>assistant\n' }}
     {%- if enable_thinking is defined and not enable_thinking %}
     {{- "<think>\n\n</think>\n\n"}}

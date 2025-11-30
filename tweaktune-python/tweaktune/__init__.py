@@ -12,6 +12,8 @@ from tweaktune.common import (
     package_installation_hint,
     record_batches_to_ipc_bytes,
 )
+from tweaktune.conversation import ConversationBuilder as Conv
+from tweaktune.conversation import ConversationFinalTurnBuilder
 from tweaktune.tools import function_to_json_schema, pydantic_to_json_schema
 from tweaktune.tweaktune import (
     LLM,
@@ -131,6 +133,14 @@ class Pipeline:
         json_list = [json.dumps(d) for d in dicts]
         self.builder.with_json_list_dataset(name, json_list, sql)
         self.graph.config.datasets.append(config_item(name))
+        return self
+
+    def with_tool_argument_dicts_dataset(
+        self, tool_name: str, argument_name: str, dicts: List[dict], sql: str = None
+    ):
+        """Converts a list of dictionaries to json schema and adds them to the pipeline with tool context."""
+        name = f"@tools::{tool_name}::{argument_name}"
+        self.with_dicts_dataset(name, dicts, sql)
         return self
 
     def with_jsonl_dataset(self, name: str, path: str, sql: str = None):
@@ -668,12 +678,15 @@ class PipelineRunner:
 
     def render_conversation(
         self,
-        conversation: str,
+        conversation: Union[str, Conv],
         output: str,
         tools: Optional[str] = None,
         separator: Optional[str] = "|",
         name: str = "RENDER-CONVERSATION",
     ):
+        if isinstance(conversation, ConversationFinalTurnBuilder):
+            conversation = conversation.build()
+
         self.builder.add_render_conversation_step(
             self.__name(name), conversation, output, tools, separator
         )
@@ -683,12 +696,15 @@ class PipelineRunner:
 
     def render_sft(
         self,
-        conversation: str,
+        conversation: Union[str, Conv],
         output: str,
         tools: Optional[str] = None,
         separator: Optional[str] = "|",
         name: str = "RENDER-SFT",
     ):
+        if isinstance(conversation, ConversationFinalTurnBuilder):
+            conversation = conversation.build()
+
         self.builder.add_render_sft_step(self.__name(name), conversation, output, tools, separator)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
@@ -696,7 +712,7 @@ class PipelineRunner:
 
     def render_dpo(
         self,
-        conversation: str,
+        conversation: Union[str, Conv],
         output: str,
         chosen: str,
         rejected: str,
@@ -704,6 +720,9 @@ class PipelineRunner:
         separator: Optional[str] = "|",
         name: str = "RENDER-DPO",
     ):
+        if isinstance(conversation, ConversationFinalTurnBuilder):
+            conversation = conversation.build()
+
         self.builder.add_render_dpo_step(
             self.__name(name), conversation, output, chosen, rejected, tools, separator
         )
@@ -713,7 +732,7 @@ class PipelineRunner:
 
     def render_grpo(
         self,
-        conversation: str,
+        conversation: Union[str, Conv],
         output: str,
         solution: str,
         validator_id: str,
@@ -721,6 +740,9 @@ class PipelineRunner:
         separator: Optional[str] = "|",
         name: str = "RENDER-GRPO",
     ):
+        if isinstance(conversation, ConversationFinalTurnBuilder):
+            conversation = conversation.build()
+
         self.builder.add_render_grpo_step(
             self.__name(name), conversation, output, solution, validator_id, tools, separator
         )
@@ -771,6 +793,12 @@ class PipelineRunner:
         self.builder.add_check_embeddings_step(
             self.__name(name), input, embedding, treshold, similarity_output
         )
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
+    def check_json(self, instance: str, name: str = "CHECK-JSON"):
+        self.builder.add_checkjson_step(self.__name(name), instance)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self

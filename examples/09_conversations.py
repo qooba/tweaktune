@@ -3,9 +3,13 @@ Conversation Dataset Generation
 
 Creates multi-turn conversation datasets in OpenAI format.
 Based on test_steps.py render_conversation tests.
+
+This example demonstrates two ways to define conversations:
+1. String format: "@role:content" syntax (compact)
+2. Conv() builder: Fluent Python API (recommended for better readability)
 """
 
-from tweaktune import Pipeline
+from tweaktune import Conv, Pipeline
 import json
 
 def main():
@@ -99,6 +103,130 @@ def main():
 
     print("\nSample conversation with reasoning:")
     with open("09_reasoning.jsonl", "r") as f:
+        first = json.loads(f.readline())
+        messages = first["messages"]
+        for msg in messages:
+            role = msg["role"].upper()
+            if "reasoning_content" in msg:
+                print(f"  [{role}] (thinking) {msg['reasoning_content']}")
+            content = msg.get("content", "")
+            if content:
+                print(f"  [{role}] {content}")
+
+    print("\n" + "="*60)
+    print("Conv() Builder Examples (Recommended Approach)")
+    print("="*60 + "\n")
+
+    print("Example 5: Simple conversation using Conv() builder")
+    (Pipeline()
+        .with_workers(1)
+        .iter_range(5)
+            .add_column("system", lambda data: "You are a helpful assistant.")
+            .add_column("user_msg", lambda data: f"Hello! This is message {data['index']}")
+            .add_column("assistant_msg", lambda data: f"Hi! Thanks for message {data['index']}")
+
+            # Build conversation using Conv() builder (cleaner syntax!)
+            .render_conversation(
+                conversation=Conv()
+                    .system("system")
+                    .user("user_msg")
+                    .assistant("assistant_msg"),
+                output="conversation"
+            )
+
+            .write_jsonl(path="09_builder_simple.jsonl", value="conversation")
+        .run())
+    print("Written to 09_builder_simple.jsonl\n")
+
+    print("Example 6: Multi-turn conversation with Conv() builder")
+    (Pipeline()
+        .with_workers(1)
+        .iter_range(3)
+            .add_column("system", lambda data: "You are a math tutor.")
+            .add_column("q1", lambda data: "What is 2 + 2?")
+            .add_column("a1", lambda data: "2 + 2 equals 4.")
+            .add_column("q2", lambda data: "What about 3 + 5?")
+            .add_column("a2", lambda data: "3 + 5 equals 8.")
+            .add_column("thanks", lambda data: "Thank you!")
+            .add_column("welcome", lambda data: "You're welcome! Feel free to ask more questions.")
+
+            # Multi-turn conversation with builder
+            .render_conversation(
+                conversation=Conv()
+                    .system("system")
+                    .user("q1")
+                    .assistant("a1")
+                    .user("q2")
+                    .assistant("a2")
+                    .user("thanks")
+                    .assistant("welcome"),
+                output="conversation"
+            )
+
+            .write_jsonl(path="09_builder_multiturn.jsonl", value="conversation")
+        .run())
+    print("Written to 09_builder_multiturn.jsonl\n")
+
+    print("Example 7: Conversation with reasoning using Conv() builder")
+    (Pipeline()
+        .with_workers(1)
+        .iter_range(2)
+            .add_column("system", lambda data: "You are a problem-solving assistant.")
+            .add_column("problem", lambda data: "How can I optimize my code?")
+            .add_column("thinking", lambda data: "Let me analyze the problem step by step...")
+            .add_column("solution", lambda data: "Here are three optimization strategies...")
+
+            # Use .think() for reasoning content
+            .render_conversation(
+                conversation=Conv()
+                    .system("system")
+                    .user("problem")
+                    .think("thinking")
+                    .assistant("solution"),
+                output="conversation"
+            )
+
+            .write_jsonl(path="09_builder_reasoning.jsonl", value="conversation")
+        .run())
+    print("Written to 09_builder_reasoning.jsonl\n")
+
+    print("Example 8: Tool calling conversation with Conv() builder")
+
+    def get_weather(city: str) -> dict:
+        """Get the weather for a city"""
+        return {"city": city, "temp": 72, "condition": "sunny"}
+
+    (Pipeline()
+        .with_workers(1)
+        .with_tools_dataset("tools", [get_weather])
+        .iter_range(1)
+            .sample_tools("tools", 1, "tools")
+            .add_column("system", lambda data: "You are a helpful assistant with access to tools.")
+            .add_column("question", lambda data: "What's the weather in San Francisco?")
+            .add_column("call_args", lambda data: '{"city": "San Francisco"}')
+            .render_tool_call(tool="tools[0].name", arguments="call_args", output="call1")
+            .add_column("tool_response", lambda data: '{"city": "San Francisco", "temp": 72, "condition": "sunny"}')
+            .add_column("final_answer", lambda data: "It's sunny and 72°F in San Francisco!")
+
+            # Tool calling with builder
+            .render_conversation(
+                conversation=Conv()
+                    .system("system")
+                    .user("question")
+                    .tool_calls(["call1"])
+                    .tool("tool_response")
+                    .assistant("final_answer"),
+                tools="tools",
+                output="conversation"
+            )
+
+            .write_jsonl(path="09_builder_tools.jsonl", value="conversation")
+        .run())
+    print("Written to 09_builder_tools.jsonl\n")
+
+    # Display sample from builder approach
+    print("Sample from Conv() builder approach:")
+    with open("09_builder_reasoning.jsonl", "r") as f:
         first = json.loads(f.readline())
         messages = first["messages"]
         for msg in messages:

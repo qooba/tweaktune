@@ -1,23 +1,25 @@
-use crate::common::ResultExt;
-use crate::logging::{BusEvent, ChannelWriter, LogsCollector};
-use anyhow::{bail, Result};
+mod chain;
+mod error_tracker;
+mod logo;
+mod run;
+mod summary;
+mod validation;
+
+use crate::logging::LogsCollector;
+use chain::map_step;
+pub use chain::{Step, StepsChain};
 use chrono::Local;
 use core::fmt;
-use futures::stream::{self, StreamExt};
-use indicatif::{ProgressBar, ProgressStyle};
-use log::{debug, error, info};
-use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult, Python};
-use serde_json::json;
+use log::{debug, error};
+use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult};
 use simplelog::*;
 use std::fs::{create_dir_all, File};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc;
 use std::sync::Arc;
-use std::thread;
 use tweaktune_core::common::{blake3_hash, deserialize, run_async, SerializationType};
 use tweaktune_core::datasets::{
-    CsvDataset, Dataset as DatasetTrait, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset,
-    PhfSetDataset, PolarsDataset,
+    CsvDataset, IpcDataset, JsonlDataset, MixedDataset, ParquetDataset, PhfSetDataset,
+    PolarsDataset,
 };
 use tweaktune_core::embeddings::e5::E5Spec;
 use tweaktune_core::llms::{ApiLLMMode, MistralrsLLM, UnslothLLM};
@@ -28,6 +30,7 @@ use tweaktune_core::steps::conversations::{
 use tweaktune_core::steps::embeddings::CheckEmbeddingStep;
 use tweaktune_core::steps::generators::{JudgeConversationStep, JudgeType as JudgeTypeCore};
 use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep};
+use tweaktune_core::steps::validators::CheckJsonStep;
 use tweaktune_core::steps::{
     logic::{FilterStep, MutateStep},
     validators::{
@@ -37,7 +40,6 @@ use tweaktune_core::steps::{
 };
 use tweaktune_core::PipelineResources;
 use tweaktune_core::{
-    common::OptionToResult,
     datasets::{DatasetType, JsonDataset, JsonListDataset, OpenApiDataset},
     embeddings::{EmbeddingsType, OpenAIEmbeddings},
     llms::{ApiLLM, LLMType},
@@ -46,7 +48,7 @@ use tweaktune_core::{
         generators::{JsonGenerationStep, TextGenerationStep},
         py::{PyStep, PyValidator},
         writers::{CsvWriterStep, JsonlWriterStep},
-        DataSamplerStep, PrintStep, Step as StepCore, StepContext, StepStatus, StepType,
+        DataSamplerStep, PrintStep, StepType,
     },
     templates::Templates,
 };
@@ -997,6 +999,18 @@ impl PipelineBuilder {
             )));
     }
 
+    pub fn add_checkjson_step(&mut self, name: String, instance: String) {
+        debug!("Added validate JSON step");
+
+        let instance_key = self.resources.templates.add_inline(
+            "validatejson_instance",
+            &name,
+            &format!("{instance}|tojson"),
+        );
+        self.steps
+            .push(StepType::CheckJson(CheckJsonStep::new(name, instance_key)));
+    }
+
     pub fn add_validatejson_step(&mut self, name: String, schema: String, instance: String) {
         debug!("Added validate JSON step");
 
@@ -1217,388 +1231,8 @@ impl PipelineBuilder {
 
     #[pyo3(signature = (bus=None))]
     pub fn run(&self, bus: Option<PyObject>) -> PyResult<()> {
-        self.running.store(true, Ordering::SeqCst);
-        let r = self.running.clone();
-        match ctrlc::set_handler(move || {
-            r.store(false, std::sync::atomic::Ordering::SeqCst);
-        }) {
-            Ok(_) => {
-                debug!("Ctrl-C handler set");
-            }
-            Err(e) => {
-                debug!("Error setting Ctrl-C handler: {}", e);
-            }
-        }
-
-        let sender = if let Some(bus) = bus {
-            let bus_logger = Python::with_gil(|py| {
-                let py_obj: PyObject = bus.clone_ref(py);
-                py_obj
-            });
-
-            let (log_sender, log_receiver) = mpsc::channel::<String>();
-            let sender = Arc::new(log_sender);
-            let channel_writer = ChannelWriter::new(sender.clone());
-
-            WriteLogger::init(
-                log::LevelFilter::Info,
-                ConfigBuilder::new().build(),
-                channel_writer,
-            )
-            .unwrap();
-
-            thread::spawn(move || {
-                for message in log_receiver {
-                    Python::with_gil(|py| {
-                        bus_logger.call_method1(py, "put", (message,)).unwrap();
-                    });
-                }
-            });
-
-            Some(sender.clone())
-        } else {
-            None
-        };
-
-        let log_path = self.log_path.clone();
-
-        let result = run_async(async {
-            if self.metadata.enabled {
-                if let Some(state) = &self.resources.state {
-                    state
-                        .add_run(
-                            &self.id.to_string(),
-                            log_path.as_ref().expect("Log path not set"),
-                            None,
-                        )
-                        .await?;
-                }
-            }
-
-            let successfull_iterations = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-            match &self.iter_by {
-                IterBy::Range { start, stop, step } => {
-                    debug!("Iterating by range: {}..{}..{}", start, stop, step);
-                    let bar = ProgressBar::new((stop - start) as u64);
-
-                    bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",)
-                    .unwrap().progress_chars("#>-"));
-
-                    let iter_results = stream::iter((*start..*stop).step_by(*step).map(|i| {
-                        let bar = &bar;
-                        if !self.running.load(std::sync::atomic::Ordering::SeqCst) {
-                            bar.finish_with_message("Interrupted");
-                            std::process::exit(1);
-                        }
-
-                        let sender = sender.clone();
-                        let value = successfull_iterations.clone();
-                        let rid = self.id.to_string();
-                        async move {
-                            let mut context = StepContext::new();
-                            context.set("index", i);
-                            context.set_status(StepStatus::Running);
-                            let item_id = context.id.to_string();
-                            if self.metadata.enabled {
-                                if let Some(state) = &self.resources.state {
-                                    state
-                                        .add_item(&item_id, &rid, i as i64, None)
-                                        .await
-                                        .unwrap();
-                                }
-                            }
-                            if let Err(e) = process_steps(self, context, None).await {
-                                if let Some(state) = &self.resources.state {
-                                    state.delete_item(&item_id).await.ok();
-                                }
-                                return Err(format!("Error processing step: {} - {}", i, e));
-                            } else {
-                                value.fetch_add(1, Ordering::SeqCst);
-                            }
-
-                            bar.inc(1);
-
-                            if let Some(sender) = &sender {
-                                sender
-                                    .send(BusEvent::build(
-                                        "progress",
-                                        json!({"index": i, "total": (stop - start) / step}),
-                                    ))
-                                    .unwrap();
-                            }
-                            Ok(())
-                        }
-                    }))
-                    .buffered(self.workers)
-                    .collect::<Vec<_>>()
-                    .await;
-
-                    for result in iter_results {
-                        if let Err(e) = result {
-                            bail!(e)
-                        }
-                    }
-                }
-                IterBy::Dataset { name } => {
-                    debug!("Iterating by dataset: {}", name);
-                    let bar = ProgressBar::new(0);
-
-                    bar.set_style(
-                        ProgressStyle::with_template(
-                            "{spinner:.green} [{elapsed_precise}] ({pos})",
-                        )
-                        .unwrap(),
-                    );
-
-                    let dataset = self.resources.datasets.get(name).ok_or_err(name)?;
-                    let mut inc = 0;
-                    // macros to reduce duplicated iteration logic for datasets
-                    macro_rules! process_dataset {
-                        ($dataset:expr) => {{
-                            let iter_results = stream::iter($dataset.stream()?.map(|json_row| {
-                                let bar = &bar;
-                                let sender = sender.clone();
-                                process_progress_bar(bar, &self.running);
-                                let value = successfull_iterations.clone();
-                                async move {
-                                    if let Err(e) =
-                                        map_record_batches(self, name, &json_row.unwrap(), &inc)
-                                            .await
-                                    {
-                                        return Err(format!(
-                                            "Error processing step: {} - {}",
-                                            name, e
-                                        ));
-                                    } else {
-                                        value.fetch_add(1, Ordering::SeqCst);
-                                    }
-                                    bar.inc(1);
-                                    inc += 1;
-                                    send_progress_event(&sender, inc);
-                                    Ok(())
-                                }
-                            }))
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        }};
-                    }
-
-                    macro_rules! process_dataset_mix {
-                        ($dataset:expr) => {{
-                            let iter_results = stream::iter(
-                                $dataset
-                                    .stream_mix(&self.resources.datasets.resources)?
-                                    .map(|json_row| {
-                                        let bar = &bar;
-                                        let sender = sender.clone();
-                                        process_progress_bar(bar, &self.running);
-                                        let value = successfull_iterations.clone();
-                                        async move {
-                                            if let Err(e) = map_record_batches(
-                                                self,
-                                                name,
-                                                &json_row.unwrap(),
-                                                &inc,
-                                            )
-                                            .await
-                                            {
-                                                return Err(format!(
-                                                    "Error processing step: {} - {}",
-                                                    name, e
-                                                ));
-                                            } else {
-                                                value.fetch_add(1, Ordering::SeqCst);
-                                            }
-                                            bar.inc(1);
-                                            inc += 1;
-                                            send_progress_event(&sender, inc);
-                                            Ok(())
-                                        }
-                                    }),
-                            )
-                            .buffered(self.workers)
-                            .collect::<Vec<_>>()
-                            .await;
-                            for result in iter_results {
-                                if let Err(e) = result {
-                                    bail!(e)
-                                }
-                            }
-                        }};
-                    }
-                    match dataset {
-                        DatasetType::Jsonl(dataset) => process_dataset!(dataset),
-                        DatasetType::Json(dataset) => process_dataset!(dataset),
-                        DatasetType::JsonList(dataset) => process_dataset!(dataset),
-                        DatasetType::OpenApi(dataset) => process_dataset!(dataset),
-                        DatasetType::Polars(dataset) => process_dataset!(dataset),
-                        DatasetType::Ipc(dataset) => process_dataset!(dataset),
-                        DatasetType::Csv(dataset) => process_dataset!(dataset),
-                        DatasetType::Parquet(dataset) => process_dataset!(dataset),
-                        DatasetType::Mixed(dataset) => process_dataset_mix!(dataset),
-                        DatasetType::PhfSet(phf_set_dataset) => process_dataset!(phf_set_dataset),
-                    }
-                }
-            }
-
-            info!(
-                "🚀 Finished all iterations, processed {} items",
-                successfull_iterations.load(Ordering::SeqCst)
-            );
-
-            if let Some(sender) = &sender {
-                sender
-                    .send(BusEvent::build("finished", json!({"message": "Finished"})))
-                    .unwrap();
-            }
-
-            Ok::<_, anyhow::Error>(())
-        });
-
-        println!("{}", self.logs_collector.summary_table());
-
-        result.map_pyerr()
+        self.run_internal(bus)
     }
-}
-
-fn send_progress_event(sender: &Option<Arc<mpsc::Sender<String>>>, inc: i32) {
-    if let Some(sender) = sender {
-        let event = BusEvent::build("progress", json!({"inc": inc,}));
-        if let Err(e) = sender.send(event) {
-            error!("Failed to send progress event: {}", e);
-        }
-    }
-}
-
-fn process_progress_bar(bar: &ProgressBar, running: &Arc<AtomicBool>) {
-    if !running.load(std::sync::atomic::Ordering::SeqCst) {
-        bar.finish_with_message("Interrupted");
-        std::process::exit(1);
-    }
-    bar.inc_length(1);
-}
-
-async fn map_record_batches(
-    pipeline: &PipelineBuilder,
-    dataset_name: &str,
-    json_row: &serde_json::Value,
-    inc: &i32,
-) -> Result<()> {
-    let mut context = StepContext::new();
-
-    context.set(dataset_name, json_row);
-    context.set("index", inc);
-    context.set_status(StepStatus::Running);
-    let item_id = context.id.to_string();
-    if pipeline.metadata.enabled {
-        if let Some(state) = &pipeline.resources.state {
-            state
-                .add_item(&item_id, &pipeline.id.to_string(), *inc as i64, None)
-                .await
-                .unwrap();
-        }
-    }
-
-    if let Err(e) = process_steps(pipeline, context, None).await {
-        if let Some(state) = &pipeline.resources.state {
-            state.delete_item(&item_id).await.ok();
-        }
-        return Err(e);
-    }
-    Ok(())
-}
-
-async fn process_steps(
-    pipeline: &PipelineBuilder,
-    mut context: StepContext,
-    steps: Option<&Vec<StepType>>,
-) -> Result<StepContext> {
-    let steps = if let Some(steps) = steps {
-        steps
-    } else {
-        &pipeline.steps
-    };
-
-    for step in steps {
-        if matches!(context.get_status(), StepStatus::Failed) {
-            break;
-        }
-
-        // macro to collapse the repeated `step.process(...).await?` pattern
-        macro_rules! process_common {
-            ($step_ident:ident) => {{
-                context = $step_ident.process(&pipeline.resources, &context).await?;
-            }};
-        }
-
-        match step {
-            StepType::IfElse(if_step) => {
-                let check_result = if_step
-                    .check(
-                        &pipeline.resources.datasets.resources,
-                        &pipeline.resources.templates,
-                        &pipeline.resources.llms.resources,
-                        &pipeline.resources.embeddings.resources,
-                        &context,
-                    )
-                    .await?;
-
-                if check_result {
-                    context = Box::pin(process_steps(
-                        pipeline,
-                        context.clone(),
-                        Some(&if_step.then_steps),
-                    ))
-                    .await?;
-                } else if let Some(else_steps) = &if_step.else_steps {
-                    context = Box::pin(process_steps(pipeline, context.clone(), Some(else_steps)))
-                        .await?;
-                }
-            }
-            StepType::Py(py_step) => process_common!(py_step),
-            StepType::TextGeneration(text_generation_step) => process_common!(text_generation_step),
-            StepType::JsonGeneration(json_generation_step) => process_common!(json_generation_step),
-            StepType::PyValidator(py_validator) => process_common!(py_validator),
-            StepType::JsonWriter(jsonl_writer_step) => process_common!(jsonl_writer_step),
-            StepType::CsvWriter(csv_writer_step) => process_common!(csv_writer_step),
-            StepType::Print(print_step) => process_common!(print_step),
-            StepType::DataSampler(data_sampler_step) => process_common!(data_sampler_step),
-            StepType::Chunk(chunk_step) => process_common!(chunk_step),
-            StepType::Render(render_step) => process_common!(render_step),
-            StepType::ValidateJson(validate_json_step) => process_common!(validate_json_step),
-            StepType::ValidateTools(tools_validate_step) => process_common!(tools_validate_step),
-            StepType::NormalizeTools(tools_normalize_step) => process_common!(tools_normalize_step),
-            StepType::ConversationValidate(conversation_validate_step) => {
-                process_common!(conversation_validate_step)
-            }
-            StepType::IntoList(into_list_step) => process_common!(into_list_step),
-            StepType::RenderConversation(render_conversation_step) => {
-                process_common!(render_conversation_step)
-            }
-            StepType::Filter(filter_step) => process_common!(filter_step),
-            StepType::Mutate(mutate_step) => process_common!(mutate_step),
-            StepType::CheckLanguage(check_language_step) => process_common!(check_language_step),
-            StepType::RenderToolCall(render_tool_call_step) => {
-                process_common!(render_tool_call_step)
-            }
-            StepType::CheckHash(check_hash_step) => process_common!(check_hash_step),
-            StepType::CheckSimHash(check_sim_hash_step) => process_common!(check_sim_hash_step),
-            StepType::CheckEmbedding(embedding_step) => process_common!(embedding_step),
-            StepType::JudgeConversation(judge_conversation_step) => {
-                process_common!(judge_conversation_step)
-            }
-            StepType::RenderDPO(render_dpostep) => process_common!(render_dpostep),
-            StepType::RenderGRPO(render_grpostep) => process_common!(render_grpostep),
-        }
-    }
-
-    Ok(context)
 }
 
 #[pyclass]
@@ -1645,206 +1279,6 @@ pub enum Embeddings {
 
 #[pyclass]
 #[derive(Debug)]
-pub struct StepsChain {
-    steps: Vec<Step>,
-}
-
-#[pymethods]
-impl StepsChain {
-    #[new]
-    pub fn new() -> Self {
-        StepsChain { steps: Vec::new() }
-    }
-
-    pub fn add_py_step(&mut self, named: String, py_func: PyObject) {
-        debug!("Added Python step: {}", &named);
-        self.steps.push(Step::Py {
-            name: named,
-            py_func,
-        });
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn add_text_generation_step(
-        &mut self,
-        name: String,
-        template: String,
-        llm: String,
-        output: String,
-        system_template: Option<String>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-    ) {
-        debug!(
-            "Added text generation step with llm: {}, template: {}",
-            &llm, &template
-        );
-        self.steps.push(Step::TextGeneration {
-            name,
-            template,
-            llm,
-            output,
-            system_template,
-            max_tokens,
-            temperature,
-        });
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn add_json_generation_step(
-        &mut self,
-        name: String,
-        template: String,
-        llm: String,
-        output: String,
-        json_path: Option<String>,
-        system_template: Option<String>,
-        schema_template: Option<String>,
-        json_schema: Option<String>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-    ) {
-        debug!(
-            "Added JSON generation step with template: {}, llm: {}",
-            &llm, &template
-        );
-        self.steps.push(Step::JsonGeneration {
-            name,
-            template,
-            llm,
-            output,
-            json_path,
-            system_template,
-            json_schema,
-            max_tokens,
-            temperature,
-            schema_template,
-        });
-    }
-
-    pub fn add_print_step(
-        &mut self,
-        name: String,
-        template: Option<String>,
-        columns: Option<Vec<String>>,
-    ) {
-        debug!("Added print step");
-        self.steps.push(Step::Print {
-            name,
-            template,
-            columns,
-        });
-    }
-
-    pub fn add_data_sampler_step(
-        &mut self,
-        name: String,
-        dataset: String,
-        size: usize,
-        output: String,
-    ) {
-        debug!(
-            "Added data sampler on dataset: {} with size: {}",
-            &dataset, &size
-        );
-        self.steps.push(Step::DataSampler {
-            name,
-            dataset,
-            size,
-            output,
-        });
-    }
-
-    pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
-        debug!("Added Python validator step: {}", &name);
-        self.steps.push(Step::PyValidator { name, py_func });
-    }
-
-    pub fn add_jsonl_writer_step(&mut self, name: String, path: String, template: String) {
-        debug!("Added JSONL writer step: {}", &name);
-        self.steps.push(Step::JsonlWriter {
-            name,
-            path,
-            template,
-        });
-    }
-
-    pub fn add_new_column_step(&mut self, _name: String, _mutation: String, _output: String) {
-        todo!()
-    }
-
-    pub fn add_filter_step(&mut self, _name: String, _condition: String) {
-        todo!()
-    }
-
-    pub fn add_mutate_step(&mut self, _name: String, _mutation: String, _output: String) {
-        todo!()
-    }
-}
-
-impl Default for StepsChain {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[pyclass]
-#[derive(Debug)]
-pub enum Step {
-    Py {
-        name: String,
-        py_func: PyObject,
-    },
-    TextGeneration {
-        name: String,
-        template: String,
-        llm: String,
-        output: String,
-        system_template: Option<String>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-    },
-    JsonGeneration {
-        name: String,
-        template: String,
-        llm: String,
-        output: String,
-        json_path: Option<String>,
-        system_template: Option<String>,
-        json_schema: Option<String>,
-        max_tokens: Option<u32>,
-        temperature: Option<f32>,
-        schema_template: Option<String>,
-    },
-    Print {
-        name: String,
-        template: Option<String>,
-        columns: Option<Vec<String>>,
-    },
-    DataSampler {
-        name: String,
-        dataset: String,
-        size: usize,
-        output: String,
-    },
-    Judge {
-        name: String,
-        template: String,
-        llm: String,
-    },
-    PyValidator {
-        name: String,
-        py_func: PyObject,
-    },
-    JsonlWriter {
-        name: String,
-        path: String,
-        template: String,
-    },
-}
-
-#[pyclass]
-#[derive(Debug)]
 pub enum Dataset {
     Jsonl {
         name: String,
@@ -1864,80 +1298,4 @@ pub enum Dataset {
         delimiter: String,
         has_header: bool,
     },
-}
-
-fn map_step(step: &Step, templates: &mut Templates) -> StepType {
-    match step {
-        Step::Py { name, py_func } => Python::with_gil(|py| {
-            let py_obj: PyObject = py_func.clone_ref(py);
-            StepType::Py(PyStep::new(name.clone(), py_obj))
-        }),
-        Step::TextGeneration {
-            name,
-            template,
-            llm,
-            output,
-            system_template,
-            max_tokens,
-            temperature,
-        } => StepType::TextGeneration(TextGenerationStep::new(
-            name.clone(),
-            template.clone(),
-            llm.clone(),
-            output.clone(),
-            system_template.clone(),
-            *max_tokens,
-            *temperature,
-        )),
-        Step::JsonGeneration {
-            name,
-            template,
-            llm,
-            output,
-            json_path,
-            system_template,
-            json_schema,
-            max_tokens,
-            temperature,
-            schema_template,
-        } => {
-            let schema_key = schema_template
-                .as_ref()
-                .map(|schema| templates.add_inline("json_generation_step", name, schema));
-
-            StepType::JsonGeneration(JsonGenerationStep::new(
-                name.clone(),
-                template.clone(),
-                llm.clone(),
-                output.clone(),
-                json_path.clone(),
-                system_template.clone(),
-                json_schema.clone(),
-                *max_tokens,
-                *temperature,
-                schema_key,
-            ))
-        }
-        Step::Print {
-            name,
-            template,
-            columns,
-        } => StepType::Print(PrintStep::new(
-            name.clone(),
-            template.clone(),
-            columns.clone(),
-        )),
-        Step::DataSampler {
-            name,
-            dataset,
-            size,
-            output,
-        } => StepType::DataSampler(DataSamplerStep::new(
-            name.clone(),
-            dataset.clone(),
-            Some(*size),
-            output.clone(),
-        )),
-        _ => unimplemented!(), // Handle other step types as needed
-    }
 }
