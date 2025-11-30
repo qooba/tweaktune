@@ -220,7 +220,9 @@ impl ErrorTracker {
         ]);
 
         output.push_str(&table.to_string());
-        output.push_str("\nThis appears to be a configuration issue that will affect all iterations.\n");
+        output.push_str(
+            "\nThis appears to be a configuration issue that will affect all iterations.\n",
+        );
         output.push_str("Pipeline execution stopped to prevent wasted iterations.\n\n");
         output.push_str("Common causes:\n");
         output.push_str("  • Missing or incorrectly named templates, datasets, or LLMs\n");
