@@ -664,8 +664,16 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
-    def sample_tools(self, dataset: str, size: int, output: str, name: str = "SAMPLE"):
+    def sample_tools(self, dataset: str, size: int, output: str, name: str = "SAMPLE-TOOLS"):
         self.builder.add_tool_sampler_step(self.__name(name), dataset, size, output)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
+    def sample_tool_arguments(
+        self, tool_name: str, size: int, output: str, name: str = "SAMPLE-TOOL-ARGUMENTS"
+    ):
+        self.builder.add_tool_argument_sampler_step(self.__name(name), tool_name, size, output)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self

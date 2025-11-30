@@ -73,7 +73,23 @@ impl StepContext {
     }
 
     pub fn set<T: serde::Serialize>(&mut self, key: &str, value: T) {
-        self.data[key] = serde_json::to_value(value).unwrap();
+        if key.contains('.') {
+            let first_key = key.split('.').next().unwrap();
+            if !self
+                .data
+                .as_object()
+                .is_some_and(|obj| obj.contains_key(first_key))
+            {
+                self.data[first_key] = serde_json::json!({});
+            }
+
+            let second_key = &key[first_key.len() + 1..];
+            if let Some(obj) = self.data.get_mut(first_key).and_then(|v| v.as_object_mut()) {
+                obj.insert(second_key.to_string(), serde_json::to_value(value).unwrap());
+            }
+        } else {
+            self.data[key] = serde_json::to_value(value).unwrap();
+        }
     }
 
     pub fn get(&self, key: &str) -> Option<&serde_json::Value> {

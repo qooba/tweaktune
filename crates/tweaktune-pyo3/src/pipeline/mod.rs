@@ -792,6 +792,35 @@ impl PipelineBuilder {
         )));
     }
 
+    pub fn add_tool_argument_sampler_step(
+        &mut self,
+        name: String,
+        tool_name: String,
+        size: usize,
+        output: String,
+    ) {
+        debug!(
+            "Added data sampler on tool: {} with size: {}",
+            &tool_name, &size
+        );
+        self.resources
+            .datasets
+            .resources
+            .iter()
+            .for_each(|(dataset_name, _dataset)| {
+                if dataset_name.starts_with(&format!("@tool::{}::", &tool_name)) {
+                    let argument_name =
+                        dataset_name.replace(&format!("@tool::{}::", &tool_name), "");
+                    self.steps.push(StepType::DataSampler(DataSamplerStep::new(
+                        format!("{}_{}", &name, &argument_name),
+                        dataset_name.clone(),
+                        Some(size),
+                        format!("{}.{}", &output, &argument_name),
+                    )));
+                }
+            });
+    }
+
     pub fn add_tool_sampler_step(
         &mut self,
         name: String,
