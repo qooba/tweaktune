@@ -89,6 +89,7 @@ def test_jstr(request, output_dir, metadata):
         == '"{\\"bool\\":true,\\"key\\":\\"value\\",\\"list\\":[1,2,3],\\"nested\\":{\\"a\\":1},\\"none\\":null}"\n'
     )
 
+
 def test_hash(request, output_dir, metadata):
     """Test hash filter functionality of the pipeline."""
     number = 1
