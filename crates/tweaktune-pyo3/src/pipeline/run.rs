@@ -118,6 +118,7 @@ impl PipelineBuilder {
 
                     bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",)
                     .unwrap().progress_chars("#>-"));
+                    bar.tick(); // Show progress bar immediately
 
                     let iter_results = stream::iter((*start..*stop).step_by(*step).map(|i| {
                         let bar = &bar;
@@ -219,6 +220,7 @@ impl PipelineBuilder {
                         )
                         .unwrap(),
                     );
+                    bar.tick(); // Show progress bar immediately
 
                     let dataset = self.resources.datasets.get(name).ok_or_err(name)?;
                     let mut inc = 0;
