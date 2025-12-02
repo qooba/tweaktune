@@ -27,16 +27,15 @@ def class_to_sqlschema(model: Type[BaseModel]) -> dict:
     from sqlmodel import SQLModel, Field as SQLField
 
     if issubclass(model, SQLModel):
-        schema["metadata"] = {
-            "table_name": getattr(model, "__tablename__", model.__name__),
-        }
+        schema["name"] = getattr(model, "__tablename__", model.__name__)
+        
 
         if hasattr(model, "__table__"):
             table = model.__table__
 
             # Primary keys
             primary_keys = [col.name for col in table.primary_key.columns]
-            schema["metadata"]["primary_keys"] = primary_keys
+            schema["schema"]["primary_keys"] = primary_keys
 
             # Foreign keys
             foreign_keys = []
@@ -47,7 +46,7 @@ def class_to_sqlschema(model: Type[BaseModel]) -> dict:
                     "references_column": fk.column.name
                 })
             if foreign_keys:
-                schema["metadata"]["foreign_keys"] = foreign_keys
+                schema["schema"]["foreign_keys"] = foreign_keys
 
             # Indexes
             indexes = []
@@ -58,7 +57,7 @@ def class_to_sqlschema(model: Type[BaseModel]) -> dict:
                     "unique": idx.unique
                 })
             if indexes:
-                schema["metadata"]["indexes"] = indexes
+                schema["schema"]["indexes"] = indexes
 
             # Unique constraints (from unique=True in SQLField)
             unique_constraints = []
@@ -70,7 +69,10 @@ def class_to_sqlschema(model: Type[BaseModel]) -> dict:
                             "columns": [col.name for col in const.columns]
                         })
             if unique_constraints:
-                schema["metadata"]["unique_constraints"] = unique_constraints
+                schema["schema"]["unique_constraints"] = unique_constraints
+
+            if table.comment:
+                schema["description"] = table.comment
 
     return schema
 
