@@ -13,7 +13,7 @@ setup-dev: ## Set up development environment with all tools
 	. .venv/bin/activate && \
 	cd tweaktune-python && \
 	uv pip install maturin pytest && \
-	maturin develop --release --uv --extras "dev,db,arrow"
+	maturin develop --release --uv --extras "dev,db,arrow,sql,toon"
 	@echo "✓ Development environment ready!"
 	@echo "Run 'source .venv/bin/activate' to activate the virtual environment"
 

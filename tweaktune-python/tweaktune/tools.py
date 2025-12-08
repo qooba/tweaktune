@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Tuple, Type
 
 from pydantic import BaseModel, Field, create_model
 from pydantic.fields import FieldInfo
+from tweaktune.common import package_installation_hint
 
 
 def class_to_schema(model: Type[BaseModel]) -> dict:
@@ -24,7 +25,11 @@ def class_to_schema(model: Type[BaseModel]) -> dict:
 
 def class_to_sqlschema(model: Type[BaseModel]) -> dict:
     schema = class_to_schema(model)
-    from sqlmodel import SQLModel, Field as SQLField
+    try:
+        from sqlmodel import SQLModel, Field as SQLField
+    except ModuleNotFoundError:
+        package_installation_hint("sql")
+        raise
 
     if issubclass(model, SQLModel):
         schema["name"] = getattr(model, "__tablename__", model.__name__)
