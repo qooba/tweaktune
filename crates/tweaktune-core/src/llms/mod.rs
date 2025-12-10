@@ -325,10 +325,22 @@ impl LLM for ApiLLM {
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
-            .await?
-            .json::<ChatCompletionResponse>()
             .await?;
-        Ok(response)
+
+        match response.error_for_status_ref() {
+            Ok(_) => Ok(response.json::<ChatCompletionResponse>().await?),
+            Err(_e) => {
+                let status = response.status();
+                let text = response.text().await.unwrap_or_default();
+                error!(target: "api_llm", "🐔 API call failed with status {}: {}", status, text);
+                Err(anyhow::anyhow!(
+                    "API call ({}) failed with status {}: {}",
+                    self.url,
+                    status,
+                    text
+                ))
+            }
+        }
     }
 
     fn call(
