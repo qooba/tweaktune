@@ -118,6 +118,7 @@ impl PipelineBuilder {
 
                     bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",)
                     .unwrap().progress_chars("#>-"));
+                    bar.tick(); // Show progress bar immediately
 
                     let iter_results = stream::iter((*start..*stop).step_by(*step).map(|i| {
                         let bar = &bar;
@@ -219,6 +220,7 @@ impl PipelineBuilder {
                         )
                         .unwrap(),
                     );
+                    bar.tick(); // Show progress bar immediately
 
                     let dataset = self.resources.datasets.get(name).ok_or_err(name)?;
                     let mut inc = 0;
@@ -582,6 +584,9 @@ async fn process_steps(
             StepType::RenderDPO(render_dpostep) => process_common!(render_dpostep, step_name),
             StepType::RenderGRPO(render_grpostep) => process_common!(render_grpostep, step_name),
             StepType::CheckJson(check_json_step) => process_common!(check_json_step, step_name),
+            StepType::ToolArgumentsSampler(tool_arguments_sampler_step) => {
+                process_common!(tool_arguments_sampler_step, step_name)
+            }
         }
     }
 

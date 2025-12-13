@@ -41,6 +41,107 @@ Sample random tools:
 .sample_tools(dataset="tools", size=2, output="selected_tools")
 ```
 
+## Sampling Tool Arguments
+
+For more control over function arguments, you can provide custom datasets for specific tool parameters and sample from them:
+
+### Define Argument Datasets
+
+```python
+from tweaktune import Pipeline
+
+# Define a tool with parameters
+def search_products(
+    query: str = Field(..., description="Search query"),
+    category: Optional[str] = Field(None, description="Product category"),
+    min_price: Optional[float] = Field(None, description="Minimum price")
+):
+    """Search for products in the catalog."""
+    pass
+
+# Create custom dataset for the 'category' argument
+.with_tools_dataset("tools", [search_products])
+.with_tool_argument_dicts_dataset(
+    "search_products",  # Tool name
+    "category",         # Argument name
+    [
+        {"name": "electronics", "description": "Electronic devices and gadgets"},
+        {"name": "books", "description": "Books and publications"},
+        {"name": "clothing", "description": "Apparel and accessories"}
+    ]
+)
+```
+
+### Sample Argument Values
+
+After defining argument datasets, sample values for a specific tool's arguments:
+
+```python
+.sample_tools("tools", 1, "tool")  # Sample a tool
+.sample_tool_arguments(
+    tool_name="tool[0].name",        # Reference to tool name
+    size=1,                          # Number of values to sample per argument
+    output="function_arguments"      # Output key
+)
+```
+
+This creates a structured output with sampled values for each argument that has a custom dataset:
+
+```json
+{
+  "function_arguments": {
+    "category": [
+      {
+        "name": "electronics",
+        "description": "Electronic devices and gadgets"
+      }
+    ]
+  }
+}
+```
+
+### Complete Example
+
+```python
+(Pipeline()
+    .with_workers(1)
+    .with_tools_dataset("tools", [search_products])
+
+    # Define custom values for specific arguments
+    .with_tool_argument_dicts_dataset(
+        "search_products",
+        "category",
+        [
+            {"name": "electronics", "description": "Electronics category"},
+            {"name": "books", "description": "Books category"}
+        ]
+    )
+    .with_tool_argument_dicts_dataset(
+        "search_products",
+        "query",
+        [
+            {"value": "laptop", "intent": "find computer"},
+            {"value": "notebook", "intent": "find paper product or computer"}
+        ]
+    )
+
+    .iter_range(10)
+        .sample_tools("tools", 1, "tool")
+        .sample_tool_arguments("tool[0].name", 1, "args")
+
+        # Access sampled values
+        .add_column("category_name", lambda data: data["args"]["category"][0]["name"])
+        .add_column("query_value", lambda data: data["args"]["query"][0]["value"])
+
+    .run())
+```
+
+**Use Cases:**
+- Generate synthetic function calling datasets with realistic argument values
+- Create diverse test cases by sampling from predefined argument pools
+- Control the distribution of argument values in training data
+- Combine with LLM generation for hybrid synthetic data creation
+
 ## Tool Call Formatting
 
 Format a tool call:
@@ -79,7 +180,14 @@ Extract tool from dataset:
 
 ## Conversation Format
 
-Build OpenAI-style conversations:
+Tweaktune provides two ways to define conversations:
+
+1. **String format** - Compact syntax using role prefixes (legacy)
+2. **Conv() builder** - Fluent Python API (recommended)
+
+### String Format
+
+Build OpenAI-style conversations using string syntax:
 
 ```python
 .add_column("system", lambda data: "You are a helpful assistant.")
@@ -103,7 +211,123 @@ Result:
 }
 ```
 
-## Role Aliases
+### Conv() Builder (Recommended)
+
+The `Conv()` builder provides a cleaner, more Pythonic API with better IDE support and type safety:
+
+```python
+from tweaktune import Conv
+
+.add_column("system", lambda data: "You are a helpful assistant.")
+.add_column("question", lambda data: "What's the weather?")
+.add_column("answer", lambda data: "I'll check that for you.")
+
+.render_conversation(
+    conversation=Conv()
+        .system("system")
+        .user("question")
+        .assistant("answer"),
+    output="messages"
+)
+```
+
+**Benefits of Conv() builder:**
+- Better IDE autocomplete and type hints
+- More readable, especially for complex multi-turn conversations
+- Chainable method calls for natural flow
+- Less error-prone than string parsing
+
+### Multi-turn Conversations with Conv()
+
+```python
+from tweaktune import Conv
+
+.add_column("system", lambda data: "You are a math tutor.")
+.add_column("q1", lambda data: "What is 2 + 2?")
+.add_column("a1", lambda data: "2 + 2 equals 4.")
+.add_column("q2", lambda data: "What about 3 + 5?")
+.add_column("a2", lambda data: "3 + 5 equals 8.")
+
+.render_conversation(
+    conversation=Conv()
+        .system("system")
+        .user("q1")
+        .assistant("a1")
+        .user("q2")
+        .assistant("a2"),
+    output="conversation"
+)
+```
+
+### Reasoning with Conv()
+
+Add thinking/reasoning steps before the final answer:
+
+```python
+from tweaktune import Conv
+
+.add_column("system", lambda data: "You are a problem-solving assistant.")
+.add_column("problem", lambda data: "How can I optimize my code?")
+.add_column("thinking", lambda data: "Let me analyze the problem step by step...")
+.add_column("solution", lambda data: "Here are three optimization strategies...")
+
+.render_conversation(
+    conversation=Conv()
+        .system("system")
+        .user("problem")
+        .think("thinking")      # Adds reasoning_content
+        .assistant("solution"),
+    output="conversation"
+)
+```
+
+Result:
+```json
+{
+  "messages": [
+    {"role": "user", "content": "How can I optimize my code?"},
+    {
+      "role": "assistant",
+      "reasoning_content": "Let me analyze the problem step by step...",
+      "content": ""
+    },
+    {"role": "assistant", "content": "Here are three optimization strategies..."}
+  ]
+}
+```
+
+### Tool Calls with Conv()
+
+```python
+from tweaktune import Conv
+
+.render_conversation(
+    conversation=Conv()
+        .system("system")
+        .user("question")
+        .tool_calls(["call1", "call2"])  # Multiple tool calls
+        .tool("tool_response1")
+        .tool("tool_response2")
+        .assistant("final_answer"),
+    tools="available_tools",
+    output="conversation"
+)
+```
+
+### Conv() Methods
+
+All Conv() builder methods:
+
+- `.system(content)` - Add system message
+- `.user(content)` - Add user message
+- `.assistant(content)` - Add assistant message
+- `.tool(content)` - Add tool response message
+- `.tool_calls(calls)` - Add tool calls (accepts list of call names or single string)
+- `.think(content)` - Add reasoning/thinking content
+
+Each method accepts a string that references a key in the pipeline context (e.g., "system", "question", "answer").
+
+## Role Aliases (String Format)
 
 Shorthand notation:
 
@@ -120,7 +344,7 @@ Aliases:
 - `@assistant` or `@a` - Assistant message
 - `@tool` or `@t` - Tool result
 
-## Tool Calls in Conversations
+## Tool Calls in Conversations (String Format)
 
 ```python
 .render_conversation(
@@ -150,7 +374,7 @@ Result:
 }
 ```
 
-## Reasoning Content
+## Reasoning Content (String Format)
 
 Add reasoning/thinking steps:
 
@@ -190,9 +414,88 @@ The default separator is `|`. Optionally, you can use a custom separator:
 
 This is useful when conversation definitions span multiple lines or when you prefer a different delimiter.
 
-## Complete Example
+## Complete Example with Conv()
 
-Generate function calling dataset:
+Here's a complete example using the Conv() builder to generate a function calling dataset:
+
+```python
+from tweaktune import Conv, Pipeline
+from pydantic import Field
+import os
+
+def get_weather(location: str = Field(..., description="City name")):
+    """Get current weather for a location."""
+    pass
+
+(Pipeline()
+    .with_workers(3)
+    .with_llm_openai("gpt4", os.environ["OPENAI_API_KEY"], "gpt-4o-mini")
+    .with_tools_dataset("tools", [get_weather])
+
+    .iter_range(10)
+        # Sample a tool
+        .sample_tools("tools", 1, "tool")
+
+        # Create context data
+        .add_column("system", lambda data: "You are a helpful assistant with access to tools.")
+        .add_column("user_question", lambda data: "What's the weather in San Francisco?")
+        .add_column("tool_args", lambda data: '{"location": "San Francisco"}')
+
+        # Format tool call
+        .render_tool_call(
+            tool="tool[0].name",
+            arguments="tool_args",
+            output="tool_call"
+        )
+
+        # Mock tool response
+        .add_column("tool_response", lambda data: '{"temp": 72, "condition": "sunny"}')
+        .add_column("final_answer", lambda data: "It's sunny and 72°F in San Francisco!")
+
+        # Build conversation using Conv() builder
+        .render_conversation(
+            conversation=Conv()
+                .system("system")
+                .user("user_question")
+                .tool_calls(["tool_call"])
+                .tool("tool_response")
+                .assistant("final_answer"),
+            tools="tool",
+            output="conversation"
+        )
+
+        .write_jsonl(path="function_calling.jsonl", value="conversation")
+    .run())
+```
+
+This produces conversations like:
+
+```json
+{
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant with access to tools."},
+    {"role": "user", "content": "What's the weather in San Francisco?"},
+    {
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "get_weather",
+            "arguments": {"location": "San Francisco"}
+          }
+        }
+      ]
+    },
+    {"role": "tool", "content": "{\"temp\": 72, \"condition\": \"sunny\"}"},
+    {"role": "assistant", "content": "It's sunny and 72°F in San Francisco!"}
+  ],
+  "tools": [...]
+}
+```
+
+## Complete Example (String Format)
+
+The same example using string format:
 
 ```python
 from tweaktune import Pipeline

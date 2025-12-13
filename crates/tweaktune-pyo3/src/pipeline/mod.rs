@@ -31,6 +31,7 @@ use tweaktune_core::steps::embeddings::CheckEmbeddingStep;
 use tweaktune_core::steps::generators::{JudgeConversationStep, JudgeType as JudgeTypeCore};
 use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep};
 use tweaktune_core::steps::validators::CheckJsonStep;
+use tweaktune_core::steps::ToolArgumentsSamplerStep;
 use tweaktune_core::steps::{
     logic::{FilterStep, MutateStep},
     validators::{
@@ -790,6 +791,28 @@ impl PipelineBuilder {
             Some(size),
             output,
         )));
+    }
+
+    pub fn add_tool_argument_sampler_step(
+        &mut self,
+        name: String,
+        tool_name: String,
+        size: usize,
+        output: String,
+    ) {
+        debug!(
+            "Added data sampler on tool: {} with size: {}",
+            &tool_name, &size
+        );
+
+        let tool_name_key = self.resources.templates.add_inline(
+            "add_tool_argument_sampler_step",
+            &name,
+            &tool_name,
+        );
+        self.steps.push(StepType::ToolArgumentsSampler(
+            ToolArgumentsSamplerStep::new(name, tool_name_key, Some(size), output),
+        ));
     }
 
     pub fn add_tool_sampler_step(

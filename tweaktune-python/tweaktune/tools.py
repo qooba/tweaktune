@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Tuple, Type
 
 from pydantic import BaseModel, Field, create_model
 from pydantic.fields import FieldInfo
+from tweaktune.common import package_installation_hint
 
 
 def class_to_schema(model: Type[BaseModel]) -> dict:
@@ -22,6 +23,63 @@ def class_to_schema(model: Type[BaseModel]) -> dict:
         "strict": True,
     }
 
+def class_to_sqlschema(model: Type[BaseModel]) -> dict:
+    schema = class_to_schema(model)
+    try:
+        from sqlmodel import SQLModel, Field as SQLField
+    except ModuleNotFoundError:
+        package_installation_hint("sql")
+        raise
+
+    if issubclass(model, SQLModel):
+        schema["name"] = getattr(model, "__tablename__", model.__name__)
+        
+
+        if hasattr(model, "__table__"):
+            table = model.__table__
+
+            # Primary keys
+            primary_keys = [col.name for col in table.primary_key.columns]
+            schema["schema"]["primary_keys"] = primary_keys
+
+            # Foreign keys
+            foreign_keys = []
+            for fk in table.foreign_keys:
+                foreign_keys.append({
+                    "column": fk.parent.name,
+                    "references_table": fk.column.table.name,
+                    "references_column": fk.column.name
+                })
+            if foreign_keys:
+                schema["schema"]["foreign_keys"] = foreign_keys
+
+            # Indexes
+            indexes = []
+            for idx in table.indexes:
+                indexes.append({
+                    "name": idx.name,
+                    "columns": [col.name for col in idx.columns],
+                    "unique": idx.unique
+                })
+            if indexes:
+                schema["schema"]["indexes"] = indexes
+
+            # Unique constraints (from unique=True in SQLField)
+            unique_constraints = []
+            for const in table.constraints:
+                if const.__class__.__name__ == 'UniqueConstraint':
+                    # Skip primary key constraint
+                    if not all(col.primary_key for col in const.columns):
+                        unique_constraints.append({
+                            "columns": [col.name for col in const.columns]
+                        })
+            if unique_constraints:
+                schema["schema"]["unique_constraints"] = unique_constraints
+
+            if table.comment:
+                schema["description"] = table.comment
+
+    return schema
 
 def pydantic_to_json_schema(model: Type[BaseModel]) -> str:
     return json.dumps(class_to_schema(model), ensure_ascii=False)

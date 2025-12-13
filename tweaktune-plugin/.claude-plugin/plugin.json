@@ -1,0 +1,22 @@
+{
+  "name": "tweaktune-synthesizer",
+  "description": "Interactive assistant for designing and generating tweaktune pipelines to synthesize training data for LLMs. Includes skills, examples, and templates for text generation, JSON synthesis, conversations, and function calling datasets.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Qooba",
+    "email": ""
+  },
+  "homepage": "https://github.com/qooba/tweaktune",
+  "repository": "https://github.com/qooba/tweaktune",
+  "license": "MIT",
+  "keywords": [
+    "tweaktune",
+    "dataset-synthesis",
+    "llm-training",
+    "data-generation",
+    "synthetic-data",
+    "fine-tuning",
+    "conversations",
+    "function-calling"
+  ]
+}

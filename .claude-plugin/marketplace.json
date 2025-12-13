@@ -1,0 +1,33 @@
+{
+  "name": "tweaktune-plugins",
+  "owner": {
+    "name": "Qooba",
+    "email": ""
+  },
+  "metadata": {
+    "description": "Official TweakTune plugins for Claude Code - Interactive assistance for synthesizing LLM training datasets",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "tweaktune-synthesizer",
+      "source": "./tweaktune-plugin",
+      "description": "Interactive assistant for designing tweaktune pipelines. Creates production-ready code for text generation, JSON synthesis, conversations, and function calling datasets.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Qooba"
+      },
+      "homepage": "https://github.com/qooba/tweaktune",
+      "repository": "https://github.com/qooba/tweaktune",
+      "license": "MIT",
+      "keywords": [
+        "tweaktune",
+        "dataset-synthesis",
+        "llm-training",
+        "data-generation",
+        "synthetic-data",
+        "fine-tuning"
+      ]
+    }
+  ]
+}

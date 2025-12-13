@@ -65,7 +65,9 @@ def test_tools_sample(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    OUTPUT_TEMPLATE = """{"function": {{function[0]}}, "all_functions": {{all_functions}} }"""
+    OUTPUT_TEMPLATE = (
+        """{"function": {{function[0]|tojson}}, "all_functions": {{all_functions|tojson}} }"""
+    )
 
     (
         Pipeline(name=request.node.name, metadata=metadata)
@@ -149,4 +151,45 @@ def test_tools_sample_2(request, output_dir, data_dir, arrow_dataset, metadata):
     lines = open(output_file).readlines()
     item = json.loads(lines[0])
     assert "all_functions" in item
+    assert len(lines) == 10
+
+
+def test_tool_arguments_sample(request, output_dir, data_dir, arrow_dataset, metadata):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    OUTPUT_TEMPLATE = """{"function": {{function[0]|tojson}}, "function_arguments": {{function_arguments|tojson}} }"""
+
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .with_tools_dataset(
+            "functions",
+            [
+                search_products,
+            ],
+        )
+        .with_tool_argument_dicts_dataset(
+            "search_products",
+            "category",
+            [
+                {"name": "electronics", "description": "category associated with electronics"},
+                {"name": "books", "description": "category associated with books"},
+                {"name": "clothing", "description": "category associated with clothing"},
+            ],
+        )
+        .with_template("output", OUTPUT_TEMPLATE)
+        .iter_range(10)
+        .sample_tools("functions", 1, "function")
+        .validate_tools("function")
+        .sample_tool_arguments("function[0].name", 1, "function_arguments")
+        .write_jsonl(path=output_file, template="output")
+        .run()
+    )
+
+    lines = open(output_file).readlines()
+    item = json.loads(lines[0])
+    assert "function" in item
+    assert "function_arguments" in item
+    assert item["function_arguments"]["category"][0]["name"] in ["electronics", "books", "clothing"]
     assert len(lines) == 10

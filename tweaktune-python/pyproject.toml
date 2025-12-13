@@ -44,6 +44,14 @@ arrow = [
 unsloth = [
     "unsloth ~=2025.1.8",
 ]
+sql = [
+    "psycopg2-binary ~=2.9.7", 
+    "pymysql ~=1.1.0", 
+    "sqlmodel ~=0.0.27",
+]
+toon = [
+    "toon-python ~=0.1.2"
+]
 
 [tool.mypy]
 python_version = "3.10"
