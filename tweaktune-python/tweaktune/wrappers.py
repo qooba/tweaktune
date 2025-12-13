@@ -1,7 +1,8 @@
 import json
-from typing import Any, Dict, List, Optional
-
+from typing import Any, Dict, List, Optional, Literal
+from dataclasses import dataclass, asdict
 from pydantic import BaseModel, Field
+from tweaktune.common import StepStatus
 
 
 class JudgeRatings(BaseModel):
@@ -20,6 +21,11 @@ class JudgeRatings(BaseModel):
         description="Usefulness values (0-3): usefulness of the text to the user"
     )
 
+@dataclass
+class StepContext:
+    id: str
+    data: Dict[str, Any]
+    status: Literal["Pending", "Completed", "Failed"]
 
 class PyStepWrapper:
     def __init__(self, step):
@@ -27,7 +33,8 @@ class PyStepWrapper:
 
     def process(self, context):
         context = json.loads(context)
-        return json.dumps(self.step.process(context))
+        context = StepContext(**context)
+        return json.dumps(asdict(self.step.process(context)))
 
 
 class PyConditionWrapper:

@@ -4,7 +4,7 @@ import re
 from typing import Any, Callable, Dict, List, Tuple, Type
 
 from pydantic import BaseModel, Field, create_model
-from pydantic.fields import FieldInfo
+from pydantic.fields import FieldInfo as PydanticFieldInfo
 from tweaktune.common import package_installation_hint
 
 
@@ -106,7 +106,7 @@ def function_to_schema(func: Callable, include_response: bool = False) -> dict:
         param_type = func_params.get(param_name, param.annotation)
         default = param.default
 
-        if isinstance(default, FieldInfo):
+        if isinstance(default, PydanticFieldInfo):
             description = default.description
             model_fields[param_name] = (param_type, default)
             if description:

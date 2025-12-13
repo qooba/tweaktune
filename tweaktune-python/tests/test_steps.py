@@ -1,8 +1,7 @@
 import json
 import random
 from pathlib import Path
-
-from tweaktune import Conv, Pipeline
+from tweaktune import Conv, Pipeline, StepContext
 from tweaktune.chain import Chain
 
 
@@ -34,9 +33,9 @@ def test_step_py(request, output_dir, data_dir, arrow_dataset, metadata):
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
     class CustomStep:
-        def process(self, context):
-            context["data"]["hello"] = "world"
-            context["data"]["my_custom"] = context["data"]["sampled_items"][0]
+        def process(self, context: StepContext):
+            context.data["hello"] = "world"
+            context.data["my_custom"] = context.data["sampled_items"][0]
             return context
 
     (
@@ -67,9 +66,9 @@ def test_step_map(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"
 
-    def test_map(context):
-        context["data"]["hello"] = "world"
-        context["data"]["my_custom"] = context["data"]["sampled_items"][0]
+    def test_map(context: StepContext):
+        context.data["hello"] = "world"
+        context.data["my_custom"] = context.data["sampled_items"][0]
         return context
 
     (

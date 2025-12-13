@@ -31,6 +31,7 @@ from tweaktune.wrappers import (
     PyStepValidatorWrapper,
     PyStepWrapper,
     UnslothWrapper,
+    StepContext
 )
 
 
@@ -518,10 +519,10 @@ class PipelineRunner:
     ):
         if callable(func):
 
-            def wrapper(context):
-                if output in context["data"]:
+            def wrapper(context: StepContext):
+                if output in context.data:
                     print("Warning: Output column already exists, overwriting it.")
-                context["data"][output] = func(context["data"])
+                context.data[output] = func(context.data)
                 return context
 
             self.map(wrapper, name=name)
@@ -545,9 +546,9 @@ class PipelineRunner:
     def filter(self, condition: Union[Callable, str], name: str = "FILTER"):
         if callable(condition):
 
-            def condition_wrapper(context):
-                if not condition(context["data"]):
-                    context["status"] = StepStatus.FAILED.value
+            def condition_wrapper(context: StepContext):
+                if not condition(context.data):
+                    context.status = StepStatus.FAILED.value
                 return context
 
             self.map(condition_wrapper, name=name)
@@ -565,8 +566,8 @@ class PipelineRunner:
     ):
         if callable(func):
 
-            def wrapper(context):
-                context["data"][output] = func(context["data"][output])
+            def wrapper(context: StepContext):
+                context.data[output] = func(context.data[output])
                 return context
 
             self.map(wrapper, name=name)
