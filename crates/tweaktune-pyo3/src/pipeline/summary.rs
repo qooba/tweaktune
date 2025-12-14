@@ -227,5 +227,6 @@ fn get_step_info(step: &tweaktune_core::steps::StepType) -> (String, String) {
                 tool_arguments_sampler_step.tool_key, tool_arguments_sampler_step.output
             ),
         ),
+        StepType::Literal(s) => ("Literal".to_string(), format!("Name: {}", s.name)),
     }
 }

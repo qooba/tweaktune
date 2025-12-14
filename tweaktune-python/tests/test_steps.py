@@ -148,6 +148,34 @@ def test_step_add_column(request, output_dir, data_dir, arrow_dataset, metadata)
     assert item["new_column_5"] == 5
 
 
+def test_step_add_literal(request, output_dir, data_dir, arrow_dataset, metadata):
+    """Test the basic functionality of the pipeline."""
+    output_file = f"{output_dir}/{request.node.name}.jsonl"
+
+    (
+        Pipeline(name=request.node.name, metadata=metadata)
+        .with_workers(1)
+        .with_arrow_dataset("items", arrow_dataset())
+        .with_template(
+            "output",
+            """{"lit_1": "{{lit_1}}", "lit_2": {{lit_2}} }""",
+        )
+        .iter_range(10)
+        .add_literal("lit_1", "Hello")
+        .add_literal("lit_2", 5)
+        .write_jsonl(path=output_file, template="output")
+        .run()
+    )
+
+    lines = open(output_file).readlines()
+    item = json.loads(lines[0])
+    assert len(lines) == 10
+    assert "lit_1" in item
+    assert item["lit_1"] == "Hello"
+    assert "lit_2" in item
+    assert item["lit_2"] == 5
+
+
 def test_step_filter_lambda(request, output_dir, data_dir, arrow_dataset, metadata):
     """Test the basic functionality of the pipeline."""
     output_file = f"{output_dir}/{request.node.name}.jsonl"

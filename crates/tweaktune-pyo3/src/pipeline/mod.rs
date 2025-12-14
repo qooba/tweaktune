@@ -29,6 +29,7 @@ use tweaktune_core::steps::conversations::{
 };
 use tweaktune_core::steps::embeddings::CheckEmbeddingStep;
 use tweaktune_core::steps::generators::{JudgeConversationStep, JudgeType as JudgeTypeCore};
+use tweaktune_core::steps::logic::LiteralStep;
 use tweaktune_core::steps::quality::{CheckHashStep, CheckLanguageStep, CheckSimHashStep};
 use tweaktune_core::steps::validators::CheckJsonStep;
 use tweaktune_core::steps::ToolArgumentsSamplerStep;
@@ -1133,6 +1134,13 @@ impl PipelineBuilder {
             output,
             true,
         )));
+    }
+
+    pub fn add_literal_step(&mut self, name: String, value: String, output: String) {
+        debug!("Added literal step");
+
+        self.steps
+            .push(StepType::Literal(LiteralStep::new(name, value, output)));
     }
 
     pub fn add_check_language_step(

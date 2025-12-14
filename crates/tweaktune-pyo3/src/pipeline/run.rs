@@ -9,6 +9,7 @@ use log::{debug, error, info};
 use pyo3::{PyObject, PyResult, Python};
 use serde_json::json;
 use simplelog::*;
+use std::os::unix::process;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -587,6 +588,7 @@ async fn process_steps(
             StepType::ToolArgumentsSampler(tool_arguments_sampler_step) => {
                 process_common!(tool_arguments_sampler_step, step_name)
             }
+            StepType::Literal(literal_step) => process_common!(literal_step, step_name),
         }
     }
 

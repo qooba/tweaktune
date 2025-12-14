@@ -535,6 +535,18 @@ class PipelineRunner:
         self.step_index += 1
         return self
 
+    def add_literal(
+        self,
+        output: str,
+        value: str,
+        name: str = "ADD-LITERAL",
+    ):
+        self.builder.add_literal_step(self.__name(name), value, output)
+        self.graph.steps.append(step_item(name=self.__name(name)))
+        self.step_index += 1
+        return self
+
+
     def add_random(self, output: str, start: int, stop: int, name: str = "ADD-RANDOM"):
         self.builder.add_new_column_step(
             self.__name(name), f'"{start},{stop}"|random_range', False, output

@@ -82,3 +82,31 @@ impl Step for MutateStep {
         Ok(context)
     }
 }
+
+pub struct LiteralStep {
+    pub name: String,
+    pub value: String,
+    pub output: String,
+}
+
+impl LiteralStep {
+    pub fn new(name: String, value: String, output: String) -> Self {
+        Self {
+            name,
+            value,
+            output,
+        }
+    }
+}
+
+impl Step for LiteralStep {
+    async fn process(
+        &self,
+        _resources: &PipelineResources,
+        context: &StepContext,
+    ) -> Result<StepContext> {
+        let mut context = context.clone();
+        context.set(&self.output, serde_json::Value::String(self.value.clone()));
+        Ok(context)
+    }
+}
