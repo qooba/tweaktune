@@ -96,7 +96,7 @@ def main():
 
             except ValueError as e:
                 # Mark as failed instead of crashing
-                context["status"] = StepStatus.FAILED.value
+                context.status = StepStatus.FAILED.value
                 data["validated"] = False
                 data["validation_status"] = str(e)
 

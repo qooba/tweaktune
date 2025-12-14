@@ -81,7 +81,7 @@ class Validator:
 
         # Validation logic
         if not self.is_valid(data):
-            context["status"] = StepStatus.FAILED.value
+            context.status = StepStatus.FAILED.value
             return context
 
         # Process valid data
@@ -121,7 +121,7 @@ class APIEnricher:
             data["enriched_data"] = response.json()
         except Exception as e:
             # Mark as failed on error
-            context["status"] = StepStatus.FAILED.value
+            context.status = StepStatus.FAILED.value
             data["error"] = str(e)
 
         return context
@@ -320,7 +320,7 @@ class DatabaseWriter:
             self.conn.commit()
             data["db_inserted"] = True
         except Exception as e:
-            context["status"] = StepStatus.FAILED.value
+            context.status = StepStatus.FAILED.value
             data["error"] = str(e)
 
         return context
@@ -353,7 +353,7 @@ class LoggingStep:
             self.logger.debug(f"Result: {result}")
         except Exception as e:
             self.logger.error(f"Error processing {data.get('id')}: {e}")
-            context["status"] = StepStatus.FAILED.value
+            context.status = StepStatus.FAILED.value
 
         return context
 

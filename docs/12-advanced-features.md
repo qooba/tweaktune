@@ -303,7 +303,7 @@ class RobustProcessor:
             data["error"] = "ValueError"
         except Exception as e:
             # General error handling
-            context["status"] = StepStatus.FAILED.value
+            context.status = StepStatus.FAILED.value
             data["error"] = str(e)
 
         return context
