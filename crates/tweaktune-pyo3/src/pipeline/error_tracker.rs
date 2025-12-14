@@ -147,15 +147,9 @@ impl ErrorTracker {
                 )
             };
 
-            let error_display = if error_message.len() > 50 {
-                format!("{}...", &error_message[..47])
-            } else {
-                error_message.clone()
-            };
-
             table.add_row(vec![
                 Cell::from(step_name),
-                Cell::from(error_display).fg(Color::Red),
+                Cell::from(error_message.clone()).fg(Color::Red),
                 Cell::from(count.to_string()).fg(Color::Yellow),
                 Cell::from(iterations_str),
             ]);
@@ -203,15 +197,9 @@ impl ErrorTracker {
             Cell::from(step_name),
         ]);
 
-        let error_display = if error_message.len() > 60 {
-            format!("{}...", &error_message[..57])
-        } else {
-            error_message.to_string()
-        };
-
         table.add_row(vec![
             Cell::from("Error").fg(Color::Cyan),
-            Cell::from(error_display).fg(Color::Red),
+            Cell::from(error_message).fg(Color::Red),
         ]);
         table.add_row(vec![
             Cell::from("Pattern").fg(Color::Cyan),
