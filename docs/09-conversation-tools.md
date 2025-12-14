@@ -147,8 +147,8 @@ This creates a structured output with sampled values for each argument that has 
 Format a tool call:
 
 ```python
-.add_column("tool_name", lambda data: "search_products")
-.add_column("arguments", lambda data: '{"query": "laptop", "max_price": 1000}')
+.add_literal("tool_name", "search_products")
+.add_literal("arguments", '{"query": "laptop", "max_price": 1000}')
 
 .render_tool_call(
     tool="tool_name",
@@ -190,9 +190,9 @@ Tweaktune provides two ways to define conversations:
 Build OpenAI-style conversations using string syntax:
 
 ```python
-.add_column("system", lambda data: "You are a helpful assistant.")
-.add_column("question", lambda data: "What's the weather?")
-.add_column("answer", lambda data: "I'll check that for you.")
+.add_literal("system", "You are a helpful assistant.")
+.add_literal("question", "What's the weather?")
+.add_literal("answer", "I'll check that for you.")
 
 .render_conversation(
     conversation="@system:system|@user:question|@assistant:answer",
@@ -218,9 +218,9 @@ The `Conv()` builder provides a cleaner, more Pythonic API with better IDE suppo
 ```python
 from tweaktune import Conv
 
-.add_column("system", lambda data: "You are a helpful assistant.")
-.add_column("question", lambda data: "What's the weather?")
-.add_column("answer", lambda data: "I'll check that for you.")
+.add_literal("system", "You are a helpful assistant.")
+.add_literal("question", "What's the weather?")
+.add_literal("answer", "I'll check that for you.")
 
 .render_conversation(
     conversation=Conv()
@@ -242,11 +242,11 @@ from tweaktune import Conv
 ```python
 from tweaktune import Conv
 
-.add_column("system", lambda data: "You are a math tutor.")
-.add_column("q1", lambda data: "What is 2 + 2?")
-.add_column("a1", lambda data: "2 + 2 equals 4.")
-.add_column("q2", lambda data: "What about 3 + 5?")
-.add_column("a2", lambda data: "3 + 5 equals 8.")
+.add_literal("system", "You are a math tutor.")
+.add_literal("q1", "What is 2 + 2?")
+.add_literal("a1", "2 + 2 equals 4.")
+.add_literal("q2", "What about 3 + 5?")
+.add_literal("a2", "3 + 5 equals 8.")
 
 .render_conversation(
     conversation=Conv()
@@ -266,10 +266,10 @@ Add thinking/reasoning steps before the final answer:
 ```python
 from tweaktune import Conv
 
-.add_column("system", lambda data: "You are a problem-solving assistant.")
-.add_column("problem", lambda data: "How can I optimize my code?")
-.add_column("thinking", lambda data: "Let me analyze the problem step by step...")
-.add_column("solution", lambda data: "Here are three optimization strategies...")
+.add_literal("system", "You are a problem-solving assistant.")
+.add_literal("problem", "How can I optimize my code?")
+.add_literal("thinking", "Let me analyze the problem step by step...")
+.add_literal("solution", "Here are three optimization strategies...")
 
 .render_conversation(
     conversation=Conv()
@@ -437,9 +437,9 @@ def get_weather(location: str = Field(..., description="City name")):
         .sample_tools("tools", 1, "tool")
 
         # Create context data
-        .add_column("system", lambda data: "You are a helpful assistant with access to tools.")
-        .add_column("user_question", lambda data: "What's the weather in San Francisco?")
-        .add_column("tool_args", lambda data: '{"location": "San Francisco"}')
+        .add_literal("system", "You are a helpful assistant with access to tools.")
+        .add_literal("user_question", "What's the weather in San Francisco?")
+        .add_literal("tool_args", '{"location": "San Francisco"}')
 
         # Format tool call
         .render_tool_call(
@@ -449,8 +449,8 @@ def get_weather(location: str = Field(..., description="City name")):
         )
 
         # Mock tool response
-        .add_column("tool_response", lambda data: '{"temp": 72, "condition": "sunny"}')
-        .add_column("final_answer", lambda data: "It's sunny and 72°F in San Francisco!")
+        .add_literal("tool_response", '{"temp": 72, "condition": "sunny"}')
+        .add_literal("final_answer", "It's sunny and 72°F in San Francisco!")
 
         # Build conversation using Conv() builder
         .render_conversation(
@@ -546,7 +546,7 @@ def set_alarm(
         )
 
         # Mock tool response
-        .add_column("tool_response", lambda data: '{"status": "success"}')
+        .add_literal("tool_response", '{"status": "success"}')
 
         # Generate final answer
         .generate_text(
@@ -657,11 +657,11 @@ Generate datasets for various RL fine-tuning methods.
 Format conversations for standard supervised fine-tuning:
 
 ```python
-.add_column("system", lambda data: "You are a helpful assistant.")
-.add_column("question", lambda data: "Hello, who won the world series in 2020?")
-.add_column("call1", lambda data: {"name": "get_who_won", "arguments": {"year": 2020}})
-.add_column("response", lambda data: '{"winner": "Los Angeles Dodgers", "year": 2020}')
-.add_column("answer", lambda data: "The Los Angeles Dodgers won the World Series in 2020.")
+.add_literal("system", "You are a helpful assistant.")
+.add_literal("question", "Hello, who won the world series in 2020?")
+.add_literal("call1", {"name": "get_who_won", "arguments": {"year": 2020}})
+.add_literal("response", '{"winner": "Los Angeles Dodgers", "year": 2020}')
+.add_literal("answer", "The Los Angeles Dodgers won the World Series in 2020.")
 
 .render_sft(
     conversation="@s:system|@u:question|@a:tool_calls([call1])|@t:response|@a:answer",
@@ -687,10 +687,10 @@ Result:
 Format conversations with chosen and rejected responses:
 
 ```python
-.add_column("system", lambda data: "You are a helpful assistant.")
-.add_column("question", lambda data: "Hello, who won the world series in 2020?")
-.add_column("call1_chosen", lambda data: {"name": "get_who_won", "arguments": {"year": 2020}})
-.add_column("call1_rejected", lambda data: {"name": "get_who_won", "arguments": {"year": 2021}})
+.add_literal("system", "You are a helpful assistant.")
+.add_literal("question", "Hello, who won the world series in 2020?")
+.add_literal("call1_chosen", {"name": "get_who_won", "arguments": {"year": 2020}})
+.add_literal("call1_rejected", {"name": "get_who_won", "arguments": {"year": 2021}})
 
 .render_dpo(
     conversation="@s:system|@u:question",
@@ -719,9 +719,9 @@ The `chosen` and `rejected` fields contain the preferred and non-preferred respo
 Format conversations with solution and validator:
 
 ```python
-.add_column("system", lambda data: "You are a helpful assistant.")
-.add_column("question", lambda data: "Hello, who won the world series in 2020?")
-.add_column("solution", lambda data: {"name": "get_who_won", "arguments": {"year": 2020}})
+.add_literal("system", "You are a helpful assistant.")
+.add_literal("question", "Hello, who won the world series in 2020?")
+.add_literal("solution", {"name": "get_who_won", "arguments": {"year": 2020}})
 
 .render_grpo(
     conversation="@s:system|@u:question",

@@ -35,6 +35,34 @@ Read entire dataset (not recommended for large datasets):
 
 ## Transformation Steps
 
+### add_literal
+
+Add a constant/literal value to context:
+
+```python
+# String literal
+.add_literal("system", "You are a helpful assistant.")
+
+# Number literal
+.add_literal("temperature", 0.7)
+.add_literal("max_tokens", 1024)
+
+# Boolean literal
+.add_literal("enabled", True)
+
+# Dict/object literal
+.add_literal("config", {"model": "gpt-4", "version": "2024"})
+
+# List/array literal
+.add_literal("tags", ["ai", "assistant", "helpful"])
+```
+
+Parameters:
+- `output` - Variable name
+- `value` - Literal value (string, number, bool, dict, list)
+
+**Use `add_literal` for constant values, `add_column` for computed values.**
+
 ### add_column
 
 Add a new column using lambda or expression:
