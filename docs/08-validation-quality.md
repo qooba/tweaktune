@@ -59,8 +59,10 @@ Checks for proper message structure:
 Use Python functions for custom validation:
 
 ```python
-def validate_email(context):
-    data = context["data"]
+from tweaktune import StepContext
+
+def validate_email(context: StepContext) -> StepContext:
+    data = context.data
     email = data.get("email", "")
 
     if "@" not in email or "." not in email:

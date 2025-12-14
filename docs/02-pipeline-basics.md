@@ -159,11 +159,12 @@ Steps can fail. Failed items are marked with `StepStatus.Failed` and typically s
 You can check status in custom steps:
 
 ```python
+from tweaktune import StepContext
 from tweaktune.common import StepStatus
 
 def my_validator(context):
-    if context["data"]["value"] < 0:
-        context["status"] = StepStatus.FAILED.value
+    if context.data["value"] < 0:
+        context.status = StepStatus.FAILED.value
     return context
 
 .iter_range(10)

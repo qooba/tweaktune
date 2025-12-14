@@ -10,7 +10,7 @@ Demonstrates creating custom pipeline steps:
 Based on test_steps.py (step, map tests)
 """
 
-from tweaktune import Pipeline
+from tweaktune import Pipeline, StepContext
 from tweaktune.common import StepStatus
 import json
 import time
@@ -19,8 +19,8 @@ def main():
     print("Example 1: Simple custom step class")
 
     class GreetingStep:
-        def process(self, context):
-            data = context["data"]
+        def process(self, context: StepContext) -> StepContext:
+            data = context.data
             name = data.get("name", "World")
             data["greeting"] = f"Hello, {name}!"
             data["processed_at"] = time.time()
@@ -43,8 +43,8 @@ def main():
             self.count = 0
             self.total_value = 0
 
-        def process(self, context):
-            data = context["data"]
+        def process(self, context: StepContext) -> StepContext:
+            data = context.data
             self.count += 1
             value = data.get("value", 0)
             self.total_value += value
@@ -77,8 +77,8 @@ def main():
     print("Example 3: Error handling step")
 
     class ValidatingStep:
-        def process(self, context):
-            data = context["data"]
+        def process(self, context: StepContext) -> StepContext:
+            data = context.data
 
             try:
                 # Simulate validation
@@ -120,8 +120,8 @@ def main():
 
     print("Example 4: Map function")
 
-    def enrich_data(context):
-        data = context["data"]
+    def enrich_data(context: StepContext) -> StepContext:
+        data = context.data
         value = data.get("value", 0)
 
         # Add multiple computed fields
@@ -153,8 +153,8 @@ def main():
     print("Example 5: Data transformation step")
 
     class DataCleaner:
-        def process(self, context):
-            data = context["data"]
+        def process(self, context: StepContext) -> StepContext:
+            data = context.data
 
             # Clean text field
             if "text" in data:

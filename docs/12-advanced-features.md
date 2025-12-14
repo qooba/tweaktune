@@ -160,8 +160,8 @@ class ChunkProcessor:
     def __init__(self, llm_name):
         self.llm_name = llm_name
 
-    def process(self, context):
-        chunks = context["data"].get("chunks", [])
+    def process(self, context: StepContext) -> StepContext:
+        chunks = context.data.get("chunks", [])
         summaries = []
 
         for chunk in chunks:
@@ -169,7 +169,7 @@ class ChunkProcessor:
             summary = f"Summary of: {chunk[:50]}..."
             summaries.append(summary)
 
-        context["data"]["summaries"] = summaries
+        context.data["summaries"] = summaries
         return context
 
 .step(ChunkProcessor("gpt4"))
@@ -290,8 +290,8 @@ Handle failures gracefully:
 
 ```python
 class RobustProcessor:
-    def process(self, context):
-        data = context["data"]
+    def process(self, context: StepContext) -> StepContext:
+        data = context.data
 
         try:
             # Risky operation

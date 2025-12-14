@@ -336,10 +336,12 @@ Use `.ifelse()` for branching:
 ### 6. Custom Steps
 For complex logic:
 ```python
+from tweaktune import StepContext
+
 class CustomStep:
-    def process(self, context):
+    def process(self, context: StepContext):
         # Your logic here
-        context["data"]["new_field"] = process(context["data"])
+        context.data["new_field"] = process(context.data)
         return context
 
 .step(CustomStep())

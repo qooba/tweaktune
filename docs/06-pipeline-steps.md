@@ -159,9 +159,11 @@ Using expression:
 Apply custom function to context:
 
 ```python
+from tweaktune import StepContext
+
 def process(context):
-    context["data"]["processed"] = True
-    context["data"]["timestamp"] = time.time()
+    context.data["processed"] = True
+    context.data["timestamp"] = time.time()
     return context
 
 .map(process)
@@ -172,9 +174,11 @@ def process(context):
 Add custom step class:
 
 ```python
+from tweaktune import StepContext
+
 class MyStep:
-    def process(self, context):
-        context["data"]["custom"] = "value"
+    def process(self, context: StepContext) -> StepContext:
+        context.data["custom"] = "value"
         return context
 
 .step(MyStep())
@@ -395,8 +399,10 @@ Validate conversation format:
 Custom Python validator:
 
 ```python
-def my_validator(context):
-    data = context["data"]
+from tweaktune import StepContext
+
+def my_validator(context: StepContext):
+    data = context.data
     if "required_field" not in data:
         raise ValueError("Missing required field")
     if data["value"] < 0:

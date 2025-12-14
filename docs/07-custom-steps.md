@@ -7,10 +7,12 @@ Create custom pipeline steps for specialized processing logic.
 Create a class with a `process` method:
 
 ```python
+from tweaktune import StepContext
+
 class CustomStep:
-    def process(self, context):
+    def process(self, context: StepContext) -> StepContext:
         # Access data
-        data = context["data"]
+        data = context.data
 
         # Modify data
         data["custom_field"] = "custom_value"
@@ -28,8 +30,10 @@ class CustomStep:
 For simple transformations, use `.map()`:
 
 ```python
-def my_transform(context):
-    context["data"]["doubled"] = context["data"]["value"] * 2
+from tweaktune import StepContext
+
+def my_transform(context: StepContext) -> StepContext:
+    context.data["doubled"] = context.data["value"] * 2
     return context
 
 .map(my_transform)
@@ -48,13 +52,15 @@ Simplest approach for adding computed columns:
 Custom steps can maintain internal state:
 
 ```python
+from tweaktune import StepContext
+
 class Counter:
     def __init__(self):
         self.count = 0
 
-    def process(self, context):
+    def process(self, context: StepContext) -> StepContext:
         self.count += 1
-        context["data"]["item_number"] = self.count
+        context.data["item_number"] = self.count
         return context
 
 counter = Counter()
@@ -67,10 +73,11 @@ Mark items as failed:
 
 ```python
 from tweaktune.common import StepStatus
+from tweaktune import StepContext
 
 class Validator:
-    def process(self, context):
-        data = context["data"]
+    def process(self, context: StepContext) -> StepContext:
+        data = context.data
 
         # Validation logic
         if not self.is_valid(data):
@@ -91,14 +98,15 @@ class Validator:
 
 ```python
 import requests
+from tweaktune import StepContext
 
 class APIEnricher:
     def __init__(self, api_url, api_key):
         self.api_url = api_url
         self.api_key = api_key
 
-    def process(self, context):
-        data = context["data"]
+    def process(self, context: StepContext) -> StepContext:
+        data = context.data
 
         # Call external API
         try:
@@ -126,28 +134,29 @@ enricher = APIEnricher("https://api.example.com", os.environ["API_KEY"])
 
 ```python
 import time
+from tweaktune import StepContext
 
 class RetryStep:
     def __init__(self, max_retries=3, delay=1.0):
         self.max_retries = max_retries
         self.delay = delay
 
-    def process(self, context):
+    def process(self, context: StepContext) -> StepContext:
         for attempt in range(self.max_retries):
             try:
                 return self._try_process(context)
             except Exception as e:
                 if attempt == self.max_retries - 1:
-                    context["status"] = StepStatus.FAILED.value
-                    context["data"]["error"] = str(e)
+                    context.status = StepStatus.FAILED.value
+                    context.data["error"] = str(e)
                     return context
                 time.sleep(self.delay * (attempt + 1))
 
         return context
 
-    def _try_process(self, context):
+    def _try_process(self, context: StepContext) -> StepContext:
         # Your processing logic here
-        data = context["data"]
+        data = context.data
         # ... do something that might fail
         return context
 
@@ -157,9 +166,11 @@ class RetryStep:
 ## Data Transformation Example
 
 ```python
+from tweaktune import StepContext
+
 class DataCleaner:
-    def process(self, context):
-        data = context["data"]
+    def process(self, context: StepContext) -> StepContext:
+        data = context.data
 
         # Clean text fields
         for field in ["title", "description", "content"]:
@@ -172,7 +183,7 @@ class DataCleaner:
 
         # Remove null values
         data = {k: v for k, v in data.items() if v is not None}
-        context["data"] = data
+        context.data = data
 
         return context
 
@@ -193,8 +204,10 @@ class DataCleaner:
 Use `.validate()` for custom validation:
 
 ```python
-def my_validator(context):
-    data = context["data"]
+from tweaktune import StepContext
+
+def my_validator(context: StepContext) -> StepContext:
+    data = context.data
 
     # Check required fields
     required = ["name", "email", "age"]
@@ -220,9 +233,11 @@ If validator raises an exception, the item is marked as failed.
 ## Conditional Processing
 
 ```python
+from tweaktune import StepContext
+
 class ConditionalProcessor:
-    def process(self, context):
-        data = context["data"]
+    def process(self, context: StepContext) -> StepContext:
+        data = context.data
 
         if data.get("type") == "premium":
             data["discount"] = 0.2
@@ -244,13 +259,15 @@ Or use the `.ifelse()` step for simpler cases.
 ## Batch Processing
 
 ```python
+from tweaktune import StepContext
+
 class BatchProcessor:
     def __init__(self, batch_size=10):
         self.batch_size = batch_size
         self.batch = []
 
-    def process(self, context):
-        data = context["data"]
+    def process(self, context: StepContext) -> StepContext:
+        data = context.data
 
         # Add to batch
         self.batch.append(data)
@@ -274,6 +291,7 @@ class BatchProcessor:
 
 ```python
 import sqlite3
+from tweaktune import StepContext
 
 class DatabaseWriter:
     def __init__(self, db_path):
@@ -291,8 +309,8 @@ class DatabaseWriter:
         """)
         self.conn.commit()
 
-    def process(self, context):
-        data = context["data"]
+    def process(self, context: StepContext) -> StepContext:
+        data = context.data
 
         try:
             self.conn.execute(
@@ -317,13 +335,14 @@ class DatabaseWriter:
 
 ```python
 import logging
+from tweaktune import StepContext
 
 class LoggingStep:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
-    def process(self, context):
-        data = context["data"]
+    def process(self, context: StepContext):
+        data = context.data
 
         self.logger.info(f"Processing item: {data.get('id')}")
 

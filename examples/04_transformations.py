@@ -9,7 +9,7 @@ Demonstrates various data transformation steps:
 - into_list for combining columns
 """
 
-from tweaktune import Pipeline
+from tweaktune import Pipeline, StepContext
 import json
 
 def main():
@@ -67,8 +67,8 @@ def main():
     print("Written to 04_mutated.jsonl\n")
 
     print("Example 4: Custom map function")
-    def enrich_data(context):
-        data = context["data"]
+    def enrich_data(context: StepContext) -> StepContext:
+        data = context.data
         value = data.get("value", 0)
 
         # Add multiple computed fields

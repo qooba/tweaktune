@@ -10,7 +10,7 @@ Demonstrates various validation techniques:
 Based on test_steps.py (check_language, filter tests)
 """
 
-from tweaktune import Pipeline
+from tweaktune import Pipeline, StepContext
 import json
 
 def main():
@@ -45,8 +45,8 @@ def main():
     print("Filtered to English only\n")
 
     print("Example 2: Custom validation")
-    def validate_email(context):
-        data = context["data"]
+    def validate_email(context: StepContext) -> StepContext:
+        data = context.data
         email = data.get("email", "")
 
         # Check email format
