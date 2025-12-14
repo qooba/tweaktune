@@ -538,10 +538,12 @@ class PipelineRunner:
     def add_literal(
         self,
         output: str,
-        value: str,
+        value: Any,
         name: str = "ADD-LITERAL",
     ):
-        self.builder.add_literal_step(self.__name(name), value, output)
+        # Serialize value to JSON string
+        value_str = json.dumps(value) if not isinstance(value, str) else value
+        self.builder.add_literal_step(self.__name(name), value_str, output)
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
         return self

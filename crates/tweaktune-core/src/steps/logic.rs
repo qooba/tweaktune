@@ -106,7 +106,10 @@ impl Step for LiteralStep {
         context: &StepContext,
     ) -> Result<StepContext> {
         let mut context = context.clone();
-        context.set(&self.output, serde_json::Value::String(self.value.clone()));
+        // Try to parse as JSON first, fall back to string if parsing fails
+        let json_value = serde_json::from_str::<serde_json::Value>(&self.value)
+            .unwrap_or_else(|_| serde_json::Value::String(self.value.clone()));
+        context.set(&self.output, json_value);
         Ok(context)
     }
 }

@@ -158,11 +158,12 @@ def test_step_add_literal(request, output_dir, data_dir, arrow_dataset, metadata
         .with_arrow_dataset("items", arrow_dataset())
         .with_template(
             "output",
-            """{"lit_1": "{{lit_1}}", "lit_2": {{lit_2}} }""",
+            """{"lit_1": "{{lit_1}}", "lit_2": {{lit_2}}, "lit_3": {{lit_3}} }""",
         )
         .iter_range(10)
         .add_literal("lit_1", "Hello")
         .add_literal("lit_2", 5)
+        .add_literal("lit_3", 1.51)
         .write_jsonl(path=output_file, template="output")
         .run()
     )
@@ -174,6 +175,8 @@ def test_step_add_literal(request, output_dir, data_dir, arrow_dataset, metadata
     assert item["lit_1"] == "Hello"
     assert "lit_2" in item
     assert item["lit_2"] == 5
+    assert "lit_3" in item
+    assert item["lit_3"] == 1.51
 
 
 def test_step_filter_lambda(request, output_dir, data_dir, arrow_dataset, metadata):
