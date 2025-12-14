@@ -2,6 +2,7 @@
 Data Transformations Example
 
 Demonstrates various data transformation steps:
+- add_literal for constant values
 - add_column with lambda and expressions
 - mutate for modifying columns
 - filter for conditional selection
@@ -13,7 +14,31 @@ from tweaktune import Pipeline, StepContext
 import json
 
 def main():
-    print("Example 1: Add columns with lambda and expressions")
+    print("Example 1: Add literal values (constants)")
+    (Pipeline()
+        .with_workers(1)
+        .with_template("output", """
+{
+  "system": "{{system}}",
+  "temperature": {{temperature}},
+  "max_tokens": {{max_tokens}},
+  "enabled": {{enabled}},
+  "config": {{config|tojson}},
+  "tags": {{tags|tojson}}
+}
+""")
+        .iter_range(2)
+            .add_literal("system", "You are a helpful assistant.")
+            .add_literal("temperature", 0.7)
+            .add_literal("max_tokens", 1024)
+            .add_literal("enabled", True)
+            .add_literal("config", {"model": "gpt-4", "version": "2024"})
+            .add_literal("tags", ["ai", "assistant", "helpful"])
+            .write_jsonl(path="04_literals.jsonl", template="output")
+        .run())
+    print("Written to 04_literals.jsonl\n")
+
+    print("Example 2: Add columns with lambda and expressions")
     (Pipeline()
         .with_workers(1)
         .with_template("output", """
@@ -37,7 +62,7 @@ def main():
         .run())
     print("Written to 04_calculations.jsonl\n")
 
-    print("Example 2: Filter data")
+    print("Example 3: Filter data")
     (Pipeline()
         .with_workers(1)
         .with_template("output", """{"value": {{value}}, "category": "{{category}}"}""")
@@ -52,7 +77,7 @@ def main():
         .run())
     print("Written to 04_filtered.jsonl (only values > 50)\n")
 
-    print("Example 3: Mutate existing columns")
+    print("Example 4: Mutate existing columns")
     (Pipeline()
         .with_workers(1)
         .with_template("output", """{"original": {{original}}, "doubled": {{doubled}}, "squared": {{squared}}}""")
@@ -66,7 +91,7 @@ def main():
         .run())
     print("Written to 04_mutated.jsonl\n")
 
-    print("Example 4: Custom map function")
+    print("Example 5: Custom map function")
     def enrich_data(context: StepContext) -> StepContext:
         data = context.data
         value = data.get("value", 0)
@@ -95,7 +120,7 @@ def main():
         .run())
     print("Written to 04_enriched.jsonl\n")
 
-    print("Example 5: Combine columns into list")
+    print("Example 6: Combine columns into list")
     (Pipeline()
         .with_workers(1)
         .with_template("output", """{"values": {{values|tojson}}, "sum": {{sum}}}""")

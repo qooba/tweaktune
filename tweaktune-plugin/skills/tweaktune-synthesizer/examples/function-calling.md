@@ -49,7 +49,7 @@ def main():
         .iter_range(100)
         # Sample tools
         .sample_tools("available_tools", size=1, output="selected_tools")
-        .add_column("system", lambda data: "You are a helpful assistant with access to tools.")
+        .add_literal("system", "You are a helpful assistant with access to tools.")
         # Generate question
         .generate_text(template="question_prompt", llm="gpt4", output="question")
         # Generate tool call arguments
@@ -66,9 +66,9 @@ def main():
             output="tool_call"
         )
         # Simulate tool response
-        .add_column("tool_response", lambda data: '{"result": "Mocked response"}')
+        .add_literal("tool_response", '{"result": "Mocked response"}')
         # Generate final answer
-        .add_column("final_answer", lambda data: "Based on the tool response, here is the answer.")
+        .add_literal("final_answer", "Based on the tool response, here is the answer.")
         # Build conversation
         .render_conversation(
             conversation=Conv()
@@ -135,7 +135,7 @@ def main():
         .iter_range(50)
         # Sample API endpoints
         .sample_tools("api_tools", size=1, output="selected_tools")
-        .add_column("system", lambda data: "You are an API assistant.")
+        .add_literal("system", "You are an API assistant.")
         # Generate scenario
         .generate_text(template="scenario_prompt", llm="gpt4", output="scenario")
         # Generate arguments
@@ -143,8 +143,8 @@ def main():
         # Render tool call
         .render_tool_call(tool="selected_tools[0].name", arguments="api_args", output="api_call")
         # Mock response
-        .add_column("api_response", lambda data: '{"status": "success"}')
-        .add_column("answer", lambda data: "API call completed successfully.")
+        .add_literal("api_response", '{"status": "success"}')
+        .add_literal("answer", "API call completed successfully.")
         # Build conversation
         .render_conversation(
             conversation=Conv()
@@ -205,19 +205,19 @@ def main():
         .iter_range(50)
         # Sample multiple tools
         .sample_tools("tools", size=3, output="selected_tools")
-        .add_column("system", lambda data: "You are a customer service assistant.")
+        .add_literal("system", "You are a customer service assistant.")
         # Generate task
         .generate_text(template="task_prompt", llm="gpt4", output="task")
         # First tool call
         .generate_json(template="call1_args_prompt", llm="gpt4", output="args1", json_path="$")
         .render_tool_call(tool="selected_tools[0].name", arguments="args1", output="call1")
-        .add_column("response1", lambda data: '{"user_id": "123", "name": "John"}')
+        .add_literal("response1", '{"user_id": "123", "name": "John"}')
         # Second tool call
         .generate_json(template="call2_args_prompt", llm="gpt4", output="args2", json_path="$")
         .render_tool_call(tool="selected_tools[1].name", arguments="args2", output="call2")
-        .add_column("response2", lambda data: '{"orders": []}')
+        .add_literal("response2", '{"orders": []}')
         # Final answer
-        .add_column("answer", lambda data: "Based on user info and order history, here's what I found.")
+        .add_literal("answer", "Based on user info and order history, here's what I found.")
         # Build conversation
         .render_conversation(
             conversation=Conv()
@@ -278,15 +278,15 @@ def main():
         .with_template("args_prompt", "Generate arguments for {{selected_tools[0].name}} to fulfill: {{request}}")
         .iter_range(50)
         .sample_tools("tools", size=1, output="selected_tools")
-        .add_column("system", lambda data: "You are a system administrator assistant.")
+        .add_literal("system", "You are a system administrator assistant.")
         # Generate request
         .generate_text(template="request_prompt", llm="gpt4", output="request")
         # Generate arguments
         .generate_json(template="args_prompt", llm="gpt4", output="args", json_path="$")
         # Render tool call
         .render_tool_call(tool="selected_tools[0].name", arguments="args", output="tool_call")
-        .add_column("response", lambda data: '{"status": "success"}')
-        .add_column("answer", lambda data: "Operation completed.")
+        .add_literal("response", '{"status": "success"}')
+        .add_literal("answer", "Operation completed.")
         # Build conversation
         .render_conversation(
             conversation=Conv()
@@ -345,8 +345,8 @@ def main():
         .with_template("tool_selection_prompt", "Which tool should be used for: {{task}}? Choose from: {{available_tools}}")
         .with_template("args_prompt", "Generate arguments for {{selected_tool}} to complete: {{task}}")
         .iter_dataset("tasks")
-        .add_column("available_tools", lambda data: "send_email, schedule_meeting, create_task")
-        .add_column("system", lambda data: "You are a productivity assistant.")
+        .add_literal("available_tools", "send_email, schedule_meeting, create_task")
+        .add_literal("system", "You are a productivity assistant.")
         # Determine which tool to use
         .generate_text(template="tool_selection_prompt", llm="gpt4", output="selected_tool")
         # Generate arguments
@@ -355,8 +355,8 @@ def main():
         .sample_tools("tools", size=1, output="tools_for_render")
         # Render tool call
         .render_tool_call(tool="tools_for_render[0].name", arguments="args", output="tool_call")
-        .add_column("tool_response", lambda data: '{"status": "completed"}')
-        .add_column("answer", lambda data: "Task completed successfully.")
+        .add_literal("tool_response", '{"status": "completed"}')
+        .add_literal("answer", "Task completed successfully.")
         # Build conversation
         .render_conversation(
             conversation=Conv()

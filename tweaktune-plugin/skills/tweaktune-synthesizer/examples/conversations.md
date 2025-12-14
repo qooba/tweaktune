@@ -27,7 +27,7 @@ def main():
         .with_template("answer_prompt", "Answer this question: {{question}}")
         .iter_dataset("topics")
         # Add system message
-        .add_column("system", lambda data: "You are a helpful assistant.")
+        .add_literal("system", "You are a helpful assistant.")
         # Generate question
         .generate_text(template="question_prompt", llm="gpt4", output="question")
         # Generate answer
@@ -86,7 +86,7 @@ def main():
         .with_template("q2_prompt", "Generate follow-up question based on: {{answer1}}")
         .with_template("a2_prompt", "Answer the follow-up: {{question2}}")
         .iter_dataset("scenarios")
-        .add_column("system", lambda data: "You are a knowledgeable assistant.")
+        .add_literal("system", "You are a knowledgeable assistant.")
         # Turn 1
         .generate_text(template="q1_prompt", llm="gpt4", output="question1")
         .generate_text(template="a1_prompt", llm="gpt4", output="answer1")
@@ -136,7 +136,7 @@ def main():
         .with_template("thinking_prompt", "Think step by step about: {{problem}}")
         .with_template("answer_prompt", "Based on your reasoning, provide final answer to: {{problem}}")
         .iter_dataset("problems")
-        .add_column("system", lambda data: "You are a problem-solving assistant.")
+        .add_literal("system", "You are a problem-solving assistant.")
         # Generate reasoning
         .generate_text(template="thinking_prompt", llm="gpt4", output="thinking")
         # Generate final answer
@@ -191,7 +191,7 @@ def main():
         .with_workers(4)
         .with_jsonl_dataset("qa_pairs", "qa_pairs.jsonl")
         .iter_dataset("qa_pairs")
-        .add_column("system", lambda data: "You are a helpful assistant.")
+        .add_literal("system", "You are a helpful assistant.")
         # Use string format: @role:field
         .render_conversation(
             conversation="@system:system|@user:question|@assistant:answer",
@@ -235,7 +235,7 @@ def main():
         .with_llm_openai("gpt4", api_key, "gpt-4")
         .with_template("response_prompt", "Provide a helpful response to: {{instruction}}")
         .iter_dataset("instructions")
-        .add_column("system", lambda data: "You are a helpful AI assistant.")
+        .add_literal("system", "You are a helpful AI assistant.")
         # Generate response
         .generate_text(template="response_prompt", llm="gpt4", output="response")
         # Render in SFT format
@@ -278,7 +278,7 @@ def main():
         .with_template("good_response_prompt", "Provide an excellent response to: {{prompt}}")
         .with_template("bad_response_prompt", "Provide a poor quality response to: {{prompt}}")
         .iter_dataset("prompts")
-        .add_column("system", lambda data: "You are an AI assistant.")
+        .add_literal("system", "You are an AI assistant.")
         # Generate chosen (good) response
         .generate_text(template="good_response_prompt", llm="gpt4", output="chosen_response")
         # Generate rejected (bad) response
@@ -339,7 +339,7 @@ def main():
         .with_template("q_prompt", "Generate a question about: {{topic}}")
         .with_template("a_prompt", "Answer: {{question}}")
         .iter_range(100)
-        .add_column("system", lambda data: "You are a helpful assistant.")
+        .add_literal("system", "You are a helpful assistant.")
         # Generate topic
         .generate_text(template="topic_prompt", llm="gpt4", output="topic")
         # Generate question

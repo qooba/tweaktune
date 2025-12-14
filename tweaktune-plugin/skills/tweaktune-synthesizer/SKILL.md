@@ -257,6 +257,25 @@ Build step chain based on task type:
 )
 ```
 
+### Data Transformation Steps
+
+**Adding Constant Values:**
+Use `add_literal` for static values (strings, numbers, booleans, dicts, lists):
+```python
+.add_literal("system", "You are a helpful assistant.")  # String
+.add_literal("temperature", 0.7)                        # Number
+.add_literal("enabled", True)                           # Boolean
+.add_literal("config", {"model": "gpt-4"})             # Dict
+.add_literal("tags", ["ai", "helpful"])                # List
+```
+
+**Adding Computed Values:**
+Use `add_column` for values computed from context:
+```python
+.add_column("computed", lambda data: data["value"] * 2)
+.add_column("extracted", lambda data: data["items"][0])
+```
+
 ### Quality & Validation Steps
 
 Add based on user requirements:

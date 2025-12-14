@@ -110,9 +110,9 @@ Provide a clear, helpful answer."""
         .sample_tools("available_tools", size=1, output="selected_tools")
 
         # Step 2: Set system message
-        .add_column(
+        .add_literal(
             "system",
-            lambda data: "You are a helpful assistant with access to tools. Use the appropriate tools to answer user questions accurately."
+            "You are a helpful assistant with access to tools. Use the appropriate tools to answer user questions accurately."
         )
 
         # Step 3: Generate user question
@@ -141,9 +141,9 @@ Provide a clear, helpful answer."""
 
         # Step 6: Simulate tool response (mock data)
         # In production, you might call actual APIs here
-        .add_column(
+        .add_literal(
             "tool_response",
-            lambda data: '{"result": "Simulated tool response based on the query"}'
+            '{"result": "Simulated tool response based on the query"}'
         )
 
         # Step 7: Generate final answer based on tool response

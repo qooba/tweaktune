@@ -59,9 +59,9 @@ def main():
         # ===== Pipeline Steps =====
 
         # Step 1: Set system message
-        .add_column(
+        .add_literal(
             "system",
-            lambda data: "You are a knowledgeable and helpful assistant. Provide clear, accurate, and engaging responses."
+            "You are a knowledgeable and helpful assistant. Provide clear, accurate, and engaging responses."
         )
 
         # Step 2: Generate first question
