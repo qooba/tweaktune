@@ -32,6 +32,7 @@ use crate::{
 use anyhow::Result;
 use log::error;
 use pyo3::prelude::*;
+use pythonize::pythonize;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -177,15 +178,16 @@ impl IfElseStep {
         _embeddings: &HashMap<String, EmbeddingsType>,
         context: &StepContext,
     ) -> Result<bool> {
-        let json = serde_json::to_string(context)?;
-
         let result = if let Some(condition) = &self.py_condition {
-            let result: PyResult<bool> = Python::with_gil(|py| {
-                let result: bool = condition.call_method1(py, "check", (json,))?.extract(py)?;
+            let result: Result<bool> = Python::with_gil(|py| {
+                let py_context = pythonize(py, context)
+                    .map_err(|e| anyhow::anyhow!("Failed to pythonize context: {:?}", e))?;
+                let py_result = condition.call_method1(py, "check", (py_context,))?;
+                let result: bool = py_result.extract(py)?;
                 Ok(result)
             });
 
-            anyhow::Ok(result?)
+            result
         } else if let Some(key) = &self.condition_key {
             let rendered = templates.render(key.clone(), context.data.clone())?;
             if let Ok(v) = serde_json::from_str::<bool>(&rendered) {

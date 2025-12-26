@@ -6,6 +6,7 @@ use crate::{
 use anyhow::Result;
 use log::error;
 use pyo3::prelude::*;
+use pythonize::{depythonize, pythonize};
 
 pub struct PyStep {
     pub name: String,
@@ -24,21 +25,16 @@ impl Step for PyStep {
         _resources: &PipelineResources,
         context: &StepContext,
     ) -> Result<StepContext> {
-        let json = serde_json::to_string(context)?;
-
-        let result: PyResult<String> = Python::with_gil(|py| {
-            let result: String = self
-                .py_func
-                .call_method1(py, "process", (json,))?
-                .extract(py)?;
-            Ok(result)
+        let result: Result<StepContext> = Python::with_gil(|py| {
+            let py_context = pythonize(py, context)
+                .map_err(|e| anyhow::anyhow!("Failed to pythonize context: {:?}", e))?;
+            let result = self.py_func.call_method1(py, "process", (py_context,))?;
+            depythonize(result.bind(py))
+                .map_err(|e| anyhow::anyhow!("Failed to depythonize result: {:?}", e))
         });
 
         match result {
-            Ok(result) => {
-                let result: StepContext = serde_json::from_str(&result)?;
-                Ok(result)
-            }
+            Ok(result) => Ok(result),
             Err(e) => {
                 error!(target: "pystep", "🐔 {:?}", e);
                 let mut context = context.clone();
@@ -66,13 +62,11 @@ impl Step for PyValidator {
         _resources: &PipelineResources,
         context: &StepContext,
     ) -> Result<StepContext> {
-        let json = serde_json::to_string(context)?;
-
-        let result: PyResult<bool> = Python::with_gil(|py| {
-            let result: bool = self
-                .py_func
-                .call_method1(py, "process", (json,))?
-                .extract(py)?;
+        let result: Result<bool> = Python::with_gil(|py| {
+            let py_context = pythonize(py, context)
+                .map_err(|e| anyhow::anyhow!("Failed to pythonize context: {:?}", e))?;
+            let py_result = self.py_func.call_method1(py, "process", (py_context,))?;
+            let result: bool = py_result.extract(py)?;
             Ok(result)
         });
 

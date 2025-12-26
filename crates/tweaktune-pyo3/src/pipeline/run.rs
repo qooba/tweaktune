@@ -9,7 +9,6 @@ use log::{debug, error, info};
 use pyo3::{PyObject, PyResult, Python};
 use serde_json::json;
 use simplelog::*;
-use std::os::unix::process;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
