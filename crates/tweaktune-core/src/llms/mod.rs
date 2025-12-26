@@ -1,6 +1,6 @@
 use anyhow::Result;
 use log::error;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyAny};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -52,11 +52,11 @@ pub enum ApiLLMMode {
 
 pub struct MistralrsLLM {
     pub name: String,
-    pub py_func: PyObject,
+    pub py_func: Py<PyAny>,
 }
 
 impl MistralrsLLM {
-    pub fn new(name: String, py_func: PyObject) -> Self {
+    pub fn new(name: String, py_func: Py<PyAny>) -> Self {
         Self { name, py_func }
     }
 
@@ -142,11 +142,11 @@ impl LLM for MistralrsLLM {
 
 pub struct UnslothLLM {
     pub name: String,
-    pub py_func: PyObject,
+    pub py_func: Py<PyAny>,
 }
 
 impl UnslothLLM {
-    pub fn new(name: String, py_func: PyObject) -> Self {
+    pub fn new(name: String, py_func: Py<PyAny>) -> Self {
         Self { name, py_func }
     }
 

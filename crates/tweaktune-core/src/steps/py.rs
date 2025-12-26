@@ -5,16 +5,16 @@ use crate::{
 };
 use anyhow::Result;
 use log::error;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyAny};
 use pythonize::{depythonize, pythonize};
 
 pub struct PyStep {
     pub name: String,
-    pub py_func: PyObject,
+    pub py_func: Py<PyAny>,
 }
 
 impl PyStep {
-    pub fn new(name: String, py_func: PyObject) -> Self {
+    pub fn new(name: String, py_func: Py<PyAny>) -> Self {
         Self { name, py_func }
     }
 }
@@ -47,11 +47,11 @@ impl Step for PyStep {
 
 pub struct PyValidator {
     pub name: String,
-    pub py_func: PyObject,
+    pub py_func: Py<PyAny>,
 }
 
 impl PyValidator {
-    pub fn new(name: String, py_func: PyObject) -> Self {
+    pub fn new(name: String, py_func: Py<PyAny>) -> Self {
         Self { name, py_func }
     }
 }

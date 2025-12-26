@@ -6,7 +6,7 @@ use anyhow::{bail, Result};
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, error, info};
-use pyo3::{PyObject, PyResult, Python};
+use pyo3::{types::PyAny, Py, PyResult, Python};
 use serde_json::json;
 use simplelog::*;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,7 +18,7 @@ use tweaktune_core::datasets::{Dataset as DatasetTrait, DatasetType};
 use tweaktune_core::steps::{Step as StepTrait, StepContext, StepStatus, StepType};
 
 impl PipelineBuilder {
-    pub(crate) fn run_internal(&self, bus: Option<PyObject>) -> PyResult<()> {
+    pub(crate) fn run_internal(&self, bus: Option<Py<PyAny>>) -> PyResult<()> {
         // Print TweakTune logo
         println!("\n{}", Self::get_logo());
 
@@ -67,7 +67,7 @@ impl PipelineBuilder {
 
         let sender = if let Some(bus) = bus {
             let bus_logger = Python::attach(|py| {
-                let py_obj: PyObject = bus.clone_ref(py);
+                let py_obj: Py<PyAny> = bus.clone_ref(py);
                 py_obj
             });
 

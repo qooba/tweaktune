@@ -11,7 +11,7 @@ pub use chain::{Step, StepsChain};
 use chrono::Local;
 use core::fmt;
 use log::{debug, error};
-use pyo3::{pyclass, pymethods, PyObject, PyRef, PyResult};
+use pyo3::{pyclass, pymethods, types::PyAny, Py, PyRef, PyResult};
 use simplelog::*;
 use std::fs::{create_dir_all, File};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -417,7 +417,7 @@ impl PipelineBuilder {
         );
     }
 
-    pub fn with_llm_unsloth(&mut self, name: String, py_func: PyObject) {
+    pub fn with_llm_unsloth(&mut self, name: String, py_func: Py<PyAny>) {
         debug!("Added LLM UNSLOTH: {}", &name);
         self.resources.llms.add(
             name.clone(),
@@ -425,7 +425,7 @@ impl PipelineBuilder {
         );
     }
 
-    pub fn with_llm_mistralrs(&mut self, name: String, py_func: PyObject) {
+    pub fn with_llm_mistralrs(&mut self, name: String, py_func: Py<PyAny>) {
         debug!("Added LLM MISTRALRS: {}", &name);
         self.resources.llms.add(
             name.clone(),
@@ -529,7 +529,7 @@ impl PipelineBuilder {
         self.iter_by = IterBy::Dataset { name };
     }
 
-    pub fn add_py_step(&mut self, name: String, py_func: PyObject) {
+    pub fn add_py_step(&mut self, name: String, py_func: Py<PyAny>) {
         debug!("Added Python step: {}", &name);
         self.steps.push(StepType::Py(PyStep::new(name, py_func)));
     }
@@ -537,7 +537,7 @@ impl PipelineBuilder {
     pub fn add_ifelse_step(
         &mut self,
         name: String,
-        py_condition: Option<PyObject>,
+        py_condition: Option<Py<PyAny>>,
         condition: Option<String>,
         then_steps: PyRef<StepsChain>,
         else_steps: PyRef<StepsChain>,
@@ -581,7 +581,7 @@ impl PipelineBuilder {
         )));
     }
 
-    pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
+    pub fn add_py_validator_step(&mut self, name: String, py_func: Py<PyAny>) {
         debug!("Added Python validator step: {}", &name);
         self.steps
             .push(StepType::PyValidator(PyValidator::new(name, py_func)));
@@ -1261,7 +1261,7 @@ impl PipelineBuilder {
     }
 
     #[pyo3(signature = (bus=None))]
-    pub fn run(&self, bus: Option<PyObject>) -> PyResult<()> {
+    pub fn run(&self, bus: Option<Py<PyAny>>) -> PyResult<()> {
         self.run_internal(bus)
     }
 }
@@ -1321,7 +1321,7 @@ pub enum Dataset {
     },
     Arrow {
         name: String,
-        dataset: PyObject,
+        dataset: Py<PyAny>,
     },
     Csv {
         name: String,

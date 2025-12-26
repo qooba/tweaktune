@@ -31,7 +31,7 @@ use crate::{
 };
 use anyhow::Result;
 use log::error;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyAny};
 use pythonize::pythonize;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -147,7 +147,7 @@ pub enum StepType {
 
 pub struct IfElseStep {
     pub name: String,
-    pub py_condition: Option<PyObject>,
+    pub py_condition: Option<Py<PyAny>>,
     pub condition_key: Option<String>,
     pub then_steps: Vec<StepType>,
     pub else_steps: Option<Vec<StepType>>,
@@ -156,7 +156,7 @@ pub struct IfElseStep {
 impl IfElseStep {
     pub fn new(
         name: String,
-        py_condition: Option<PyObject>,
+        py_condition: Option<Py<PyAny>>,
         condition_key: Option<String>,
         then_steps: Vec<StepType>,
         else_steps: Option<Vec<StepType>>,

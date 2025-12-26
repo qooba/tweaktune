@@ -1,5 +1,5 @@
 use log::debug;
-use pyo3::{pyclass, pymethods, PyObject, Python};
+use pyo3::{pyclass, pymethods, types::PyAny, Py, Python};
 use tweaktune_core::steps::{
     generators::{JsonGenerationStep, TextGenerationStep},
     py::PyStep,
@@ -20,7 +20,7 @@ impl StepsChain {
         StepsChain { steps: Vec::new() }
     }
 
-    pub fn add_py_step(&mut self, named: String, py_func: PyObject) {
+    pub fn add_py_step(&mut self, named: String, py_func: Py<PyAny>) {
         debug!("Added Python step: {}", &named);
         self.steps.push(Step::Py {
             name: named,
@@ -119,7 +119,7 @@ impl StepsChain {
         });
     }
 
-    pub fn add_py_validator_step(&mut self, name: String, py_func: PyObject) {
+    pub fn add_py_validator_step(&mut self, name: String, py_func: Py<PyAny>) {
         debug!("Added Python validator step: {}", &name);
         self.steps.push(Step::PyValidator { name, py_func });
     }
@@ -157,7 +157,7 @@ impl Default for StepsChain {
 pub enum Step {
     Py {
         name: String,
-        py_func: PyObject,
+        py_func: Py<PyAny>,
     },
     TextGeneration {
         name: String,
@@ -198,7 +198,7 @@ pub enum Step {
     },
     PyValidator {
         name: String,
-        py_func: PyObject,
+        py_func: Py<PyAny>,
     },
     JsonlWriter {
         name: String,
@@ -210,7 +210,7 @@ pub enum Step {
 pub(super) fn map_step(step: &Step, templates: &mut Templates) -> StepType {
     match step {
         Step::Py { name, py_func } => Python::attach(|py| {
-            let py_obj: PyObject = py_func.clone_ref(py);
+            let py_obj: Py<PyAny> = py_func.clone_ref(py);
             StepType::Py(PyStep::new(name.clone(), py_obj))
         }),
         Step::TextGeneration {
