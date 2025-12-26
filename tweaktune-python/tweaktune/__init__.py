@@ -5,6 +5,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 from pydantic import BaseModel
 
+# Version
+__version__ = "0.0.1-alpha.12"
+
 from tweaktune.chain import Chain
 from tweaktune.common import (
     LogLevel,

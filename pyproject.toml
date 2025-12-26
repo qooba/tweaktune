@@ -1,3 +1,7 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
 [tool.pytest.ini_options]
 pythonpath = ["tweaktune-python/tweaktune"]
 testpaths = ["tweaktune-python/tests"]

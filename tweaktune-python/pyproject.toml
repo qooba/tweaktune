@@ -24,7 +24,18 @@ repository = "https://github.com/qooba/tweaktune"
 [tool.setuptools.package-data]
 tweaktune = ["templates/*.j2", "templates/**/*.j2"]
 
+[project.scripts]
+tweaktune = "tweaktune.cli:main"
+
 [project.optional-dependencies]
+cli = [
+    "click ~=8.1.0",
+    "rich ~=13.0.0",
+    "questionary ~=2.0.0",
+]
+ui = [
+    "nicegui ~=1.0.0",
+]
 dev = [
     "pytest ~=8.3.5",
     "pytest-cov ~=6.1.1",
@@ -35,6 +46,9 @@ dev = [
     "ruff ~=0.11.8",
     "pydocstyle ~=6.3.0",
     "polars ~=1.29.0",
+]
+all = [
+    "tweaktune[cli,ui,dev,db,arrow,sql]",
 ]
 db = [ "connectorx ~=0.4.3" ]
 arrow = [
