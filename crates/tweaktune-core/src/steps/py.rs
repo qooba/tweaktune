@@ -25,7 +25,7 @@ impl Step for PyStep {
         _resources: &PipelineResources,
         context: &StepContext,
     ) -> Result<StepContext> {
-        let result: Result<StepContext> = Python::with_gil(|py| {
+        let result: Result<StepContext> = Python::attach(|py| {
             let py_context = pythonize(py, context)
                 .map_err(|e| anyhow::anyhow!("Failed to pythonize context: {:?}", e))?;
             let result = self.py_func.call_method1(py, "process", (py_context,))?;
@@ -62,7 +62,7 @@ impl Step for PyValidator {
         _resources: &PipelineResources,
         context: &StepContext,
     ) -> Result<StepContext> {
-        let result: Result<bool> = Python::with_gil(|py| {
+        let result: Result<bool> = Python::attach(|py| {
             let py_context = pythonize(py, context)
                 .map_err(|e| anyhow::anyhow!("Failed to pythonize context: {:?}", e))?;
             let py_result = self.py_func.call_method1(py, "process", (py_context,))?;

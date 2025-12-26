@@ -66,7 +66,7 @@ impl PipelineBuilder {
         }
 
         let sender = if let Some(bus) = bus {
-            let bus_logger = Python::with_gil(|py| {
+            let bus_logger = Python::attach(|py| {
                 let py_obj: PyObject = bus.clone_ref(py);
                 py_obj
             });
@@ -84,7 +84,7 @@ impl PipelineBuilder {
 
             thread::spawn(move || {
                 for message in log_receiver {
-                    Python::with_gil(|py| {
+                    Python::attach(|py| {
                         bus_logger.call_method1(py, "put", (message,)).unwrap();
                     });
                 }

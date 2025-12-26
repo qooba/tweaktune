@@ -67,7 +67,7 @@ impl MistralrsLLM {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<String> {
-        let result: PyResult<String> = Python::with_gil(|py| {
+        let result: PyResult<String> = Python::attach(|py| {
             let result: String = self
                 .py_func
                 .call_method1(
@@ -157,7 +157,7 @@ impl UnslothLLM {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<String> {
-        let result: PyResult<String> = Python::with_gil(|py| {
+        let result: PyResult<String> = Python::attach(|py| {
             let result: String = self
                 .py_func
                 .call_method1(

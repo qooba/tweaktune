@@ -179,7 +179,7 @@ impl IfElseStep {
         context: &StepContext,
     ) -> Result<bool> {
         let result = if let Some(condition) = &self.py_condition {
-            let result: Result<bool> = Python::with_gil(|py| {
+            let result: Result<bool> = Python::attach(|py| {
                 let py_context = pythonize(py, context)
                     .map_err(|e| anyhow::anyhow!("Failed to pythonize context: {:?}", e))?;
                 let py_result = condition.call_method1(py, "check", (py_context,))?;
@@ -299,7 +299,7 @@ impl Step for PrintStep {
 
         row.push('\n');
 
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let sys = py.import("sys").unwrap();
             let stdout = sys.getattr("stdout").unwrap();
             let write = stdout.getattr("write").unwrap();

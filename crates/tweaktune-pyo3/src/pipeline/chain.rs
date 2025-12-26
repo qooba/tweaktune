@@ -209,7 +209,7 @@ pub enum Step {
 
 pub(super) fn map_step(step: &Step, templates: &mut Templates) -> StepType {
     match step {
-        Step::Py { name, py_func } => Python::with_gil(|py| {
+        Step::Py { name, py_func } => Python::attach(|py| {
             let py_obj: PyObject = py_func.clone_ref(py);
             StepType::Py(PyStep::new(name.clone(), py_obj))
         }),
