@@ -34,3 +34,6 @@ sqlx = { workspace = true }
 # pyo3-async = { version = "0.3.2" }
 tokio = { workspace = true }
 uuid = { workspace = true }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+tui-textarea = { workspace = true }

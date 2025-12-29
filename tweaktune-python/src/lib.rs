@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 use tweaktune_pyo3::{
     chat_template::{ChatTemplateBuilder, EmbedChatTemplates},
+    explorer,
     pipeline::{
         Dataset, Embeddings, InternalDatasetType, IterBy, JudgeType, Metadata, PipelineBuilder,
         Step, StepsChain, Template, LLM,
@@ -32,6 +33,7 @@ fn tweaktune(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Metadata>()?;
     m.add_class::<JudgeType>()?;
     m.add_class::<InternalDatasetType>()?;
+    m.add_function(wrap_pyfunction!(run_explorer, m)?)?;
 
     // let llms_module = PyModule::new_bound(py, "llms")?;
     // llms_module.add_class::<Quantized>()?;
@@ -40,4 +42,10 @@ fn tweaktune(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // m.add_submodule(&llms_module)?;
 
     Ok(())
+}
+
+#[pyfunction]
+fn run_explorer(file_path: String) -> PyResult<()> {
+    explorer::run_explorer(&file_path)
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Explorer error: {}", e)))
 }

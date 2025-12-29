@@ -30,27 +30,37 @@ def explore_data(
             print(f"Error: File '{data_file}' not found.")
         sys.exit(1)
 
-    if console:
-        console.print(f"\n[bold cyan]Exploring Dataset[/bold cyan]: {data_path}\n")
-    else:
-        print(f"\nExploring Dataset: {data_path}\n")
+    # Only support JSONL format for now
+    if format == 'auto':
+        if not str(data_path).endswith('.jsonl'):
+            if console:
+                console.print("[yellow]Warning:[/yellow] Only JSONL format is currently supported for interactive exploration.")
+                console.print(f"\n[dim]For now, use:[/dim] [cyan]tweaktune sample {data_file}[/cyan]\n")
+            else:
+                print("Warning: Only JSONL format is currently supported for interactive exploration.")
+                print(f"\nFor now, use: tweaktune sample {data_file}\n")
+            sys.exit(1)
 
-    # Placeholder for data explorer implementation
-    # This will be implemented with Rust TUI backend
+    # Call the Rust TUI explorer
+    try:
+        from tweaktune import run_explorer
 
-    if console:
-        console.print("[yellow]Interactive data explorer not yet implemented.[/yellow]")
-        console.print("\n[dim]This feature will provide:[/dim]")
-        console.print("  • Interactive navigation through records")
-        console.print("  • Filtering and searching")
-        console.print("  • Field-specific views")
-        console.print("  • Export functionality")
-        console.print("\n[dim]For now, use:[/dim] [cyan]tweaktune sample[/cyan] [dim]or[/dim] [cyan]tweaktune stats[/cyan]\n")
-    else:
-        print("Interactive data explorer not yet implemented.")
-        print("\nThis feature will provide:")
-        print("  - Interactive navigation through records")
-        print("  - Filtering and searching")
-        print("  - Field-specific views")
-        print("  - Export functionality")
-        print("\nFor now, use: tweaktune sample or tweaktune stats\n")
+        if verbose and console:
+            console.print(f"\n[bold cyan]Launching Explorer[/bold cyan]: {data_path}\n")
+
+        run_explorer(str(data_path))
+
+    except ImportError as e:
+        if console:
+            console.print(f"[bold red]Error:[/bold red] Failed to import explorer: {e}")
+            console.print("\n[dim]Make sure tweaktune is properly installed.[/dim]\n")
+        else:
+            print(f"Error: Failed to import explorer: {e}")
+            print("\nMake sure tweaktune is properly installed.\n")
+        sys.exit(1)
+    except Exception as e:
+        if console:
+            console.print(f"[bold red]Error:[/bold red] {e}")
+        else:
+            print(f"Error: {e}")
+        sys.exit(1)

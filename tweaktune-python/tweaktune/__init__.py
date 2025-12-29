@@ -26,6 +26,7 @@ from tweaktune.tweaktune import (
     JudgeType,
     Metadata,
     PipelineBuilder,
+    run_explorer,
 )
 from tweaktune.tweaktune import ChatTemplateBuilder as _ChatTemplateBuilder
 from tweaktune.wrappers import (
