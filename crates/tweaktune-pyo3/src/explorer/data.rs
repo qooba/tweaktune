@@ -76,8 +76,7 @@ impl DataManager {
     pub fn save(&self) -> Result<()> {
         // Create backup
         let backup_path = self.file_path.with_extension("jsonl.bak");
-        std::fs::copy(&self.file_path, &backup_path)
-            .context("Failed to create backup")?;
+        std::fs::copy(&self.file_path, &backup_path).context("Failed to create backup")?;
 
         // Write to file
         let mut file = OpenOptions::new()
@@ -87,10 +86,8 @@ impl DataManager {
             .context("Failed to open file for writing")?;
 
         for line in &self.lines {
-            let json = serde_json::to_string(line)
-                .context("Failed to serialize line")?;
-            writeln!(file, "{}", json)
-                .context("Failed to write line")?;
+            let json = serde_json::to_string(line).context("Failed to serialize line")?;
+            writeln!(file, "{}", json).context("Failed to write line")?;
         }
 
         file.flush().context("Failed to flush file")?;

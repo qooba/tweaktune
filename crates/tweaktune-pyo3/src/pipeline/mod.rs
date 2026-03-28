@@ -601,7 +601,7 @@ impl PipelineBuilder {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (name, template, llm, output, system_template=None, max_tokens=None, temperature=None))]
+    #[pyo3(signature = (name, template, llm, output, system_template=None, max_tokens=None, temperature=None, enable_thinking=None))]
     pub fn add_text_generation_step(
         &mut self,
         name: String,
@@ -611,6 +611,7 @@ impl PipelineBuilder {
         system_template: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) {
         debug!(
             "Added text generation step with llm: {}, template: {}",
@@ -625,11 +626,12 @@ impl PipelineBuilder {
                 system_template,
                 max_tokens,
                 temperature,
+                enable_thinking,
             )));
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (name, template, llm, output, json_path=None, system_template=None, json_schema=None, max_tokens=None, temperature=None, schema_template=None))]
+    #[pyo3(signature = (name, template, llm, output, json_path=None, system_template=None, json_schema=None, max_tokens=None, temperature=None, schema_template=None, enable_thinking=None))]
     pub fn add_json_generation_step(
         &mut self,
         name: String,
@@ -642,6 +644,7 @@ impl PipelineBuilder {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
         schema_template: Option<String>,
+        enable_thinking: Option<bool>,
     ) {
         debug!(
             "Added JSON generation step with template: {}, llm: {}",
@@ -670,6 +673,7 @@ impl PipelineBuilder {
                 max_tokens,
                 temperature,
                 schema_key.clone(),
+                enable_thinking,
             )));
 
         if let Some(schema_key) = schema_key {
@@ -691,6 +695,7 @@ impl PipelineBuilder {
         custom_json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) {
         debug!("Added judge step with llm: {}", &llm);
         let language = language.unwrap_or("en".to_string());
@@ -733,6 +738,7 @@ impl PipelineBuilder {
                 custom_json_schema,
                 max_tokens,
                 temperature,
+                enable_thinking,
             )));
     }
 

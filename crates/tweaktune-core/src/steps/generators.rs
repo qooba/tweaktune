@@ -20,9 +20,11 @@ pub struct TextGenerationStep {
     pub output: String,
     pub max_tokens: Option<u32>,
     pub temperature: Option<f32>,
+    pub enable_thinking: Option<bool>,
 }
 
 impl TextGenerationStep {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         name: String,
         template: String,
@@ -31,6 +33,7 @@ impl TextGenerationStep {
         system_template: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) -> Self {
         Self {
             name,
@@ -40,6 +43,7 @@ impl TextGenerationStep {
             system_template,
             max_tokens,
             temperature,
+            enable_thinking,
         }
     }
 
@@ -54,6 +58,7 @@ impl TextGenerationStep {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) -> Result<Option<String>> {
         let template = templates.render(self.template.clone(), context.data.clone());
         let template = match template {
@@ -73,7 +78,13 @@ impl TextGenerationStep {
         };
         let result = match llm {
             llms::LLMType::Api(llm) => match llm
-                .call(template, json_schema, max_tokens, temperature)
+                .call(
+                    template,
+                    json_schema,
+                    max_tokens,
+                    temperature,
+                    enable_thinking,
+                )
                 .await
             {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
@@ -83,7 +94,13 @@ impl TextGenerationStep {
                 }
             },
             llms::LLMType::Unsloth(llm) => match llm
-                .call(template, json_schema, max_tokens, temperature)
+                .call(
+                    template,
+                    json_schema,
+                    max_tokens,
+                    temperature,
+                    enable_thinking,
+                )
                 .await
             {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
@@ -93,7 +110,13 @@ impl TextGenerationStep {
                 }
             },
             llms::LLMType::Mistralrs(llm) => match llm
-                .call(template, json_schema, max_tokens, temperature)
+                .call(
+                    template,
+                    json_schema,
+                    max_tokens,
+                    temperature,
+                    enable_thinking,
+                )
                 .await
             {
                 Ok(response) => Some(response.choices[0].message.content.clone()),
@@ -125,6 +148,7 @@ impl Step for TextGenerationStep {
                 None,
                 self.max_tokens,
                 self.temperature,
+                self.enable_thinking,
             )
             .await?;
 
@@ -149,6 +173,7 @@ pub struct JsonGenerationStep {
     pub max_tokens: Option<u32>,
     pub temperature: Option<f32>,
     pub schema_key: Option<String>,
+    pub enable_thinking: Option<bool>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -164,6 +189,7 @@ impl JsonGenerationStep {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
         schema_key: Option<String>,
+        enable_thinking: Option<bool>,
     ) -> Self {
         Self {
             generation_step: TextGenerationStep::new(
@@ -174,6 +200,7 @@ impl JsonGenerationStep {
                 system_template,
                 max_tokens,
                 temperature,
+                enable_thinking,
             ),
             output,
             name,
@@ -182,6 +209,7 @@ impl JsonGenerationStep {
             max_tokens,
             temperature,
             schema_key,
+            enable_thinking,
         }
     }
 }
@@ -239,6 +267,7 @@ impl Step for JsonGenerationStep {
                 json_schema,
                 self.max_tokens,
                 self.temperature,
+                self.enable_thinking,
             )
             .await?;
 
@@ -296,6 +325,7 @@ impl JudgeConversationStep {
         custom_json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) -> Self {
         let temperature = temperature.or(Some(0.0));
         let max_tokens = max_tokens.or(Some(1024));
@@ -338,6 +368,7 @@ impl JudgeConversationStep {
                 max_tokens,
                 temperature,
                 None,
+                enable_thinking,
             ),
         }
     }

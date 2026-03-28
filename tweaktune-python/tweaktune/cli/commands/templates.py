@@ -22,7 +22,7 @@ def list_templates(detailed: bool):
             console.print(f"  Name: {info['name']}")
             console.print(f"  Description: {info['description']}")
             console.print("  Features:")
-            for feature in info['features']:
+            for feature in info["features"]:
                 console.print(f"    • {feature}")
             console.print()
 
@@ -36,11 +36,13 @@ def list_templates(detailed: bool):
         table.add_column("Description")
 
         for name, info in TEMPLATES.items():
-            table.add_row(name, info['name'], info['description'])
+            table.add_row(name, info["name"], info["description"])
 
         console.print()
         console.print(table)
-        console.print("\n[dim]Usage:[/dim] [cyan]tweaktune new my-project --template <template-name>[/cyan]\n")
+        console.print(
+            "\n[dim]Usage:[/dim] [cyan]tweaktune new my-project --template <template-name>[/cyan]\n"
+        )
 
     else:
         print("\nAvailable Tweaktune Templates\n")
@@ -57,7 +59,7 @@ def list_templates(detailed: bool):
                 print(f"  Name: {info['name']}")
                 print(f"  Description: {info['description']}")
                 print("  Features:")
-                for feature in info['features']:
+                for feature in info["features"]:
                     print(f"    - {feature}")
                 print()
 

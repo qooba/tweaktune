@@ -1,7 +1,7 @@
 """Command for showing tweaktune installation information."""
 
-import sys
 import platform
+import sys
 from pathlib import Path
 
 try:
@@ -30,7 +30,10 @@ def show_info(system: bool):
 
         table.add_row("Version", tweaktune.__version__)
         table.add_row("Installation Path", str(Path(tweaktune.__file__).parent))
-        table.add_row("Python Version", f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
+        table.add_row(
+            "Python Version",
+            f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        )
 
         console.print(table)
         console.print()
@@ -53,10 +56,10 @@ def show_info(system: bool):
 
         # Optional dependencies
         optional_deps = {
-            'click': 'CLI support',
-            'rich': 'Rich terminal output',
-            'nicegui': 'Web UI',
-            'questionary': 'Interactive prompts',
+            "click": "CLI support",
+            "rich": "Rich terminal output",
+            "nicegui": "Web UI",
+            "questionary": "Interactive prompts",
         }
 
         console.print("[bold]Optional Dependencies[/bold]")
@@ -82,7 +85,9 @@ def show_info(system: bool):
         print("\nTweaktune Information\n")
         print(f"Version: {tweaktune.__version__}")
         print(f"Installation Path: {Path(tweaktune.__file__).parent}")
-        print(f"Python Version: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
+        print(
+            f"Python Version: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        )
 
         if system:
             print("\nSystem Information\n")
@@ -93,10 +98,10 @@ def show_info(system: bool):
 
         print("\nOptional Dependencies\n")
         optional_deps = {
-            'click': 'CLI support',
-            'rich': 'Rich terminal output',
-            'nicegui': 'Web UI',
-            'questionary': 'Interactive prompts',
+            "click": "CLI support",
+            "rich": "Rich terminal output",
+            "nicegui": "Web UI",
+            "questionary": "Interactive prompts",
         }
 
         for package, purpose in optional_deps.items():

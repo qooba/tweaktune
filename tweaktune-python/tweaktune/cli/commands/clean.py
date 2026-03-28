@@ -1,6 +1,5 @@
 """Command for cleaning temporary files."""
 
-import sys
 from pathlib import Path
 
 try:
@@ -11,13 +10,7 @@ except ImportError:
 console = Console() if Console else None
 
 
-def clean_files(
-    cache: bool,
-    logs: bool,
-    all: bool,
-    dry_run: bool,
-    verbose: bool
-):
+def clean_files(cache: bool, logs: bool, all: bool, dry_run: bool, verbose: bool):
     """Clean temporary files and caches."""
     if not (cache or logs or all):
         if console:
@@ -45,26 +38,26 @@ def clean_files(
     if cache or all:
         # Placeholder for cache location
         cache_dirs = [
-            Path.home() / '.cache' / 'tweaktune',
-            Path.cwd() / '.tweaktune' / 'cache',
+            Path.home() / ".cache" / "tweaktune",
+            Path.cwd() / ".tweaktune" / "cache",
         ]
         for cache_dir in cache_dirs:
             if cache_dir.exists():
-                files_to_clean.extend(cache_dir.rglob('*'))
+                files_to_clean.extend(cache_dir.rglob("*"))
 
     # Log files
     if logs or all:
         # Placeholder for log location
         log_files = [
-            Path.cwd() / 'tweaktune.log',
-            Path.cwd() / '.tweaktune' / 'logs',
+            Path.cwd() / "tweaktune.log",
+            Path.cwd() / ".tweaktune" / "logs",
         ]
         for log_path in log_files:
             if log_path.exists():
                 if log_path.is_file():
                     files_to_clean.append(log_path)
                 else:
-                    files_to_clean.extend(log_path.rglob('*'))
+                    files_to_clean.extend(log_path.rglob("*"))
 
     if not files_to_clean:
         if console:

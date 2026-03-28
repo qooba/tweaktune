@@ -605,10 +605,18 @@ class PipelineRunner:
         system_template: str = None,
         max_tokens: int = 1024,
         temperature: float = 0.1,
+        enable_thinking: bool = False,
         name: str = "GENERATE-TEXT",
     ):
         self.builder.add_text_generation_step(
-            self.__name(name), template, llm, output, system_template, max_tokens, temperature
+            self.__name(name),
+            template,
+            llm,
+            output,
+            system_template,
+            max_tokens,
+            temperature,
+            enable_thinking,
         )
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
@@ -625,6 +633,7 @@ class PipelineRunner:
         schema_template: Optional[str] = None,
         max_tokens: int = 1024,
         temperature: float = 0.1,
+        enable_thinking: bool = False,
         name: str = "GENERATE-JSON",
     ):
         schema: Optional[str] = None
@@ -648,6 +657,7 @@ class PipelineRunner:
             max_tokens,
             temperature,
             schema_template,
+            enable_thinking,
         )
         self.graph.steps.append(step_item(name=self.__name(name)))
         self.step_index += 1
@@ -662,6 +672,7 @@ class PipelineRunner:
         system_template: str = None,
         max_tokens: int = 1024,
         temperature: float = 0.1,
+        enable_thinking: bool = False,
         name: str = "GENERATE-JSON",
     ):
         return self.generate_json(
@@ -673,6 +684,7 @@ class PipelineRunner:
             response_format=response_format,
             max_tokens=max_tokens,
             temperature=temperature,
+            enable_thinking=enable_thinking,
             name=name,
         )
 

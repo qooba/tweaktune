@@ -28,7 +28,6 @@ def class_to_schema(model: Type[BaseModel]) -> dict:
 def class_to_sqlschema(model: Type[BaseModel]) -> dict:
     schema = class_to_schema(model)
     try:
-        from sqlmodel import Field as SQLField
         from sqlmodel import SQLModel
     except ModuleNotFoundError:
         package_installation_hint("sql")

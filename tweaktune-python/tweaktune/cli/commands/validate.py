@@ -2,7 +2,6 @@
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 try:
     from rich.console import Console
@@ -15,12 +14,7 @@ console = Console() if Console else None
 
 
 def validate_pipeline(
-    pipeline_file: str,
-    check_llm: bool,
-    dry_run: bool,
-    check_cost: bool,
-    fix: bool,
-    verbose: bool
+    pipeline_file: str, check_llm: bool, dry_run: bool, check_cost: bool, fix: bool, verbose: bool
 ):
     """Validate a pipeline before running."""
     pipeline_path = Path(pipeline_file)
@@ -49,7 +43,7 @@ def validate_pipeline(
 
     try:
         with open(pipeline_path) as f:
-            compile(f.read(), pipeline_path, 'exec')
+            compile(f.read(), pipeline_path, "exec")
         if console:
             console.print("[green]✓[/green]")
         else:
@@ -57,7 +51,7 @@ def validate_pipeline(
         checks_passed += 1
     except SyntaxError as e:
         if console:
-            console.print(f"[red]✗[/red]")
+            console.print("[red]✗[/red]")
             console.print(f"  [red]Syntax error at line {e.lineno}: {e.msg}[/red]")
         else:
             print("✗")
@@ -73,9 +67,9 @@ def validate_pipeline(
     try:
         namespace = {}
         with open(pipeline_path) as f:
-            exec(compile(f.read(), pipeline_path, 'exec'), namespace)
+            exec(compile(f.read(), pipeline_path, "exec"), namespace)
 
-        if 'pipeline' in namespace:
+        if "pipeline" in namespace:
             if console:
                 console.print("[green]✓[/green]")
             else:
@@ -132,7 +126,7 @@ def validate_pipeline(
 
     # Summary
     if console:
-        console.print(f"\n[bold]Validation Summary:[/bold]")
+        console.print("\n[bold]Validation Summary:[/bold]")
         console.print(f"  [green]Passed:[/green] {checks_passed}")
         console.print(f"  [red]Failed:[/red] {checks_failed}")
         if warnings:
@@ -140,7 +134,7 @@ def validate_pipeline(
             for warning in warnings:
                 console.print(f"    • {warning}")
     else:
-        print(f"\nValidation Summary:")
+        print("\nValidation Summary:")
         print(f"  Passed: {checks_passed}")
         print(f"  Failed: {checks_failed}")
         if warnings:
@@ -152,6 +146,6 @@ def validate_pipeline(
         sys.exit(1)
     else:
         if console:
-            console.print(f"\n[bold green]✓ Pipeline is valid and ready to run![/bold green]\n")
+            console.print("\n[bold green]✓ Pipeline is valid and ready to run![/bold green]\n")
         else:
-            print(f"\n✓ Pipeline is valid and ready to run!\n")
+            print("\n✓ Pipeline is valid and ready to run!\n")

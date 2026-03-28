@@ -7,17 +7,17 @@ from typing import Optional
 
 try:
     from rich.console import Console
-    from rich.progress import (
-        Progress,
-        SpinnerColumn,
-        TextColumn,
-        BarColumn,
-        TaskProgressColumn,
-        TimeRemainingColumn,
-    )
+    from rich.layout import Layout
     from rich.live import Live
     from rich.panel import Panel
-    from rich.layout import Layout
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TaskProgressColumn,
+        TextColumn,
+        TimeRemainingColumn,
+    )
 except ImportError:
     Console = None
     Progress = None
@@ -32,7 +32,7 @@ def run_pipeline(
     output: Optional[str],
     resume: bool,
     limit: Optional[int],
-    verbose: bool
+    verbose: bool,
 ):
     """Run a tweaktune pipeline."""
     pipeline_path = Path(pipeline_file)
@@ -45,35 +45,35 @@ def run_pipeline(
         sys.exit(1)
 
     if console:
-        console.print(f"\n[bold cyan]Running Tweaktune Pipeline[/bold cyan]")
+        console.print("\n[bold cyan]Running Tweaktune Pipeline[/bold cyan]")
         console.print(f"  File: {pipeline_path}")
         if workers is not None:
             console.print(f"  Workers: {workers}")
         else:
-            console.print(f"  Workers: [dim](from pipeline)[/dim]")
+            console.print("  Workers: [dim](from pipeline)[/dim]")
         if limit:
             console.print(f"  Limit: {limit} items")
         if resume:
-            console.print(f"  Mode: [yellow]Resume[/yellow]")
+            console.print("  Mode: [yellow]Resume[/yellow]")
         console.print()
     else:
-        print(f"\nRunning Tweaktune Pipeline")
+        print("\nRunning Tweaktune Pipeline")
         print(f"  File: {pipeline_path}")
         if workers is not None:
             print(f"  Workers: {workers}")
         else:
-            print(f"  Workers: (from pipeline)")
+            print("  Workers: (from pipeline)")
         if limit:
             print(f"  Limit: {limit} items")
         if resume:
-            print(f"  Mode: Resume")
+            print("  Mode: Resume")
         print()
 
     # Load and execute the pipeline
     namespace = {}
     try:
         with open(pipeline_path) as f:
-            code = compile(f.read(), pipeline_path, 'exec')
+            code = compile(f.read(), pipeline_path, "exec")
             exec(code, namespace)
     except Exception as e:
         if console:
@@ -82,11 +82,12 @@ def run_pipeline(
             print(f"Error loading pipeline: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 
     # Get the pipeline object
-    pipeline = namespace.get('pipeline')
+    pipeline = namespace.get("pipeline")
     if pipeline is None:
         if console:
             console.print("[bold red]Error:[/bold red] No 'pipeline' variable found in script")
@@ -132,10 +133,10 @@ def run_pipeline(
         elapsed = time.time() - start_time
 
         if console:
-            console.print(f"\n[bold green]✓ Pipeline completed successfully![/bold green]")
+            console.print("\n[bold green]✓ Pipeline completed successfully![/bold green]")
             console.print(f"  Elapsed time: {_format_duration(elapsed)}\n")
         else:
-            print(f"\n✓ Pipeline completed successfully!")
+            print("\n✓ Pipeline completed successfully!")
             print(f"  Elapsed time: {_format_duration(elapsed)}\n")
 
     except KeyboardInterrupt:
@@ -151,6 +152,7 @@ def run_pipeline(
             print(f"\nPipeline failed: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 
@@ -175,7 +177,7 @@ def _run_with_progress(pipeline, verbose: bool):
             # when implemented in the Rust core
             pipeline.run()
             progress.update(task, completed=True)
-        except Exception as e:
+        except Exception:
             progress.stop()
             raise
 

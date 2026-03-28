@@ -15,6 +15,7 @@ pub trait LLM {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>>;
 
     fn call(
@@ -23,6 +24,7 @@ pub trait LLM {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>>;
 }
 
@@ -96,6 +98,7 @@ impl LLM for MistralrsLLM {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        _enable_thinking: Option<bool>,
     ) -> Result<ChatCompletionResponse> {
         let messages: Vec<HashMap<String, String>> = messages
             .into_iter()
@@ -127,6 +130,7 @@ impl LLM for MistralrsLLM {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>> {
         self.chat_completion(
             vec![ChatMessage {
@@ -136,6 +140,7 @@ impl LLM for MistralrsLLM {
             json_schema,
             max_tokens,
             temperature,
+            enable_thinking,
         )
     }
 }
@@ -186,6 +191,7 @@ impl LLM for UnslothLLM {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        _enable_thinking: Option<bool>,
     ) -> Result<ChatCompletionResponse> {
         let messages: Vec<HashMap<String, String>> = messages
             .into_iter()
@@ -217,6 +223,7 @@ impl LLM for UnslothLLM {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>> {
         self.chat_completion(
             vec![ChatMessage {
@@ -226,6 +233,7 @@ impl LLM for UnslothLLM {
             json_schema,
             max_tokens,
             temperature,
+            enable_thinking,
         )
     }
 }
@@ -292,6 +300,7 @@ impl LLM for ApiLLM {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) -> Result<ChatCompletionResponse> {
         let request = ChatCompletionRequest {
             model: self.model.clone(),
@@ -312,6 +321,15 @@ impl LLM for ApiLLM {
             response_format: if json_schema.is_some() {
                 Some(json!({"type": "json_schema", "json_schema": json_schema
                 .map(|schema| serde_json::from_str::<serde_json::Value>(&schema).unwrap_or_default()) }))
+            } else {
+                None
+            },
+            extra_body: if enable_thinking.is_some() {
+                Some(json!({
+                    "chat_template_kwargs": {
+                        "enable_thinking": enable_thinking.unwrap_or(false)
+                    }
+                }))
             } else {
                 None
             },
@@ -349,6 +367,7 @@ impl LLM for ApiLLM {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) -> impl std::future::Future<Output = Result<ChatCompletionResponse>> {
         self.chat_completion(
             vec![ChatMessage {
@@ -358,6 +377,7 @@ impl LLM for ApiLLM {
             json_schema,
             max_tokens,
             temperature,
+            enable_thinking,
         )
     }
 }
@@ -378,6 +398,8 @@ pub struct ChatCompletionRequest {
     pub top_p: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_format: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_body: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

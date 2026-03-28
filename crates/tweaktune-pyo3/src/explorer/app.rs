@@ -134,10 +134,14 @@ impl<'a> ExplorerApp<'a> {
                     }
                 }
             }
-            KeyCode::PageUp | KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::PageUp | KeyCode::Char('u')
+                if key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
                 self.scroll_offset = self.scroll_offset.saturating_sub(10);
             }
-            KeyCode::PageDown | KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::PageDown | KeyCode::Char('d')
+                if key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
                 self.scroll_offset = self.scroll_offset.saturating_add(10);
             }
             KeyCode::Left | KeyCode::Char('h') => {
@@ -377,8 +381,13 @@ impl<'a> ExplorerApp<'a> {
                     let mut current_line = String::new();
 
                     for word in words {
-                        if current_line.chars().count() + word.chars().count() + 1 > max_width && !current_line.is_empty() {
-                            lines.push(Line::from(Span::styled(current_line.clone(), content_style)));
+                        if current_line.chars().count() + word.chars().count() + 1 > max_width
+                            && !current_line.is_empty()
+                        {
+                            lines.push(Line::from(Span::styled(
+                                current_line.clone(),
+                                content_style,
+                            )));
                             current_line.clear();
                         }
                         if !current_line.is_empty() {
@@ -390,7 +399,10 @@ impl<'a> ExplorerApp<'a> {
                         lines.push(Line::from(Span::styled(current_line, content_style)));
                     }
                 } else {
-                    lines.push(Line::from(Span::styled(content_line.to_string(), content_style)));
+                    lines.push(Line::from(Span::styled(
+                        content_line.to_string(),
+                        content_style,
+                    )));
                 }
             }
         }
@@ -407,12 +419,7 @@ impl<'a> ExplorerApp<'a> {
         f.render_widget(paragraph, area);
     }
 
-    fn render_properties(
-        &self,
-        f: &mut Frame,
-        area: Rect,
-        conv: &super::data::ConversationData,
-    ) {
+    fn render_properties(&self, f: &mut Frame, area: Rect, conv: &super::data::ConversationData) {
         let json = serde_json::to_string_pretty(&conv.other_properties).unwrap_or_default();
 
         let paragraph = Paragraph::new(json)
@@ -442,23 +449,21 @@ impl<'a> ExplorerApp<'a> {
                 .to_string()
         };
 
-        let status = Paragraph::new(vec![
-            Line::from(vec![
-                Span::styled(
-                    format!(" {} ", mode_text),
-                    Style::default()
-                        .fg(Color::Black)
-                        .bg(match self.mode {
-                            Mode::Normal => Color::Blue,
-                            Mode::Edit => Color::Green,
-                            Mode::Command => Color::Yellow,
-                        })
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::raw(" "),
-                Span::raw(status_text),
-            ]),
-        ])
+        let status = Paragraph::new(vec![Line::from(vec![
+            Span::styled(
+                format!(" {} ", mode_text),
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(match self.mode {
+                        Mode::Normal => Color::Blue,
+                        Mode::Edit => Color::Green,
+                        Mode::Command => Color::Yellow,
+                    })
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" "),
+            Span::raw(status_text),
+        ])])
         .block(Block::default().borders(Borders::ALL));
 
         f.render_widget(status, area);

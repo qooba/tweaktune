@@ -18,6 +18,7 @@ use tweaktune_core::datasets::{Dataset as DatasetTrait, DatasetType};
 use tweaktune_core::steps::{Step as StepTrait, StepContext, StepStatus, StepType};
 
 impl PipelineBuilder {
+    #[allow(unused_assignments)]
     pub(crate) fn run_internal(&self, bus: Option<Py<PyAny>>) -> PyResult<()> {
         // Print TweakTune logo
         println!("\n{}", Self::get_logo());

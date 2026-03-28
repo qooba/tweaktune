@@ -38,6 +38,7 @@ impl StepsChain {
         system_template: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) {
         debug!(
             "Added text generation step with llm: {}, template: {}",
@@ -51,6 +52,7 @@ impl StepsChain {
             system_template,
             max_tokens,
             temperature,
+            enable_thinking,
         });
     }
 
@@ -67,6 +69,7 @@ impl StepsChain {
         json_schema: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     ) {
         debug!(
             "Added JSON generation step with template: {}, llm: {}",
@@ -83,6 +86,7 @@ impl StepsChain {
             max_tokens,
             temperature,
             schema_template,
+            enable_thinking,
         });
     }
 
@@ -167,6 +171,7 @@ pub enum Step {
         system_template: Option<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        enable_thinking: Option<bool>,
     },
     JsonGeneration {
         name: String,
@@ -179,6 +184,7 @@ pub enum Step {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
         schema_template: Option<String>,
+        enable_thinking: Option<bool>,
     },
     Print {
         name: String,
@@ -221,6 +227,7 @@ pub(super) fn map_step(step: &Step, templates: &mut Templates) -> StepType {
             system_template,
             max_tokens,
             temperature,
+            enable_thinking,
         } => StepType::TextGeneration(TextGenerationStep::new(
             name.clone(),
             template.clone(),
@@ -229,6 +236,7 @@ pub(super) fn map_step(step: &Step, templates: &mut Templates) -> StepType {
             system_template.clone(),
             *max_tokens,
             *temperature,
+            *enable_thinking,
         )),
         Step::JsonGeneration {
             name,
@@ -240,6 +248,7 @@ pub(super) fn map_step(step: &Step, templates: &mut Templates) -> StepType {
             json_schema,
             max_tokens,
             temperature,
+            enable_thinking,
             schema_template,
         } => {
             let schema_key = schema_template
@@ -257,6 +266,7 @@ pub(super) fn map_step(step: &Step, templates: &mut Templates) -> StepType {
                 *max_tokens,
                 *temperature,
                 schema_key,
+                *enable_thinking,
             ))
         }
         Step::Print {

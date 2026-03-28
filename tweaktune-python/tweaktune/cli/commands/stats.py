@@ -1,9 +1,9 @@
 """Command for showing dataset statistics."""
 
-import sys
 import json
+import sys
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 try:
     from rich.console import Console
@@ -22,7 +22,7 @@ def show_statistics(
     fields: Optional[List[str]],
     output: Optional[str],
     format: str,
-    verbose: bool
+    verbose: bool,
 ):
     """Show statistics about a dataset."""
     data_path = Path(data_file)
@@ -47,7 +47,7 @@ def show_statistics(
         "format": format,
         "records": "N/A",
         "size": "N/A",
-        "fields": "N/A"
+        "fields": "N/A",
     }
 
     if console:
@@ -81,7 +81,7 @@ def show_statistics(
             print(f"\nSaving to: {output}")
 
         try:
-            with open(output, 'w') as f:
+            with open(output, "w") as f:
                 json.dump(stats, f, indent=2)
         except Exception as e:
             if console:

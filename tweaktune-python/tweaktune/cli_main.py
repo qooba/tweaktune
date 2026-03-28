@@ -7,8 +7,6 @@ tweaktune pipelines for LLM training data generation.
 """
 
 import sys
-from pathlib import Path
-from typing import Optional
 
 try:
     import click
@@ -17,7 +15,6 @@ except ImportError:
     sys.exit(1)
 
 from tweaktune import __version__
-
 
 # ASCII Art Logo
 LOGO = """
@@ -45,7 +42,7 @@ LOGO = """
 
 @click.group()
 @click.version_option(version=__version__, prog_name="tweaktune")
-@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.pass_context
 def cli(ctx, verbose):
     """
@@ -71,29 +68,35 @@ def cli(ctx, verbose):
     For more information: https://github.com/qooba/tweaktune
     """
     ctx.ensure_object(dict)
-    ctx.obj['verbose'] = verbose
+    ctx.obj["verbose"] = verbose
 
 
 # ============================================================================
 # Command: new
 # ============================================================================
 
+
 @cli.command()
-@click.argument('project_name')
-@click.option('--template', '-t',
-              type=click.Choice([
-                  'text-generation',
-                  'conversational',
-                  'function-calling',
-                  'dpo-dataset',
-                  'grpo-dataset',
-                  'sft-training',
-                  'custom'
-              ]),
-              default='text-generation',
-              help='Project template to use')
-@click.option('--interactive', '-i', is_flag=True, help='Interactive project setup')
-@click.option('--force', '-f', is_flag=True, help='Overwrite existing directory')
+@click.argument("project_name")
+@click.option(
+    "--template",
+    "-t",
+    type=click.Choice(
+        [
+            "text-generation",
+            "conversational",
+            "function-calling",
+            "dpo-dataset",
+            "grpo-dataset",
+            "sft-training",
+            "custom",
+        ]
+    ),
+    default="text-generation",
+    help="Project template to use",
+)
+@click.option("--interactive", "-i", is_flag=True, help="Interactive project setup")
+@click.option("--force", "-f", is_flag=True, help="Overwrite existing directory")
 @click.pass_context
 def new(ctx, project_name, template, interactive, force):
     """
@@ -109,27 +112,34 @@ def new(ctx, project_name, template, interactive, force):
         tweaktune new my-dataset --interactive
     """
     from tweaktune.cli.commands.new import create_project
-    create_project(project_name, template, interactive, force, ctx.obj['verbose'])
+
+    create_project(project_name, template, interactive, force, ctx.obj["verbose"])
 
 
 # ============================================================================
 # Command: init
 # ============================================================================
 
+
 @cli.command()
-@click.option('--template', '-t',
-              type=click.Choice([
-                  'text-generation',
-                  'conversational',
-                  'function-calling',
-                  'dpo-dataset',
-                  'grpo-dataset',
-                  'sft-training',
-                  'custom'
-              ]),
-              default='text-generation',
-              help='Project template to use')
-@click.option('--force', '-f', is_flag=True, help='Overwrite existing files')
+@click.option(
+    "--template",
+    "-t",
+    type=click.Choice(
+        [
+            "text-generation",
+            "conversational",
+            "function-calling",
+            "dpo-dataset",
+            "grpo-dataset",
+            "sft-training",
+            "custom",
+        ]
+    ),
+    default="text-generation",
+    help="Project template to use",
+)
+@click.option("--force", "-f", is_flag=True, help="Overwrite existing files")
 @click.pass_context
 def init(ctx, template, force):
     """
@@ -144,15 +154,17 @@ def init(ctx, template, force):
         tweaktune init --template conversational
     """
     from tweaktune.cli.commands.new import init_project
-    init_project(template, force, ctx.obj['verbose'])
+
+    init_project(template, force, ctx.obj["verbose"])
 
 
 # ============================================================================
 # Command: templates
 # ============================================================================
 
+
 @cli.command()
-@click.option('--detailed', '-d', is_flag=True, help='Show detailed template information')
+@click.option("--detailed", "-d", is_flag=True, help="Show detailed template information")
 def templates(detailed):
     """
     List all available project templates.
@@ -166,6 +178,7 @@ def templates(detailed):
         tweaktune templates --detailed
     """
     from tweaktune.cli.commands.templates import list_templates
+
     list_templates(detailed)
 
 
@@ -173,14 +186,23 @@ def templates(detailed):
 # Command: run
 # ============================================================================
 
+
 @cli.command()
-@click.argument('pipeline_file', type=click.Path(exists=True))
-@click.option('--workers', '-w', type=int, default=None, help='Number of parallel workers (overrides pipeline setting)')
-@click.option('--tui/--no-tui', default=True, help='Use interactive TUI interface')
-@click.option('--output', '-o', type=click.Path(), help='Output file path (overrides pipeline setting)')
-@click.option('--resume', is_flag=True, help='Resume a previously interrupted pipeline')
-@click.option('--limit', '-l', type=int, help='Limit number of items to process')
-@click.option('--quiet', '-q', is_flag=True, help='Minimal output (no TUI, less logging)')
+@click.argument("pipeline_file", type=click.Path(exists=True))
+@click.option(
+    "--workers",
+    "-w",
+    type=int,
+    default=None,
+    help="Number of parallel workers (overrides pipeline setting)",
+)
+@click.option("--tui/--no-tui", default=True, help="Use interactive TUI interface")
+@click.option(
+    "--output", "-o", type=click.Path(), help="Output file path (overrides pipeline setting)"
+)
+@click.option("--resume", is_flag=True, help="Resume a previously interrupted pipeline")
+@click.option("--limit", "-l", type=int, help="Limit number of items to process")
+@click.option("--quiet", "-q", is_flag=True, help="Minimal output (no TUI, less logging)")
 @click.pass_context
 def run(ctx, pipeline_file, workers, tui, output, resume, limit, quiet):
     """
@@ -210,14 +232,9 @@ def run(ctx, pipeline_file, workers, tui, output, resume, limit, quiet):
         tweaktune run pipeline.py --limit 100
     """
     from tweaktune.cli.commands.run import run_pipeline
+
     run_pipeline(
-        pipeline_file,
-        workers,
-        tui and not quiet,
-        output,
-        resume,
-        limit,
-        ctx.obj['verbose']
+        pipeline_file, workers, tui and not quiet, output, resume, limit, ctx.obj["verbose"]
     )
 
 
@@ -225,12 +242,13 @@ def run(ctx, pipeline_file, workers, tui, output, resume, limit, quiet):
 # Command: validate
 # ============================================================================
 
+
 @cli.command()
-@click.argument('pipeline_file', type=click.Path(exists=True))
-@click.option('--check-llm', is_flag=True, help='Test LLM API connections')
-@click.option('--dry-run', is_flag=True, help='Simulate pipeline with first 10 items')
-@click.option('--check-cost', is_flag=True, help='Estimate API costs')
-@click.option('--fix', is_flag=True, help='Attempt to auto-fix common issues')
+@click.argument("pipeline_file", type=click.Path(exists=True))
+@click.option("--check-llm", is_flag=True, help="Test LLM API connections")
+@click.option("--dry-run", is_flag=True, help="Simulate pipeline with first 10 items")
+@click.option("--check-cost", is_flag=True, help="Estimate API costs")
+@click.option("--fix", is_flag=True, help="Attempt to auto-fix common issues")
 @click.pass_context
 def validate(ctx, pipeline_file, check_llm, dry_run, check_cost, fix):
     """
@@ -255,28 +273,27 @@ def validate(ctx, pipeline_file, check_llm, dry_run, check_cost, fix):
         tweaktune validate pipeline.py --check-cost
     """
     from tweaktune.cli.commands.validate import validate_pipeline
-    validate_pipeline(
-        pipeline_file,
-        check_llm,
-        dry_run,
-        check_cost,
-        fix,
-        ctx.obj['verbose']
-    )
+
+    validate_pipeline(pipeline_file, check_llm, dry_run, check_cost, fix, ctx.obj["verbose"])
 
 
 # ============================================================================
 # Command: explore
 # ============================================================================
 
+
 @cli.command()
-@click.argument('data_file', type=click.Path(exists=True))
-@click.option('--filter', '-f', help='Filter expression (e.g., "status==completed")')
-@click.option('--sample', '-n', type=int, help='Load only N random records')
-@click.option('--search', '-s', help='Search text in records')
-@click.option('--field', help='Focus on specific field')
-@click.option('--format', type=click.Choice(['jsonl', 'parquet', 'csv', 'auto']),
-              default='auto', help='Input file format')
+@click.argument("data_file", type=click.Path(exists=True))
+@click.option("--filter", "-f", help='Filter expression (e.g., "status==completed")')
+@click.option("--sample", "-n", type=int, help="Load only N random records")
+@click.option("--search", "-s", help="Search text in records")
+@click.option("--field", help="Focus on specific field")
+@click.option(
+    "--format",
+    type=click.Choice(["jsonl", "parquet", "csv", "auto"]),
+    default="auto",
+    help="Input file format",
+)
 @click.pass_context
 def explore(ctx, data_file, filter, sample, search, field, format):
     """
@@ -308,29 +325,27 @@ def explore(ctx, data_file, filter, sample, search, field, format):
         q       - Quit
     """
     from tweaktune.cli.commands.explore import explore_data
-    explore_data(
-        data_file,
-        filter,
-        sample,
-        search,
-        field,
-        format,
-        ctx.obj['verbose']
-    )
+
+    explore_data(data_file, filter, sample, search, field, format, ctx.obj["verbose"])
 
 
 # ============================================================================
 # Command: stats
 # ============================================================================
 
+
 @cli.command()
-@click.argument('data_file', type=click.Path(exists=True))
-@click.option('--detailed', '-d', is_flag=True, help='Show detailed statistics')
-@click.option('--compare', type=click.Path(exists=True), help='Compare with another dataset')
-@click.option('--field', '-f', multiple=True, help='Compute stats for specific fields')
-@click.option('--output', '-o', type=click.Path(), help='Save statistics to file (JSON)')
-@click.option('--format', type=click.Choice(['jsonl', 'parquet', 'csv', 'auto']),
-              default='auto', help='Input file format')
+@click.argument("data_file", type=click.Path(exists=True))
+@click.option("--detailed", "-d", is_flag=True, help="Show detailed statistics")
+@click.option("--compare", type=click.Path(exists=True), help="Compare with another dataset")
+@click.option("--field", "-f", multiple=True, help="Compute stats for specific fields")
+@click.option("--output", "-o", type=click.Path(), help="Save statistics to file (JSON)")
+@click.option(
+    "--format",
+    type=click.Choice(["jsonl", "parquet", "csv", "auto"]),
+    default="auto",
+    help="Input file format",
+)
 @click.pass_context
 def stats(ctx, data_file, detailed, compare, field, output, format):
     """
@@ -358,6 +373,7 @@ def stats(ctx, data_file, detailed, compare, field, output, format):
         tweaktune stats output.jsonl --output stats.json
     """
     from tweaktune.cli.commands.stats import show_statistics
+
     show_statistics(
         data_file,
         detailed,
@@ -365,7 +381,7 @@ def stats(ctx, data_file, detailed, compare, field, output, format):
         list(field) if field else None,
         output,
         format,
-        ctx.obj['verbose']
+        ctx.obj["verbose"],
     )
 
 
@@ -373,17 +389,28 @@ def stats(ctx, data_file, detailed, compare, field, output, format):
 # Command: convert
 # ============================================================================
 
+
 @cli.command()
-@click.argument('input_file', type=click.Path(exists=True))
-@click.argument('output_file', type=click.Path())
-@click.option('--input-format', type=click.Choice(['jsonl', 'parquet', 'csv', 'arrow', 'auto']),
-              default='auto', help='Input file format')
-@click.option('--output-format', type=click.Choice(['jsonl', 'parquet', 'csv', 'arrow', 'hf']),
-              help='Output file format (auto-detected from extension)')
-@click.option('--fields', help='Comma-separated list of fields to include')
-@click.option('--filter', '-f', help='Filter expression')
-@click.option('--compression', type=click.Choice(['none', 'gzip', 'snappy', 'zstd']),
-              help='Compression for output file')
+@click.argument("input_file", type=click.Path(exists=True))
+@click.argument("output_file", type=click.Path())
+@click.option(
+    "--input-format",
+    type=click.Choice(["jsonl", "parquet", "csv", "arrow", "auto"]),
+    default="auto",
+    help="Input file format",
+)
+@click.option(
+    "--output-format",
+    type=click.Choice(["jsonl", "parquet", "csv", "arrow", "hf"]),
+    help="Output file format (auto-detected from extension)",
+)
+@click.option("--fields", help="Comma-separated list of fields to include")
+@click.option("--filter", "-f", help="Filter expression")
+@click.option(
+    "--compression",
+    type=click.Choice(["none", "gzip", "snappy", "zstd"]),
+    help="Compression for output file",
+)
 @click.pass_context
 def convert(ctx, input_file, output_file, input_format, output_format, fields, filter, compression):
     """
@@ -410,6 +437,7 @@ def convert(ctx, input_file, output_file, input_format, output_format, fields, f
         tweaktune convert data.jsonl data.parquet --compression zstd
     """
     from tweaktune.cli.commands.convert import convert_dataset
+
     convert_dataset(
         input_file,
         output_file,
@@ -418,7 +446,7 @@ def convert(ctx, input_file, output_file, input_format, output_format, fields, f
         fields,
         filter,
         compression,
-        ctx.obj['verbose']
+        ctx.obj["verbose"],
     )
 
 
@@ -426,16 +454,21 @@ def convert(ctx, input_file, output_file, input_format, output_format, fields, f
 # Command: sample
 # ============================================================================
 
+
 @cli.command()
-@click.argument('data_file', type=click.Path(exists=True))
-@click.option('--number', '-n', type=int, default=10, help='Number of samples to show')
-@click.option('--random', '-r', is_flag=True, help='Random sampling instead of first N')
-@click.option('--filter', '-f', help='Filter expression before sampling')
-@click.option('--output', '-o', type=click.Path(), help='Save samples to file')
-@click.option('--pretty', '-p', is_flag=True, help='Pretty-print JSON output')
-@click.option('--field', help='Show only specific field')
-@click.option('--format', type=click.Choice(['jsonl', 'parquet', 'csv', 'auto']),
-              default='auto', help='Input file format')
+@click.argument("data_file", type=click.Path(exists=True))
+@click.option("--number", "-n", type=int, default=10, help="Number of samples to show")
+@click.option("--random", "-r", is_flag=True, help="Random sampling instead of first N")
+@click.option("--filter", "-f", help="Filter expression before sampling")
+@click.option("--output", "-o", type=click.Path(), help="Save samples to file")
+@click.option("--pretty", "-p", is_flag=True, help="Pretty-print JSON output")
+@click.option("--field", help="Show only specific field")
+@click.option(
+    "--format",
+    type=click.Choice(["jsonl", "parquet", "csv", "auto"]),
+    default="auto",
+    help="Input file format",
+)
 @click.pass_context
 def sample(ctx, data_file, number, random, filter, output, pretty, field, format):
     """
@@ -462,16 +495,9 @@ def sample(ctx, data_file, number, random, filter, output, pretty, field, format
         tweaktune sample data.jsonl -n 100 -o samples.jsonl
     """
     from tweaktune.cli.commands.sample import sample_dataset
+
     sample_dataset(
-        data_file,
-        number,
-        random,
-        filter,
-        output,
-        pretty,
-        field,
-        format,
-        ctx.obj['verbose']
+        data_file, number, random, filter, output, pretty, field, format, ctx.obj["verbose"]
     )
 
 
@@ -479,12 +505,13 @@ def sample(ctx, data_file, number, random, filter, output, pretty, field, format
 # Command: serve
 # ============================================================================
 
+
 @cli.command()
-@click.argument('pipeline_file', type=click.Path(exists=True))
-@click.option('--host', default='127.0.0.1', help='Host to bind to')
-@click.option('--port', '-p', type=int, default=8080, help='Port to bind to')
-@click.option('--public', is_flag=True, help='Make server publicly accessible (0.0.0.0)')
-@click.option('--reload', is_flag=True, help='Auto-reload on file changes')
+@click.argument("pipeline_file", type=click.Path(exists=True))
+@click.option("--host", default="127.0.0.1", help="Host to bind to")
+@click.option("--port", "-p", type=int, default=8080, help="Port to bind to")
+@click.option("--public", is_flag=True, help="Make server publicly accessible (0.0.0.0)")
+@click.option("--reload", is_flag=True, help="Auto-reload on file changes")
 @click.pass_context
 def serve(ctx, pipeline_file, host, port, public, reload):
     """
@@ -510,26 +537,21 @@ def serve(ctx, pipeline_file, host, port, public, reload):
     from tweaktune.cli.commands.serve import serve_pipeline
 
     if public:
-        host = '0.0.0.0'
+        host = "0.0.0.0"
 
-    serve_pipeline(
-        pipeline_file,
-        host,
-        port,
-        reload,
-        ctx.obj['verbose']
-    )
+    serve_pipeline(pipeline_file, host, port, reload, ctx.obj["verbose"])
 
 
 # ============================================================================
 # Command: clean
 # ============================================================================
 
+
 @cli.command()
-@click.option('--cache', is_flag=True, help='Clean cache files')
-@click.option('--logs', is_flag=True, help='Clean log files')
-@click.option('--all', '-a', is_flag=True, help='Clean all temporary files')
-@click.option('--dry-run', is_flag=True, help='Show what would be deleted')
+@click.option("--cache", is_flag=True, help="Clean cache files")
+@click.option("--logs", is_flag=True, help="Clean log files")
+@click.option("--all", "-a", is_flag=True, help="Clean all temporary files")
+@click.option("--dry-run", is_flag=True, help="Show what would be deleted")
 @click.pass_context
 def clean(ctx, cache, logs, all, dry_run):
     """
@@ -552,15 +574,17 @@ def clean(ctx, cache, logs, all, dry_run):
         tweaktune clean --all --dry-run
     """
     from tweaktune.cli.commands.clean import clean_files
-    clean_files(cache, logs, all, dry_run, ctx.obj['verbose'])
+
+    clean_files(cache, logs, all, dry_run, ctx.obj["verbose"])
 
 
 # ============================================================================
 # Command: info
 # ============================================================================
 
+
 @cli.command()
-@click.option('--system', is_flag=True, help='Show system information')
+@click.option("--system", is_flag=True, help="Show system information")
 def info(system):
     """
     Show tweaktune installation information.
@@ -573,12 +597,14 @@ def info(system):
         tweaktune info --system
     """
     from tweaktune.cli.commands.info import show_info
+
     show_info(system)
 
 
 # ============================================================================
 # Helper function for running CLI
 # ============================================================================
+
 
 def main():
     """Main entry point for the CLI."""
@@ -590,10 +616,11 @@ def main():
     except Exception as e:
         click.echo(f"\nError: {e}", err=True)
         import traceback
-        if '--verbose' in sys.argv or '-v' in sys.argv:
+
+        if "--verbose" in sys.argv or "-v" in sys.argv:
             traceback.print_exc()
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -11,13 +11,7 @@ except ImportError:
 console = Console() if Console else None
 
 
-def serve_pipeline(
-    pipeline_file: str,
-    host: str,
-    port: int,
-    reload: bool,
-    verbose: bool
-):
+def serve_pipeline(pipeline_file: str, host: str, port: int, reload: bool, verbose: bool):
     """Serve pipeline with web UI."""
     pipeline_path = Path(pipeline_file)
 
@@ -34,20 +28,22 @@ def serve_pipeline(
     except ImportError:
         if console:
             console.print("[bold red]Error:[/bold red] nicegui is not installed.")
-            console.print("\n[yellow]Install with:[/yellow] [cyan]pip install 'tweaktune[ui]'[/cyan]\n")
+            console.print(
+                "\n[yellow]Install with:[/yellow] [cyan]pip install 'tweaktune[ui]'[/cyan]\n"
+            )
         else:
             print("Error: nicegui is not installed.")
             print("\nInstall with: pip install 'tweaktune[ui]'\n")
         sys.exit(1)
 
     if console:
-        console.print(f"\n[bold cyan]Starting Web UI[/bold cyan]")
+        console.print("\n[bold cyan]Starting Web UI[/bold cyan]")
         console.print(f"  Pipeline: {pipeline_path}")
         console.print(f"  URL: [link]http://{host}:{port}[/link]")
         console.print(f"  Auto-reload: {'Enabled' if reload else 'Disabled'}")
         console.print()
     else:
-        print(f"\nStarting Web UI")
+        print("\nStarting Web UI")
         print(f"  Pipeline: {pipeline_path}")
         print(f"  URL: http://{host}:{port}")
         print(f"  Auto-reload: {'Enabled' if reload else 'Disabled'}")

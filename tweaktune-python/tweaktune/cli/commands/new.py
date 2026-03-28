@@ -3,7 +3,6 @@
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
 
 try:
     import click
@@ -20,38 +19,38 @@ TEMPLATES = {
     "text-generation": {
         "name": "Text Generation",
         "description": "Simple text generation pipeline",
-        "features": ["Basic prompts", "Single LLM call", "JSONL output"]
+        "features": ["Basic prompts", "Single LLM call", "JSONL output"],
     },
     "conversational": {
         "name": "Conversational Dataset",
         "description": "Multi-turn conversational dataset generation",
-        "features": ["Multi-turn conversations", "System messages", "Chat templates"]
+        "features": ["Multi-turn conversations", "System messages", "Chat templates"],
     },
     "function-calling": {
         "name": "Function Calling",
         "description": "Function calling dataset generation",
-        "features": ["Tool definitions", "Tool calls", "Tool responses"]
+        "features": ["Tool definitions", "Tool calls", "Tool responses"],
     },
     "dpo-dataset": {
         "name": "DPO Dataset",
         "description": "Direct Preference Optimization dataset",
-        "features": ["Chosen/rejected pairs", "Preference ranking", "RLHF training"]
+        "features": ["Chosen/rejected pairs", "Preference ranking", "RLHF training"],
     },
     "grpo-dataset": {
         "name": "GRPO Dataset",
         "description": "Group Relative Policy Optimization dataset",
-        "features": ["Group preferences", "Relative ranking", "Advanced RLHF"]
+        "features": ["Group preferences", "Relative ranking", "Advanced RLHF"],
     },
     "sft-training": {
         "name": "SFT Training",
         "description": "Supervised Fine-Tuning dataset",
-        "features": ["Instruction-response pairs", "Quality filtering", "Deduplication"]
+        "features": ["Instruction-response pairs", "Quality filtering", "Deduplication"],
     },
     "custom": {
         "name": "Custom Template",
         "description": "Blank template for custom pipelines",
-        "features": ["Minimal boilerplate", "Full customization", "Example steps"]
-    }
+        "features": ["Minimal boilerplate", "Full customization", "Example steps"],
+    },
 }
 
 
@@ -67,13 +66,7 @@ def get_templates_dir() -> Path:
     return templates_dir
 
 
-def create_project(
-    project_name: str,
-    template: str,
-    interactive: bool,
-    force: bool,
-    verbose: bool
-):
+def create_project(project_name: str, template: str, interactive: bool, force: bool, verbose: bool):
     """Create a new tweaktune project."""
     if console:
         console.print(f"\n[bold cyan]Creating new tweaktune project:[/bold cyan] {project_name}\n")
@@ -129,24 +122,24 @@ def create_project(
     template_info = TEMPLATES.get(template, {})
 
     if console:
-        console.print(f"[bold green]✓[/bold green] Project created successfully!\n")
+        console.print("[bold green]✓[/bold green] Project created successfully!\n")
         console.print(f"[bold]Template:[/bold] {template_info.get('name', template)}")
         console.print(f"[dim]{template_info.get('description', '')}[/dim]\n")
 
         console.print("[bold]Next steps:[/bold]")
         console.print(f"  [cyan]cd {project_name}[/cyan]")
-        console.print(f"  [cyan]pip install -r requirements.txt[/cyan]")
-        console.print(f"  [cyan]python pipeline.py[/cyan]")
+        console.print("  [cyan]pip install -r requirements.txt[/cyan]")
+        console.print("  [cyan]python pipeline.py[/cyan]")
         console.print("\n[bold]Or run with tweaktune CLI:[/bold]")
         console.print(f"  [cyan]tweaktune run {project_name}/pipeline.py[/cyan]\n")
     else:
-        print(f"✓ Project created successfully!\n")
+        print("✓ Project created successfully!\n")
         print(f"Template: {template_info.get('name', template)}")
         print(f"{template_info.get('description', '')}\n")
         print("Next steps:")
         print(f"  cd {project_name}")
-        print(f"  pip install -r requirements.txt")
-        print(f"  python pipeline.py")
+        print("  pip install -r requirements.txt")
+        print("  python pipeline.py")
         print("\nOr run with tweaktune CLI:")
         print(f"  tweaktune run {project_name}/pipeline.py\n")
 
@@ -156,7 +149,9 @@ def init_project(template: str, force: bool, verbose: bool):
     current_dir = Path.cwd()
 
     if console:
-        console.print(f"\n[bold cyan]Initializing tweaktune project in current directory[/bold cyan]\n")
+        console.print(
+            "\n[bold cyan]Initializing tweaktune project in current directory[/bold cyan]\n"
+        )
     else:
         print("\nInitializing tweaktune project in current directory\n")
 
@@ -171,7 +166,7 @@ def init_project(template: str, force: bool, verbose: bool):
         sys.exit(1)
 
     # Check for existing files
-    template_files = list(template_path.glob('*'))
+    template_files = list(template_path.glob("*"))
     existing_files = [f for f in template_files if (current_dir / f.name).exists()]
 
     if existing_files and not force:
@@ -188,7 +183,7 @@ def init_project(template: str, force: bool, verbose: bool):
         sys.exit(1)
 
     # Copy files
-    for item in template_path.glob('*'):
+    for item in template_path.glob("*"):
         dest = current_dir / item.name
         try:
             if item.is_dir():
@@ -205,7 +200,7 @@ def init_project(template: str, force: bool, verbose: bool):
             sys.exit(1)
 
     if console:
-        console.print(f"[bold green]✓[/bold green] Project initialized successfully!\n")
+        console.print("[bold green]✓[/bold green] Project initialized successfully!\n")
     else:
         print("✓ Project initialized successfully!\n")
 
@@ -221,16 +216,12 @@ def _interactive_template_selection() -> str:
 
     # Template selection
     choices = [
-        questionary.Choice(
-            title=f"{info['name']}: {info['description']}",
-            value=name
-        )
+        questionary.Choice(title=f"{info['name']}: {info['description']}", value=name)
         for name, info in TEMPLATES.items()
     ]
 
     template = questionary.select(
-        "What type of dataset do you want to generate?",
-        choices=choices
+        "What type of dataset do you want to generate?", choices=choices
     ).ask()
 
     return template
@@ -244,7 +235,7 @@ def _print_template_list(detailed: bool):
             console.print(f"  [bold]{info['name']}[/bold]")
             console.print(f"  {info['description']}")
             console.print("  [dim]Features:[/dim]")
-            for feature in info['features']:
+            for feature in info["features"]:
                 console.print(f"    • {feature}")
     elif console:
         table = Table(title="Available Templates", show_header=True)
@@ -253,7 +244,7 @@ def _print_template_list(detailed: bool):
         table.add_column("Description")
 
         for name, info in TEMPLATES.items():
-            table.add_row(name, info['name'], info['description'])
+            table.add_row(name, info["name"], info["description"])
 
         console.print(table)
     else:

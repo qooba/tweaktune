@@ -1,7 +1,7 @@
 """Command for sampling records from datasets."""
 
-import sys
 import json
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -24,7 +24,7 @@ def sample_dataset(
     pretty: bool,
     field: Optional[str],
     format: str,
-    verbose: bool
+    verbose: bool,
 ):
     """Sample and display records from a dataset."""
     data_path = Path(data_file)
@@ -59,7 +59,7 @@ def sample_dataset(
     sample_records = []
 
     # Try to read JSONL format as fallback
-    if data_path.suffix == '.jsonl' or format == 'jsonl':
+    if data_path.suffix == ".jsonl" or format == "jsonl":
         try:
             with open(data_path) as f:
                 for i, line in enumerate(f):
@@ -113,11 +113,13 @@ def sample_dataset(
     # Save to file if requested
     if output:
         try:
-            with open(output, 'w') as f:
+            with open(output, "w") as f:
                 for record in sample_records:
-                    f.write(json.dumps(record, ensure_ascii=False) + '\n')
+                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
             if console:
-                console.print(f"\n[green]✓[/green] Saved {len(sample_records)} records to {output}\n")
+                console.print(
+                    f"\n[green]✓[/green] Saved {len(sample_records)} records to {output}\n"
+                )
             else:
                 print(f"\n✓ Saved {len(sample_records)} records to {output}\n")
         except Exception as e:

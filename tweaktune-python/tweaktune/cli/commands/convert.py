@@ -20,7 +20,7 @@ def convert_dataset(
     fields: Optional[str],
     filter_expr: Optional[str],
     compression: Optional[str],
-    verbose: bool
+    verbose: bool,
 ):
     """Convert between dataset formats."""
     input_path = Path(input_file)
@@ -37,16 +37,16 @@ def convert_dataset(
     if output_format is None:
         ext = output_path.suffix.lower()
         format_map = {
-            '.jsonl': 'jsonl',
-            '.json': 'jsonl',
-            '.parquet': 'parquet',
-            '.csv': 'csv',
-            '.arrow': 'arrow'
+            ".jsonl": "jsonl",
+            ".json": "jsonl",
+            ".parquet": "parquet",
+            ".csv": "csv",
+            ".arrow": "arrow",
         }
-        output_format = format_map.get(ext, 'jsonl')
+        output_format = format_map.get(ext, "jsonl")
 
     if console:
-        console.print(f"\n[bold cyan]Converting Dataset[/bold cyan]")
+        console.print("\n[bold cyan]Converting Dataset[/bold cyan]")
         console.print(f"  Input: {input_path} ({input_format})")
         console.print(f"  Output: {output_path} ({output_format})")
         if fields:
@@ -57,7 +57,7 @@ def convert_dataset(
             console.print(f"  Compression: {compression}")
         console.print()
     else:
-        print(f"\nConverting Dataset")
+        print("\nConverting Dataset")
         print(f"  Input: {input_path} ({input_format})")
         print(f"  Output: {output_path} ({output_format})")
         if fields:

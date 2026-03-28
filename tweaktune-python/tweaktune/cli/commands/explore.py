@@ -18,7 +18,7 @@ def explore_data(
     search: str,
     field: str,
     format: str,
-    verbose: bool
+    verbose: bool,
 ):
     """Interactively explore a dataset."""
     data_path = Path(data_file)
@@ -31,13 +31,19 @@ def explore_data(
         sys.exit(1)
 
     # Only support JSONL format for now
-    if format == 'auto':
-        if not str(data_path).endswith('.jsonl'):
+    if format == "auto":
+        if not str(data_path).endswith(".jsonl"):
             if console:
-                console.print("[yellow]Warning:[/yellow] Only JSONL format is currently supported for interactive exploration.")
-                console.print(f"\n[dim]For now, use:[/dim] [cyan]tweaktune sample {data_file}[/cyan]\n")
+                console.print(
+                    "[yellow]Warning:[/yellow] Only JSONL format is currently supported for interactive exploration."
+                )
+                console.print(
+                    f"\n[dim]For now, use:[/dim] [cyan]tweaktune sample {data_file}[/cyan]\n"
+                )
             else:
-                print("Warning: Only JSONL format is currently supported for interactive exploration.")
+                print(
+                    "Warning: Only JSONL format is currently supported for interactive exploration."
+                )
                 print(f"\nFor now, use: tweaktune sample {data_file}\n")
             sys.exit(1)
 
