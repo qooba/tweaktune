@@ -20,7 +20,7 @@ static EXTENSION_REGISTERED: Lazy<()> = Lazy::new(|| unsafe {
         *const (),
         unsafe extern "C" fn(
             *mut libsqlite3_sys::sqlite3,
-            *mut *mut i8,
+            *mut *mut ::std::os::raw::c_char,
             *const libsqlite3_sys::sqlite3_api_routines,
         ) -> i32,
     >(sqlite3_vec_init as *const ())));

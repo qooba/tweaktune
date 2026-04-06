@@ -60,7 +60,8 @@ env_logger = { version = "0.11.8" }
 futures = "0.3.25"
 futures-util = "0.3.30"
 half = "2.6.0"
-hf-hub = "0.4.3"
+hf-hub = { version = "0.4.3", default-features = false, features = ["tokio", "ureq"] }
+#hf-hub = "0.4.3"
 #hf-hub = { git = "https://github.com/qooba/hf-hub.git", branch = "remove-native-tls-ok", version = "0.3.2", features = ["tokio"] }
 #indexmap = "2.10.0"
 include_dir = "0.7.4"

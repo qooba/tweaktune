@@ -36,6 +36,11 @@ pyo3-build: ## Build PyO3 package for release
 	cd ./tweaktune-python && \
     maturin build --release --compatibility manylinux2014  --skip-auditwheel
 
+pyo3-build-arm: ## Build PyO3 package for release
+	rm ./target/wheels/* || true && \
+	cp README.md ./tweaktune-python/README.md && \
+	cd ./tweaktune-python && \
+    maturin build --release --target aarch64-unknown-linux-gnu --zig --compatibility manylinux2014
 
 pyo3-publish: ## Publish PyO3 package to PyPI
 	twine upload --verbose  --repository pypi ./target/wheels/*
