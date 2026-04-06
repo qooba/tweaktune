@@ -36,6 +36,7 @@ pyo3-build: ## Build PyO3 package for release
 	cd ./tweaktune-python && \
     maturin build --release --compatibility manylinux2014  --skip-auditwheel
 
+# uv pip install ziglang # <- required lib
 pyo3-build-arm: ## Build PyO3 package for release
 	rm ./target/wheels/* || true && \
 	cp README.md ./tweaktune-python/README.md && \
